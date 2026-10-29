@@ -12,6 +12,8 @@ import { FlowPage } from './features/flows/FlowPage';
 // The editor (Tiptap) is only loaded by editors who open it.
 const EditArticle = lazy(() => import('./pages/EditArticle').then((m) => ({ default: m.EditArticle })));
 
+const AdminArea = lazy(() => import('./pages/admin'));
+
 const EditFlow = lazy(() => import('./features/flows/FlowEditor').then((m) => ({ default: m.EditFlow })));
 
 export function App() {
@@ -26,6 +28,7 @@ export function App() {
         <Route path="flows" element={<FlowsPage />} />
         <Route path="flows/:slug" element={<FlowPage />} />
         <Route path="flows/:id/edit" element={<Suspense fallback={<p className="py-16 text-center text-sm text-ink-muted">Opening the flow editor…</p>}><EditFlow /></Suspense>} />
+        <Route path="admin/*" element={<Suspense fallback={<p className="py-16 text-center text-sm text-ink-muted">Opening admin…</p>}><AdminArea /></Suspense>} />
         <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>

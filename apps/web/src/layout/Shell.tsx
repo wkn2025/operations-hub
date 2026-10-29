@@ -30,7 +30,7 @@ export function Shell() {
     <SearchProvider>
       <ActiveCategory.Provider value={setActiveCat}>
         <a href="#main" className="sr-only z-50 rounded-md bg-white px-3 py-2 focus:not-sr-only focus:fixed focus:left-4 focus:top-4">Skip to content</a>
-        <Sidebar categories={cats.data ?? []} activeCategoryId={activeCat} collapsed={collapsed} onCollapsedChange={setCollapsed} canEdit={isEditorRole(session.data.user.role)} />
+        <Sidebar categories={cats.data ?? []} activeCategoryId={activeCat} collapsed={collapsed} onCollapsedChange={setCollapsed} canEdit={isEditorRole(session.data.user.role)} isAdmin={session.data.user.role === 'admin'} />
         <motion.div initial={false} animate={{ paddingLeft: (collapsed ? SIDEBAR_W.closed : SIDEBAR_W.open) + 12 }}
           transition={{ type: 'spring', stiffness: 380, damping: 36, mass: 0.9 }} className="min-h-screen">
           <div className="mx-auto max-w-[1180px] px-8">

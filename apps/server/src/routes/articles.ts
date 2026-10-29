@@ -34,7 +34,7 @@ export function articleRoutes(app: FastifyInstance) {
   app.patch<{ Params: { id: string } }>('/api/articles/:id', { preHandler: writer }, async (req) =>
     show(req, updateArticle(app, U(req), req.params.id, parse(articlePatchBody, req.body))));
 
-  for (const action of ['submit', 'publish', 'archive', 'restore'] as Transition[]) {
+  for (const action of ['submit', 'publish', 'archive', 'restore', 'reject'] as Transition[]) {
     app.post<{ Params: { id: string } }>(`/api/articles/:id/${action}`, { preHandler: writer }, async (req) =>
       show(req, transition(app, U(req), req.params.id, action)));
   }

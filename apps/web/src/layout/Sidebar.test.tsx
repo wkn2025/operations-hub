@@ -25,6 +25,15 @@ describe('Sidebar', () => {
     expect(screen.getByRole('link', { name: 'Inbound claims (837)' })).toHaveAttribute('aria-current', 'page');
   });
 
+  it('hides archived categories; Admin link only for admins', () => {
+    const { unmount } = renderApp(<Sidebar categories={[...cats, { ...cats[2]!, id: 'c4', name: 'Old stuff', slug: 'old', archived: true }]} />, '/');
+    expect(screen.queryByRole('link', { name: 'Old stuff' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Admin' })).toBeNull();
+    unmount();
+    renderApp(<Sidebar categories={cats} isAdmin />, '/');
+    expect(screen.getByRole('link', { name: 'Admin' })).toHaveAttribute('href', '/admin');
+  });
+
   it('collapse state persists in localStorage (UI preference only)', async () => {
     const { unmount } = renderApp(<Sidebar categories={cats} />);
     await userEvent.click(screen.getByRole('button', { name: 'Collapse sidebar' }));

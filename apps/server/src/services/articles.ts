@@ -257,6 +257,7 @@ const TRANSITIONS = {
   publish: { from: ['draft', 'in_review'], to: 'published' },
   archive: { from: ['draft', 'in_review', 'published'], to: 'archived' },
   restore: { from: ['archived'], to: 'draft' },
+  reject: { from: ['in_review'], to: 'draft' }, // review queue: send back to the author
 } as const satisfies Record<string, { from: readonly ArticleStatus[]; to: ArticleStatus }>;
 export type Transition = keyof typeof TRANSITIONS;
 
@@ -265,13 +266,13 @@ export function transition(s: Svc, user: User, id: string, action: Transition) {
     const cur = readable(s, user, id);
     if (!cur) throw notFound();
     const t = TRANSITIONS[action];
-    const perm = action === 'submit' ? 'article:submit' : action === 'publish' ? 'article:publish' : 'article:archive';
+    const perm = action === 'submit' ? 'article:submit' : action === 'publish' || action === 'reject' ? 'article:publish' : 'article:archive';
     if (!can(user, perm, { status: cur.status }, { requireApproval: requireApproval(s.sqlite) })) throw new ApiError(403, { error: 'forbidden' });
     if (!(t.from as readonly string[]).includes(cur.status)) throw new ApiError(409, { error: 'invalid_transition', status: cur.status });
     const now = new Date().toISOString();
     s.db.update(articles).set({ status: t.to, updatedAt: now, publishedAt: action === 'publish' ? (cur.publishedAt ?? now) : cur.publishedAt }).where(eq(articles.id, id)).run();
     // seal the latest revision: it is the state at this transition, later autosaves start a new one
-    const label = { submit: 'submitted for review', publish: 'published', archive: 'archived', restore: 'restored to draft' }[action];
+    const label = { submit: 'submitted for review', publish: 'published', archive: 'archived', restore: 'restored to draft', reject: 'returned to draft by reviewer' }[action];
     const last = latestRevision(s, id);
     if (last) s.sqlite.prepare('update revisions set coalescable = 0, note = coalesce(note, ?) where id = ?').run(label, last.id);
     indexArticle(s.sqlite, id);

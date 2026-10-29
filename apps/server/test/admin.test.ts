@@ -119,6 +119,17 @@ describe('settings & approval', () => {
     expect((await c.req(c.editor, 'POST', `/api/articles/${a.id}/submit`)).body.status).toBe('in_review');
     expect((await c.req(c.admin, 'POST', `/api/articles/${a.id}/publish`)).body.status).toBe('published');
   });
+  it('reject returns an in_review article to draft; editor cannot reject under requireApproval; only from in_review', async () => {
+    await c.req(c.admin, 'PATCH', '/api/admin/settings', { requireApproval: true });
+    const a = (await c.req(c.editor, 'POST', '/api/articles', { title: 'Rejectable', content: doc('x') })).body;
+    expect((await c.req(c.admin, 'POST', `/api/articles/${a.id}/reject`)).status).toBe(409); // draft: nothing to reject
+    await c.req(c.editor, 'POST', `/api/articles/${a.id}/submit`);
+    expect((await c.req(c.editor, 'POST', `/api/articles/${a.id}/reject`)).status).toBe(403);
+    expect((await c.req(c.viewer, 'POST', `/api/articles/${a.id}/reject`)).status).toBe(403);
+    expect((await c.req(c.admin, 'POST', `/api/articles/${a.id}/reject`)).body.status).toBe('draft');
+    const log = (await c.req(c.admin, 'GET', '/api/admin/audit')).body.entries as any[];
+    expect(log.some((e) => e.action === 'article.reject' && e.entityId === a.id)).toBe(true);
+  });
 });
 
 describe('review-due', () => {

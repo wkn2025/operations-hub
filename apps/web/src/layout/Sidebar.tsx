@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router';
 import { AnimatePresence, motion } from 'motion/react';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import clsx from 'clsx';
-import { ChevronRight, House, PanelLeftClose, PanelLeftOpen, Route, SquarePen } from 'lucide-react';
+import { ChevronRight, House, PanelLeftClose, PanelLeftOpen, Route, ShieldCheck, SquarePen } from 'lucide-react';
 import type { Category } from '../api/client';
 import { categoryIcon } from '../components/ui/primitives';
 import { usePref } from '../lib/prefs';
@@ -14,9 +14,11 @@ const spring = { type: 'spring', stiffness: 380, damping: 36, mass: 0.9 } as con
 
 export function useSidebarCollapsed() { return usePref(SIDEBAR_PREF, false); }
 
-export function Sidebar({ categories, activeCategoryId, collapsed: collapsedProp, onCollapsedChange, canEdit }: {
-  categories: Category[]; activeCategoryId?: string | null; collapsed?: boolean; onCollapsedChange?: (v: boolean) => void; canEdit?: boolean;
+export function Sidebar({ categories: allCategories, activeCategoryId, collapsed: collapsedProp, onCollapsedChange, canEdit, isAdmin }: {
+  categories: Category[]; activeCategoryId?: string | null; collapsed?: boolean; onCollapsedChange?: (v: boolean) => void; canEdit?: boolean; isAdmin?: boolean;
 }) {
+  // archived categories stay manageable in Admin > Categories but leave the navigation (children of an archived parent go with it)
+  const categories = useMemo(() => allCategories.filter((c) => !c.archived), [allCategories]);
   const [prefCollapsed, setPref] = useSidebarCollapsed();
   const collapsed = collapsedProp ?? prefCollapsed;
   const setCollapsed = (v: boolean) => { setPref(v); onCollapsedChange?.(v); };
@@ -51,6 +53,7 @@ export function Sidebar({ categories, activeCategoryId, collapsed: collapsedProp
           <NavItem to="/" label="Home" icon={<House size={18} strokeWidth={1.8} />} active={pathname === '/'} collapsed={collapsed} />
           <NavItem to="/flows" label="Guided flows" icon={<Route size={18} strokeWidth={1.8} />} active={pathname.startsWith('/flows')} collapsed={collapsed} />
           {canEdit && <NavItem to="/edit/new" label="New article" icon={<SquarePen size={18} strokeWidth={1.8} />} active={pathname === '/edit/new'} collapsed={collapsed} />}
+          {isAdmin && <NavItem to="/admin" label="Admin" icon={<ShieldCheck size={18} strokeWidth={1.8} />} active={pathname.startsWith('/admin')} collapsed={collapsed} />}
           <Fade show={!collapsed}>
             <p className="mb-1 mt-5 px-3 text-xs font-medium text-ink-muted">Categories</p>
           </Fade>
