@@ -12,6 +12,7 @@ export function settingsRoutes(app: FastifyInstance) {
   app.get('/api/admin/settings', { preHandler: requireRole('admin') }, async () => get());
   app.patch('/api/admin/settings', { preHandler: requireRole('admin') }, async (req) => {
     const b = parse(patchBody, req.body);
+    if (b.requireApproval === requireApproval(app.sqlite)) return get(); // unchanged: no write, no audit noise
     app.sqlite.transaction(() => {
       // JSON-encoded, same format as the reader in services/articles.ts and test helper setSetting.
       app.sqlite.prepare('insert into settings(key,value) values(?,?) on conflict(key) do update set value=excluded.value')

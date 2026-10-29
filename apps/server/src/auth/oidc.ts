@@ -68,15 +68,16 @@ export function buildOidcProvider(cfg: NonNullable<Config['oidc']>, client: Oidc
         const callbackUrl = new URL(cfg.redirectUri);
         callbackUrl.search = new URL(req.url, 'http://x').search;
         if (callbackUrl.searchParams.get('state') !== tx.state) return reply.code(400).send({ error: 'state mismatch' });
+        let identity;
         try {
-          const identity = await client.exchange(callbackUrl, tx);
-          reply.clearCookie(TX_COOKIE, { path: '/api/auth' });
-          session.login(reply, identity);
-          return reply.redirect('/');
+          identity = await client.exchange(callbackUrl, tx);
         } catch (err) {
           req.log.warn({ err }, 'oidc exchange failed');
           return reply.code(401).send({ error: 'login failed' });
         }
+        reply.clearCookie(TX_COOKIE, { path: '/api/auth' });
+        session.login(reply, identity); // may throw ApiError 403 (deactivated) -> error handler
+        return reply.redirect('/');
       });
     },
   };

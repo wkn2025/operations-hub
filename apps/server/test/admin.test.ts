@@ -127,6 +127,7 @@ describe('review-due', () => {
     const mk = async (title: string, reviewDate: string | null) =>
       (await c.req(c.editor, 'POST', '/api/articles', { title, content: doc('x'), reviewDate })).body.id as string;
     const over = await mk('Overdue', d(-5)), soon = await mk('Soon', d(10)), later = await mk('Later', d(90));
+    for (const id of [over, soon, later]) await c.req(c.editor, 'POST', `/api/articles/${id}/publish`);
     await mk('None', null);
     const arch = await mk('Archived', d(-1));
     await c.req(c.editor, 'POST', `/api/articles/${arch}/archive`);
@@ -156,5 +157,76 @@ describe('audit', () => {
     expect((await c.req(c.admin, 'GET', '/api/admin/audit?limit=0')).status).toBe(400);
     expect((await c.req(c.admin, 'GET', '/api/admin/audit?cursor=zz')).status).toBe(400);
     expect(all[0].detail.summary).toBeTruthy();
+  });
+});
+
+describe('fix round 1', () => {
+  const patch = (id: string, b: unknown) => c.req(c.admin, 'PATCH', `/api/admin/users/${id}`, b);
+  it('role:null clears the pin and re-resolves from allowlist', async () => {
+    const id = await uid('ed@x.test');
+    await patch(id, { role: 'viewer' });
+    expect(await role(c.editor)).toBe('viewer');
+    expect((await patch(id, { role: null })).status).toBe(200);
+    expect(await role(c.editor)).toBe('editor');
+    expect((await c.req(c.admin, 'GET', '/api/admin/users')).body.users.find((u: any) => u.id === id).roleSetByAdmin).toBe(false);
+  });
+  it('role:null that would resolve the last admin to viewer is 409; bootstrap too', async () => {
+    const e2 = await uid('ed2@x.test'), boss = await uid('boss@x.test');
+    await patch(e2, { role: 'admin' });
+    c.app.sqlite.prepare('update users set active = 0 where id = ?').run(boss);
+    expect((await c.req(c.editor2, 'PATCH', `/api/admin/users/${e2}`, { role: null })).status).toBe(409); // resolves to editor
+    c.app.sqlite.prepare('update users set active = 1 where id = ?').run(boss);
+    expect((await patch(boss, { role: null })).status).toBe(200); // bootstrap resolves to admin: no loss
+    expect(await role(c.admin)).toBe('admin');
+  });
+  it('last admin with role:null resolving to viewer -> 409', async () => {
+    const v = await uid('v@x.test');
+    c.app.sqlite.prepare("update users set role='admin', role_set_by_admin=1 where id = ?").run(v);
+    c.app.sqlite.prepare("update users set active=0 where email='boss@x.test'").run();
+    expect((await c.req(c.viewer, 'PATCH', `/api/admin/users/${v}`, { role: null })).status).toBe(409);
+  });
+  it('pinned viewer stays viewer across allowlist remove + re-add', async () => {
+    const id = await uid('ed@x.test');
+    await patch(id, { role: 'viewer' });
+    await c.req(c.admin, 'DELETE', '/api/admin/allowlist/ed%40x.test');
+    await c.req(c.admin, 'POST', '/api/admin/allowlist', { email: 'ed@x.test' });
+    expect(await role(c.editor)).toBe('viewer');
+    expect(await role((await login('ed@x.test')).cookie)).toBe('viewer');
+  });
+  it('bootstrap email added to env later takes effect at next login', async () => {
+    expect(await role(c.editor)).toBe('editor');
+    c.app.config.adminBootstrapEmails.push('ed@x.test');
+    expect(await role((await login('ed@x.test')).cookie)).toBe('admin');
+  });
+  it('allowlist DELETE normalises the email param, rejects invalid', async () => {
+    await c.req(c.admin, 'POST', '/api/admin/allowlist', { email: 'tidy@x.test' });
+    expect((await c.req(c.admin, 'DELETE', '/api/admin/allowlist/%20TIDY%40x.test')).status).toBe(200);
+    expect((await c.req(c.admin, 'DELETE', '/api/admin/allowlist/not-an-email')).status).toBe(400);
+  });
+  it('audit summaries include side effects; unchanged settings write no audit row', async () => {
+    await login('side@x.test');
+    await c.req(c.admin, 'POST', '/api/admin/allowlist', { email: 'side@x.test' });
+    await c.req(c.admin, 'DELETE', '/api/admin/allowlist/side%40x.test');
+    await patch(await uid('ed@x.test'), { role: 'viewer' });
+    await patch(await uid('ed@x.test'), { role: null });
+    const e = (await c.req(c.admin, 'GET', '/api/admin/audit?limit=10')).body.entries.map((x: any) => x.detail.summary as string);
+    expect(e[3]).toMatch(/promoted 1.*side@x\.test/);
+    expect(e[2]).toMatch(/demoted 1.*side@x\.test/);
+    expect(e[1]).toMatch(/roleSetByAdmin set/);
+    expect(e[0]).toMatch(/roleSetByAdmin cleared/);
+    await c.req(c.admin, 'PATCH', '/api/admin/settings', { requireApproval: true });
+    const n = () => c.app.sqlite.prepare('select count(*) n from audit_log').get() as { n: number };
+    const before = n().n;
+    await c.req(c.admin, 'PATCH', '/api/admin/settings', { requireApproval: true });
+    expect(n().n).toBe(before);
+  });
+  it('review-due lists published only', async () => {
+    const past = '2020-01-01';
+    const mk = async (title: string) => (await c.req(c.editor, 'POST', '/api/articles', { title, content: doc('x'), reviewDate: past })).body.id as string;
+    const draft = await mk('D'), pub = await mk('P');
+    await c.req(c.editor, 'POST', `/api/articles/${pub}/publish`);
+    const ids = (await c.req(c.editor, 'GET', '/api/admin/review-due')).body.articles.map((a: any) => a.id);
+    expect(ids).toEqual([pub]);
+    expect(ids).not.toContain(draft);
   });
 });

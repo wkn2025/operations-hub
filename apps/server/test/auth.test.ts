@@ -133,3 +133,20 @@ describe('emailFromClaims', () => {
     expect(() => emailFromClaims({ upn: 'nope' })).toThrow();
   });
 });
+
+describe('oidc deactivated user', () => {
+  it('callback returns 403 (not 401/500) and sets no session for a deactivated user', async () => {
+    const app = await buildApp({ dbPath: ':memory:', env: oenv, oidcClient: fakeOidc('gone@x.test') });
+    const flow = async () => {
+      const r = await app.inject({ url: '/api/auth/login' });
+      const tx = [r.headers['set-cookie']].flat()[0]!.split(';')[0];
+      const state = new URL(r.headers.location as string).searchParams.get('state');
+      return app.inject({ url: `/api/auth/callback?code=1&state=${state}`, headers: { cookie: tx } });
+    };
+    expect((await flow()).statusCode).toBe(302);
+    app.sqlite.prepare("update users set active = 0 where email='gone@x.test'").run();
+    const cb = await flow();
+    expect(cb.statusCode).toBe(403);
+    expect(([cb.headers['set-cookie']].flat().filter(Boolean) as string[]).some((c) => c.startsWith('sid='))).toBe(false);
+  });
+});
