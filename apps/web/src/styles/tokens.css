@@ -25,7 +25,7 @@
   --neutral-200: #e4e8f0;
   --neutral-300: #cdd3df;
   --neutral-400: #98a1b4;
-  --neutral-500: #677089;
+  --neutral-500: #646d86; /* 4.6:1 on neutral-100, 5.2:1 on white (tokens.test.ts) */
   --neutral-600: #4a536b;
   --neutral-700: #353d55;
   --neutral-800: #222a42;
