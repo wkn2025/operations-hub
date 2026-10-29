@@ -12,11 +12,11 @@ export function can(user: User | null, action: Action, resource: Resource = {}, 
   const isEditor = role === 'editor';
   switch (action) {
     case 'article:read': return resource.status === 'published' || (isEditor && resource.status !== undefined);
-    case 'article:write': return isEditor && resource.status !== 'archived';
+    case 'article:write': return isEditor && resource.status !== 'archived' && !(opts.requireApproval && resource.status === 'published');
     case 'article:publish': return isEditor && !opts.requireApproval;
     case 'article:submit':
-    case 'article:archive':
     case 'file:upload': return isEditor;
+    case 'article:archive': return isEditor && !(opts.requireApproval && resource.status === 'published');
     default: return false; // 'admin'
   }
 }

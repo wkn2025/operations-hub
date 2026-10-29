@@ -44,7 +44,10 @@ export async function buildApp(opts: BuildOpts = {}): Promise<FastifyInstance> {
 
   app.setErrorHandler((err, _req, reply) => {
     if (err instanceof ApiError) return reply.code(err.status).send(err.body);
-    return reply.send(err);
+    const code = (err as { statusCode?: number }).statusCode;
+    if (code && code < 500) return reply.send(err); // framework client errors (bad JSON, 413...)
+    app.log.error(err);
+    return reply.code(500).send({ error: 'internal' }); // never leak message/stack
   });
   categoryRoutes(app);
   articleRoutes(app);

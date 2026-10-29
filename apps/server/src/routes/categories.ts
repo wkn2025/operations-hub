@@ -44,6 +44,9 @@ export function categoryRoutes(app: FastifyInstance) {
         if (x.id === cur.id) throw new ApiError(400, { error: 'invalid', message: 'category cannot be its own descendant' });
       }
     }
+    if (b.archived === false && cur.parentId && all.find((c) => c.id === (b.parentId === undefined ? cur.parentId : b.parentId))?.archived) {
+      throw new ApiError(409, { error: 'parent_archived', message: 'restore the parent category first' });
+    }
     if (b.archived === true && all.some((c) => c.parentId === cur.id && !c.archived)) {
       throw new ApiError(409, { error: 'has_active_children', message: 'archive or move the child categories first' });
     }

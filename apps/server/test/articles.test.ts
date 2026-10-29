@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { setup, doc, type Ctx } from './helpers';
+import { setup, doc, setSetting, type Ctx } from './helpers';
 import { extractText, extractLinkIds } from '../src/services/pm-text';
 
 let c: Ctx;
@@ -88,7 +88,7 @@ describe('articles', () => {
     expect((await c.req(c.editor, 'POST', `/api/articles/${a.id}/restore`)).body.status).toBe('draft');
   });
   it('requireApproval: editor cannot publish, admin can', async () => {
-    c.app.sqlite.prepare("insert into settings(key,value) values('requireApproval','true')").run();
+    setSetting(c.app, 'requireApproval', true);
     const a = await create();
     await c.req(c.editor, 'POST', `/api/articles/${a.id}/submit`);
     expect((await c.req(c.editor, 'POST', `/api/articles/${a.id}/publish`)).status).toBe(403);

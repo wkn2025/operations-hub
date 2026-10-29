@@ -34,6 +34,10 @@ export async function setup(): Promise<Ctx> {
   };
 }
 
-export const doc = (...paras: string[]) => ({
+/** Same writer shape the Task 3 admin API will use: settings values are JSON. */
+export const setSetting = (app: FastifyInstance, key: string, value: unknown) =>
+  app.sqlite.prepare('insert into settings(key,value) values(?,?) on conflict(key) do update set value=excluded.value').run(key, JSON.stringify(value));
+
+export const doc =(...paras: string[]) => ({
   type: 'doc', content: paras.map((t) => ({ type: 'paragraph', content: [{ type: 'text', text: t }] })),
 });

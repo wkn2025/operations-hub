@@ -73,7 +73,10 @@ export function visibility(user: User, hidden: string[], a: string, o: { include
 
 export function requireApproval(sqlite: Database): boolean {
   const r = sqlite.prepare("select value from settings where key = 'requireApproval'").get() as { value: string } | undefined;
-  try { return r ? JSON.parse(r.value) === true : false; } catch { return false; }
+  if (!r) return false;
+  let v: unknown = r.value;
+  try { v = JSON.parse(r.value); } catch { /* bare string */ }
+  return v === true || (typeof v === "string" && v.trim().toLowerCase() === "true");
 }
 
 type ArticleRow = typeof articles.$inferSelect;
@@ -123,16 +126,23 @@ export function view(s: Svc, a: ArticleRow, user: User) {
   };
 }
 
+/** Call inside the transaction. Unknown -> 400; archived (or under an archived ancestor) -> 409. */
 function checkCategory(s: Svc, id: string | null | undefined) {
-  if (id && !s.db.select({ id: categories.id }).from(categories).where(eq(categories.id, id)).get()) throw new ApiError(400, { error: 'invalid', message: 'unknown categoryId' });
+  if (!id) return;
+  const all = allCategories(s);
+  if (!all.some((c) => c.id === id)) throw new ApiError(400, { error: 'invalid', message: 'unknown categoryId' });
+  const byId = new Map(all.map((c) => [c.id, c]));
+  for (let x = byId.get(id), n = 0; x && n < 50; x = x.parentId ? byId.get(x.parentId) : undefined, n++) {
+    if (x.archived) throw new ApiError(409, { error: 'category_archived', message: 'category is archived' });
+  }
 }
 
 const EMPTY_DOC = { type: 'doc', content: [] };
 
 export function createArticle(s: Svc, user: User, b: { title: string; type?: ArticleRow['type']; categoryId?: string | null; content?: unknown; fields?: Record<string, unknown>; tags?: string[]; reviewDate?: string | null }) {
   if (!can(user, 'article:write', {})) throw new ApiError(403, { error: 'forbidden' });
-  checkCategory(s, b.categoryId);
   return s.sqlite.transaction(() => {
+    checkCategory(s, b.categoryId);
     const id = crypto.randomUUID(), now = new Date().toISOString(), content = b.content ?? EMPTY_DOC;
     const row = {
       id, slug: uniqueSlug(s.sqlite, 'articles', b.title), title: b.title, type: b.type ?? 'standard', status: 'draft' as const,
@@ -153,11 +163,11 @@ export function updateArticle(s: Svc, user: User, id: string, b: {
   baseRevision: number; title?: string; type?: ArticleRow['type']; categoryId?: string | null; content?: unknown;
   fields?: Record<string, unknown>; tags?: string[]; reviewDate?: string | null; note?: string;
 }) {
-  checkCategory(s, b.categoryId);
   return s.sqlite.transaction(() => {
     const cur = readable(s, user, id);
     if (!cur) throw notFound();
-    if (!can(user, 'article:write', { status: cur.status, ownerId: cur.ownerId ?? undefined })) throw new ApiError(403, { error: 'forbidden' });
+    if (!can(user, 'article:write', { status: cur.status, ownerId: cur.ownerId ?? undefined }, { requireApproval: requireApproval(s.sqlite) })) throw new ApiError(403, { error: 'forbidden' });
+    if (b.categoryId !== undefined && b.categoryId !== cur.categoryId) checkCategory(s, b.categoryId);
     if (cur.revision !== b.baseRevision) throw new ApiError(409, { error: 'conflict', current: { revision: cur.revision, updatedAt: cur.updatedAt } });
     const now = new Date().toISOString(), title = b.title ?? cur.title;
     const content = b.content !== undefined ? JSON.stringify(b.content) : cur.content;
@@ -207,7 +217,7 @@ export function restoreRevision(s: Svc, user: User, id: string, rev: number) {
   return s.sqlite.transaction(() => {
     const cur = readable(s, user, id);
     if (!cur) throw notFound();
-    if (!can(user, 'article:write', { status: cur.status })) throw new ApiError(403, { error: 'forbidden' });
+    if (!can(user, 'article:write', { status: cur.status }, { requireApproval: requireApproval(s.sqlite) })) throw new ApiError(403, { error: 'forbidden' });
     const old = s.db.select().from(revisions).where(and(eq(revisions.articleId, id), eq(revisions.rev, rev))).get();
     if (!old) throw notFound();
     const now = new Date().toISOString(), next = cur.revision + 1;
