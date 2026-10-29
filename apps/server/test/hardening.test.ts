@@ -118,3 +118,53 @@ describe('integrity', () => {
     expect(bad.statusCode).toBe(400);
   });
 });
+
+describe('anonymous route sweep', () => {
+  // Routes that must answer without a session. Every other registered route has to say 401 to anonymous callers.
+  const PUBLIC = new Set(['GET /api/me', 'HEAD /api/me', 'POST /api/auth/logout', 'GET /api/auth/dev/users', 'HEAD /api/auth/dev/users', 'POST /api/auth/dev/login']);
+  const routes = (tree: string) => {
+    const out: [string, string][] = [], stack: string[] = [];
+    for (const line of tree.split('\n')) {
+      const m = /^([│├└─ ]*)(\S+) \(([^)]+)\)$/.exec(line.trimEnd());
+      if (!m) continue;
+      const depth = m[1].length / 4;
+      stack.length = depth;
+      stack.push(m[2]);
+      for (const method of m[3].split(', ')) out.push([method, stack.join('')]);
+    }
+    return out;
+  };
+  it('every route outside the public allowlist returns 401 without a session', async () => {
+    const all = routes(c.app.printRoutes({ commonPrefix: false }));
+    expect(all.length).toBeGreaterThan(40);
+    expect(all).toContainEqual(['GET', '/api/articles/:id/revisions/:rev']); // parser sanity
+    const open: string[] = [];
+    for (const [method, path] of all) {
+      if (PUBLIC.has(`${method} ${path}`)) continue;
+      const url = path.replace(/:\w+/g, 'x');
+      const r = await c.app.inject({ method: method as any, url, ...(['POST', 'PATCH', 'PUT'].includes(method) ? { payload: {} } : {}) });
+      if (r.statusCode !== 401) open.push(`${method} ${path} -> ${r.statusCode}`);
+    }
+    expect(open).toEqual([]);
+  });
+});
+
+describe('cross-site write protection', () => {
+  const post = (headers: Record<string, string>) =>
+    c.app.inject({ method: 'POST', url: '/api/articles', payload: { title: 'X' }, headers: { cookie: c.editor, host: 'hub.test', ...headers } });
+  it('rejects non-GET /api requests from another site (Sec-Fetch-Site or a foreign Origin)', async () => {
+    expect((await post({ 'sec-fetch-site': 'cross-site' })).statusCode).toBe(403);
+    expect((await post({ 'sec-fetch-site': 'same-site' })).statusCode).toBe(403);
+    expect((await post({ origin: 'https://evil.example' })).statusCode).toBe(403);
+    expect((await post({ origin: 'null' })).statusCode).toBe(403);
+    expect((await post({ origin: 'https://evil.example' })).json()).toEqual({ error: 'cross_site' });
+  });
+  it('allows same-origin browsers and header-less clients; GET is never blocked', async () => {
+    expect((await post({ 'sec-fetch-site': 'same-origin' })).statusCode).toBe(201);
+    expect((await post({ 'sec-fetch-site': 'none' })).statusCode).toBe(201);
+    expect((await post({ origin: 'http://hub.test' })).statusCode).toBe(201);
+    expect((await post({})).statusCode).toBe(201);
+    const get = await c.app.inject({ url: '/api/articles', headers: { cookie: c.editor, 'sec-fetch-site': 'cross-site' } });
+    expect(get.statusCode).toBe(200);
+  });
+});

@@ -48,6 +48,14 @@ export async function buildApp(opts: BuildOpts = {}): Promise<FastifyInstance> {
   await app.register(cookie, { secret: config.sessionSecret });
   await app.register(multipart, { limits: { fileSize: 15 * 1024 * 1024, files: 1, fields: 5, parts: 6 } });
   securityHeaders(app);
+  // CSRF defence in depth (on top of SameSite=Lax): browsers mark cross-site writes; header-less clients (curl, scripts) pass.
+  app.addHook('onRequest', async (req, reply) => {
+    if (['GET', 'HEAD', 'OPTIONS'].includes(req.method) || !req.url.startsWith('/api/')) return;
+    const site = req.headers['sec-fetch-site'], origin = req.headers.origin;
+    // Origin is compared by host only: behind a TLS proxy the app itself sees plain http
+    const ok = site ? site === 'same-origin' || site === 'none' : !origin || /^https?:\/\/([^/]+)$/.exec(origin)?.[1] === req.headers.host;
+    if (!ok) return reply.code(403).send({ error: 'cross_site' });
+  });
   app.decorateRequest('user', null);
   app.addHook('onRequest', loadUser(app));
 

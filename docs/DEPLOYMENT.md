@@ -85,6 +85,8 @@ server {
 
 Add `Strict-Transport-Security` at the proxy once HTTPS is confirmed working; the app does not send HSTS itself.
 
+Cross-site writes: every non-GET `/api` request whose `Sec-Fetch-Site` is not `same-origin`/`none`, or (for clients without that header) whose `Origin` host differs from the `Host` header, gets `403 {"error":"cross_site"}`. Keep the proxy passing the original `Host` (`proxy_set_header Host $host;` above). Requests without either header (curl, scripts) are allowed; they still need a session cookie.
+
 ## Security headers sent by the app [verified]
 
 On every response: `X-Content-Type-Options: nosniff`, `Referrer-Policy: same-origin`, `X-Frame-Options: DENY`, and (unless the route sets its own) this Content-Security-Policy:
