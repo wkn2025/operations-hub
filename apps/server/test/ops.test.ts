@@ -200,6 +200,8 @@ describe('ProseMirror -> Markdown', () => {
     expect(link('//evil.example')).toBe('go');
     expect(link('https://ok.example/a b(c)')).toBe('[go](https://ok.example/a%20b%28c%29)');
     expect(link('mailto:a@x.test')).toBe('[go](mailto:a@x.test)');
+    expect(link('jav&#x61;script:alert(1)')).toBe('[go](jav%26#x61;script:alert%281%29)'); // no entity a Markdown viewer could decode
+    expect(link('https://ok.example/?a=1&b=2')).toBe('[go](https://ok.example/?a=1%26b=2)');
     const code = pmToMarkdown({ type: 'doc', content: [{ type: 'codeBlock', attrs: { language: 'js\n<script>' }, content: [t('x')] }] });
     expect(code.split('\n')[0]).toBe('```');
     expect(pmToMarkdown({ type: 'doc', content: [{ type: 'codeBlock', attrs: { language: 'c++' }, content: [t('x')] }] }).split('\n')[0]).toBe('```c++');

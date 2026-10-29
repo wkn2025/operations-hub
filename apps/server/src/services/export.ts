@@ -25,10 +25,10 @@ const safeUrl = (v: unknown): string | null => {
   const scheme = /^\s*([a-z][a-z0-9+.-]*):/i.exec(v);
   return scheme && !['http', 'https', 'mailto'].includes(scheme[1].toLowerCase()) ? null : v.trim();
 };
-/** Markdown link destination: whitespace, parentheses and angle brackets percent-encoded so it cannot end early. */
+/** Markdown link destination: whitespace, ( ) < > percent-encoded so it cannot end early; & too, so no entity can be decoded into a scheme. */
 // (encodeURIComponent leaves '(' and ')' alone, so percent-encode by hand)
-const dest = (u: string) => u.replace(/[()<>\s]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0'));
-const indent =(s: string, n: number) => s.split('\n').map((l, i) => (i === 0 || !l ? l : ' '.repeat(n) + l)).join('\n');
+const dest = (u: string) => u.replace(/[()<>&\s]/g,(c) => '%' + c.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0'));
+const indent = (s: string, n: number) => s.split('\n').map((l, i) => (i === 0 || !l ? l : ' '.repeat(n) + l)).join('\n');
 
 function inline(nodes: PmNode[] | undefined, ctx: MdContext): string {
   return (nodes ?? []).map((n) => {
