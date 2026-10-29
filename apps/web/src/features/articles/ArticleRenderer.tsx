@@ -205,8 +205,9 @@ function Table({ n }: { n: PmNode }) {
 }
 
 function Figure({ n }: { n: PmNode }) {
-  const src = safeHref(n.attrs?.src);
-  if (!src || src.startsWith('mailto:')) return null;
+  // only uploaded files: any other same-origin URL (e.g. /api/admin/export) would be fetched with the viewer's cookie
+  const src = typeof n.attrs?.src === 'string' && /^\/api\/files\/[A-Za-z0-9-]+$/.test(n.attrs.src) ? n.attrs.src : null;
+  if (!src) return null;
   const alt = typeof n.attrs?.alt === 'string' ? n.attrs.alt : '';
   const caption = typeof n.attrs?.title === 'string' ? n.attrs.title : null;
   return (

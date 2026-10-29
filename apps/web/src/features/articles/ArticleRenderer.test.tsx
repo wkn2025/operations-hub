@@ -28,6 +28,9 @@ const doc: PmNode = {
     ] },
     { type: 'image', attrs: { src: '/api/files/abc', alt: 'Screen', title: 'A caption' } },
     { type: 'image', attrs: { src: 'javascript:alert(1)', alt: 'bad' } },
+    { type: 'image', attrs: { src: '/api/admin/export', alt: 'bad2' } },
+    { type: 'image', attrs: { src: '/api/files/abc/../../admin/export', alt: 'bad3' } },
+    { type: 'image', attrs: { src: 'https://evil.example/x.png', alt: 'bad4' } },
     { type: 'codeBlock', attrs: { language: 'text' }, content: [t('UHCGD_837I.x12')] },
     { type: 'bulletList', content: [{ type: 'listItem', content: [p(t('bullet one'))] }] },
     p(t('See '), { type: 'internalLink', attrs: { articleId: 'a1', label: 'Fallback label' } }, t(', '),
@@ -84,6 +87,7 @@ describe('ArticleRenderer', () => {
     expect(screen.getByRole('img', { name: 'Screen' })).toHaveAttribute('src', '/api/files/abc');
     expect(screen.getByText('A caption')).toBeInTheDocument();
     expect(screen.queryByRole('img', { name: 'bad' })).toBeNull();
+    for (const n of ['bad2', 'bad3', 'bad4']) expect(screen.queryByRole('img', { name: n })).toBeNull(); // only uploaded files (/api/files/<id>)
   });
 
   it('resolves internal links to /article/:slug and shows archived/unavailable states', () => {
