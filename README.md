@@ -33,7 +33,7 @@ Any other email signs in as a viewer. The demo picker exists only when `AUTH_MOD
 | `npm run seed` | Idempotent demo seed into `DATA_DIR` (refuses production / OIDC without `--force-demo`) |
 | `npm run build` | Typecheck shared + server (+ `scripts/`), typecheck and build the web app into `apps/web/dist` |
 | `npm test` | Unit and API tests: `packages/shared`, `apps/server`, `apps/web` (Vitest) |
-| `npx playwright test` | End-to-end and acceptance tests (first time: `npx playwright install chromium`). Starts its own API on :3101 (fresh seeded temp `DATA_DIR`) and Vite on :5174 |
+| `npx playwright test` | End-to-end and acceptance tests (first time: `npx playwright install chromium`). Starts its own API on :3101 (fresh seeded temp `DATA_DIR`) and Vite on :5174, plus a fresh web build served by a second API on :3103 (`e2e/built-app.spec.ts`: the real CSP, fails on any violation) |
 | `npm run backup` | Hot backup to `backups/<timestamp>/app.db` + `uploads.zip` |
 | `npm run export` | Content export to `exports/<timestamp>/`: JSON + Markdown per article, flows, used files, `index.json` |
 | `npm run db:generate` | New Drizzle migration after a schema change (never edit an existing migration) |

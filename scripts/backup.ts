@@ -9,3 +9,4 @@ db.close();
 console.log(`Backup written to ${r.dir}`);
 console.log(`  app.db       ${Object.entries(r.counts).filter(([t]) => !t.includes('_fts')).map(([t, n]) => `${t}=${n}`).join(' ')}`);
 console.log(`  uploads.zip  ${r.files} file(s)`);
+if (r.missing.length) console.warn(`  WARNING: ${r.missing.length} upload(s) vanished during the backup and were skipped: ${r.missing.join(', ')}`);

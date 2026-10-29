@@ -1,6 +1,9 @@
 {
   "name": "operations-hub",
   "private": true,
+  "engines": {
+    "node": ">=22.2"
+  },
   "workspaces": [
     "apps/*",
     "packages/*"

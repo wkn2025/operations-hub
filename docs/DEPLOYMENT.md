@@ -31,12 +31,14 @@ The `Dockerfile` builds the web app in a build stage, prunes dev dependencies an
 ```bash
 docker build -t operations-hub .
 docker run -d --name ops-hub -p 127.0.0.1:3000:3000 \
-  -v ops-hub-data:/data -v /srv/ops-hub/backups:/app/backups \
+  -v ops-hub-data:/data -v ops-hub-backups:/app/backups \
   -e SESSION_SECRET=... -e OIDC_ISSUER=... -e OIDC_CLIENT_ID=... -e OIDC_CLIENT_SECRET=... \
   -e OIDC_REDIRECT_URI=https://hub.example.com/api/auth/callback -e ADMIN_BOOTSTRAP_EMAILS=it.admin@example.com \
   operations-hub
-docker exec ops-hub sh -c 'cd /app && npm run backup'   # writes to /app/backups (mounted above)
+docker exec ops-hub sh -c 'cd /app && npm run backup'   # writes to /app/backups (the ops-hub-backups volume)
 ```
+
+The container runs as uid/gid 1000 (`node`). Named volumes (as above) inherit the image's ownership. If you bind-mount host folders instead (`-v /srv/ops-hub/data:/data`, `-v /srv/ops-hub/backups:/app/backups`), the mount hides the image's `chown`, so first run `sudo chown -R 1000:1000 /srv/ops-hub/data /srv/ops-hub/backups`, or the server cannot write its database and backups fail with a permission error.
 
 ## Option B: plain Node.js [verified with dummy OIDC settings]
 
@@ -83,13 +85,19 @@ default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src
 font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
 ```
 
-File downloads (`/api/files/:id`) keep their stricter `default-src 'none'; sandbox`. The built app was loaded in Chromium under this policy (sign-in page, article with screenshot, search, editor, flow runner, admin export) with no CSP violations or console errors.
+File downloads (`/api/files/:id`) keep their stricter `default-src 'none'; sandbox`. `e2e/built-app.spec.ts` (part of `npx playwright test`) builds the web app, serves it through the API under this policy and fails on any CSP violation or console error while it opens the home page, an article with a screenshot, the editor and a flow.
 
 Consequences: images in articles must be uploaded; a pasted external image URL (`https://...png`) is blocked by the browser. `style-src` allows inline styles because the UI libraries set style attributes; scripts are strictly same-origin. In `npm run dev` the page itself is served by Vite, so this CSP applies only to API responses there.
 
-## Backups [verified]
+## Backups [verified on an idle database]
 
-`npm run backup` writes `backups/<UTC timestamp>/app.db` (SQLite online backup API: a consistent copy taken while the server keeps running) and `uploads.zip` (every file in `DATA_DIR/uploads`). It prints row counts per table. Verified: the copy passes `PRAGMA integrity_check`, has identical row counts in every table, and Windows `Expand-Archive` extracts `uploads.zip` to byte-identical files.
+`npm run backup` writes `backups/<UTC timestamp>/app.db` and `uploads.zip` (every file in `DATA_DIR/uploads`) and prints row counts per table. The database copy uses the SQLite online backup API, which is designed for hot backups (a consistent snapshot while the server keeps running). **Tested only against an idle database** (no writes during the backup): the copy passes `PRAGMA integrity_check`, has identical row counts in every table, and Windows `Expand-Archive` extracts `uploads.zip` to byte-identical files. A backup taken under concurrent writes has not been tested.
+
+`app.db` and `uploads.zip` are captured moments apart (database first, then files):
+- a file uploaded during the backup can be in the zip without a database row (harmless; it is ignored after a restore);
+- a file deleted during the backup is skipped; the script prints a `WARNING ... vanished during the backup` line, and that file's row in the copy then points at nothing (the image or attachment shows as missing).
+
+Schedule backups for a quiet time (e.g. night) to make both cases unlikely.
 
 Schedule it (cron, Windows Task Scheduler) and copy the folder off the server; the script does not rotate or upload backups. Suggested: daily, keep 30 days, plus a copy before every upgrade. The schedule and off-site target are IT decisions (see IT-HANDOVER.md).
 
@@ -118,15 +126,24 @@ Verified on 2026-10-29: a backup of the seeded demo database was restored this w
 
 ## Known dependency advisories (`npm audit`, 2026-10-29)
 
-`npm audit fix` (non-breaking) was run; it changed no package versions. All remaining advisories need a major-version upgrade (`npm audit fix --force`), which was deliberately **not** done in this delivery because each needs migration work and regression testing. Totals: 46 (2 critical, 3 high, 41 moderate).
+Totals: 46 (2 critical, 3 high, 41 moderate). `npm audit fix` (non-breaking) was run and changed no package versions: every affected package is already on the newest release of its current line (drizzle-orm 0.44.7, zod 3.25.76, vite 5.4.21, vitest 2.1.9, Tiptap 2.27.3), so each fix needs a breaking upgrade (`npm audit fix --force`). That was deliberately **not** done in this delivery; each needs migration work and regression testing.
 
-| Package (installed) | Severity | Used at runtime? | Notes / fix |
-|---|---|---|---|
-| `drizzle-orm` 0.44 | high | **yes** (server) | SQL injection via improperly escaped SQL *identifiers*. The app only uses fixed identifiers from its own schema, never user input, so the vulnerable path is not reachable as far as reviewed. Fix: upgrade to >= 0.45.2. **Recommended first follow-up.** |
-| `zod` 3 | high | **yes** (server + web) | Memory exhaustion validating oversized constrained collections. Request bodies are limited by Fastify's default 1 MB body limit, which bounds the input size. Fix: zod 4 (API changes across all schemas). |
-| `@tiptap/*` 2.27.3 (latest v2) | moderate | yes (editor, browser) | `mergeAttributes()` `__proto__` handling. Fix only in Tiptap 3 (editor migration). |
-| `vite` 5, `esbuild` (via vite) | high / moderate | no (build + dev server only) | Dev-server issues; the production server does not run Vite. Fix: Vite 6+/8. |
-| `vitest` 2, `tinypool`, `vite-node`, `@vitest/mocker` | critical / moderate | no (tests only) | Test runner issues (UI server, worker options). Fix: Vitest 3+/5. |
-| `drizzle-kit`, `@esbuild-kit/*` | moderate | no (migration generator, dev only) | Fix: newer drizzle-kit. |
+### The 2 critical and 3 high
 
-The Docker image prunes dev dependencies, so the test/build-only packages are not in the runtime image (tsx, which runs the server, ships its own newer esbuild).
+| Package (installed) | Severity | In production? | Advisory | Exposure in this app |
+|---|---|---|---|---|
+| `vitest` 2.1.9 | critical | **no**: test runner, dev dependency, pruned from the Docker image | GHSA-5xrq-8626-4rwp: arbitrary file read/execute *while the Vitest UI server is listening* | None in production. The Vitest UI is never started (`vitest run` only). Fix: Vitest >= 3.2.6. |
+| `tinypool` 1.1.1 (via vitest 2) | critical | **no**: Vitest's worker pool | GHSA-5gmw-xhrv-c9v3, GHSA-85c8-ppgw-ccpr: prototype-pollution gadget in worker options -> code execution | None in production; it needs a prototype-pollution bug inside the test process first. Fixed by the Vitest upgrade. |
+| `drizzle-orm` 0.44.7 | high | **yes**: the server's ORM | GHSA-gpj5-g38j-94v9: SQL *identifiers* (table, column, alias names) are not escaped correctly, so an attacker-controlled identifier could inject SQL | **Not reachable with our usage** (reviewed 2026-10-29): the server only uses the static schema in `apps/server/src/db/schema.ts` and the query builder with `eq` / `and` / `desc`; it never calls `sql.identifier()`, the `sql` template tag or `.as()` aliases, and no identifier is built from request data (user values are always bound parameters). Raw SQL elsewhere uses better-sqlite3 prepared statements, not drizzle. Fix: drizzle-orm >= 0.45.2. **Recommended first follow-up** (defence in depth). |
+| `zod` 3.25.76 | high | **yes**: validates every API request body (server) and is bundled into the web app | GHSA-mrhx-c7xc-m3w5: validating an oversized collection against size constraints can exhaust memory | Reachable in principle (any request body is parsed by zod), but bounded: Fastify rejects JSON bodies over its default 1 MB limit before validation, and every write route requires a signed-in editor or admin. Low practical risk. Fix: zod 4 (API changes across all shared schemas). |
+| `vite` 5.4.21 | high | **no**: build tool and dev server only | launch-editor / dev-server path issues (high: GHSA-587h-7wmj-h5pm; plus moderates) | None in production: the server serves the prebuilt files itself and never runs Vite. Matters only for a developer running `npm run dev` on an untrusted network. Fix: Vite >= 6.4.4. |
+
+### Moderates (41)
+
+| Package | In production? | Notes / fix |
+|---|---|---|
+| `@tiptap/*` 2.27.3 (latest v2) | yes (editor, in the browser) | `mergeAttributes()` `__proto__` handling. Attributes come from the app's own documents; fix only in Tiptap 3 (editor migration). |
+| `esbuild` (via vite), `vite-node`, `@vitest/mocker` | no (build/test) | Fixed by the Vite/Vitest upgrades. |
+| `drizzle-kit`, `@esbuild-kit/*` | no (migration generator, dev only) | Fix: newer drizzle-kit. |
+
+The Docker image prunes dev dependencies, so test/build-only packages are not in the runtime image. `tsx`, which runs the server, uses its own esbuild 0.28 (not affected).

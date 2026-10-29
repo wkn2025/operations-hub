@@ -9,7 +9,7 @@ import { buildApp } from '../src/app';
 import { setup, env, type Ctx } from './helpers';
 import { seedDemo } from '../src/seed/base';
 import { zip } from '../src/services/zip';
-import { backup } from '../src/services/backup';
+import { backup, readUploads } from '../src/services/backup';
 import { exportEntries, pmToMarkdown, writeExport } from '../src/services/export';
 
 /** Independent zip reader (central directory -> local header -> inflate), so the writer is checked against the format, not itself. */
@@ -84,6 +84,14 @@ describe('backup and export on the seeded demo database', () => {
     expect([...z.keys()].sort()).toEqual(uploads.map((u) => `uploads/${u}`).sort());
     for (const u of uploads) expect(z.get(`uploads/${u}`)!.equals(readFileSync(join(dataDir, 'uploads', u))), u).toBe(true);
     expect(r.counts).toEqual(live);
+  });
+
+  it('backup: an upload that vanishes between listing and reading is skipped and reported, not fatal', () => {
+    const up = join(dataDir, 'uploads');
+    const present = readdirSync(up)[0]!;
+    const r = readUploads(up, [present, 'deleted-mid-backup']);
+    expect(r.entries.map((e) => e.name)).toEqual([`uploads/${present}`]);
+    expect(r.missing).toEqual(['deleted-mid-backup']);
   });
 
   it('export: every published slug has a .md and a .json; drafts are included with their status; index lists all', () => {
@@ -175,6 +183,12 @@ describe('ProseMirror -> Markdown', () => {
     for (const n of Object.values(PM_NODES)) expect(md, n).not.toContain(`<!-- unsupported: ${n} -->`);
     expect(pmToMarkdown({ type: 'doc', content: [{ type: 'mystery' }] })).toContain('<!-- unsupported: mystery -->');
     expect(pmToMarkdown(null)).toBe('');
+  });
+  it('neutralises raw HTML and comment breakouts', () => {
+    expect(pmToMarkdown({ type: 'doc', content: [p(t('<script>x</script> & <b>'))] }).trim()).toBe('&lt;script>x&lt;/script> &amp; &lt;b>');
+    const md = pmToMarkdown({ type: 'doc', content: [{ type: 'x --> <img src=y onerror=alert(1)>' }] });
+    expect(md).not.toContain('<img');
+    expect(md.match(/-->/g)).toHaveLength(1);
   });
   it('escapes markdown control characters in text', () => {
     expect(pmToMarkdown({ type: 'doc', content: [p(t('1. not a list *not bold* [x](y)'))] }).trim()).toBe('1\\. not a list \\*not bold\\* \\[x\\](y)');

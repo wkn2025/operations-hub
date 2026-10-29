@@ -11,8 +11,11 @@ export interface MdContext {
 }
 
 const ALERT: Record<string, string> = { info: 'NOTE', tip: 'TIP', warning: 'WARNING', danger: 'CAUTION', success: 'NOTE' };
-const escText = (s: string) => s.replace(/[\\`*_[\]~]/g, '\\$&');
 const escHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+/** Markdown-escapes text and neutralises & and < so article text can never become raw HTML in a Markdown viewer. */
+const escText = (s: string) => s.replace(/[\\`*_[\]~]/g, '\\$&').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+/** Unknown node: visible marker; the type name is reduced to [\w-] so it cannot close the HTML comment. */
+const unsupported = (n: PmNode) => `<!-- unsupported: ${String(n.type).replace(/[^\w-]/g, '_').slice(0, 40)} -->`;
 const str = (v: unknown) => (typeof v === 'string' ? v : '');
 const indent = (s: string, n: number) => s.split('\n').map((l, i) => (i === 0 || !l ? l : ' '.repeat(n) + l)).join('\n');
 
@@ -25,7 +28,7 @@ function inline(nodes: PmNode[] | undefined, ctx: MdContext): string {
       return slug ? `[${label}](./${slug}.md)` : label;
     }
     if (n.type === 'image') return image(n, ctx);
-    if (n.type !== 'text') return `<!-- unsupported: ${n.type} -->`;
+    if (n.type !== 'text') return unsupported(n);
     const marks = new Set((n.marks ?? []).map((m) => m.type));
     let s = marks.has('code') ? '`' + str(n.text).replace(/`/g, '\\`') + '`' : escText(str(n.text));
     if (marks.has('bold')) s = `**${s}**`;
@@ -97,7 +100,7 @@ function block(n: PmNode, ctx: MdContext): string {
     case 'doc':
       return blocks(n.content, ctx);
     default:
-      return `<!-- unsupported: ${n.type} -->`;
+      return unsupported(n);
   }
 }
 
@@ -118,6 +121,7 @@ const parseJson = (s: string | null, fallback: unknown) => { try { return s ? JS
  * Every article (all statuses, so the export doubles as a content archive) as articles/<slug>.json + .md,
  * every flow as flows/<slug>.json, the files those articles use under files/, and an index.json.
  */
+// ponytail: built synchronously in memory (fine for a few hundred articles / tens of MB); stream to disk or a worker if exports grow large
 export function exportEntries(sqlite: BetterSqlite3.Database, dataDir: string): ZipEntry[] {
   const arts = sqlite.prepare('select * from articles order by slug').all() as ArticleRow[];
   const cats = new Map((sqlite.prepare('select id, parent_id, name from categories').all() as { id: string; parent_id: string | null; name: string }[]).map((c) => [c.id, c]));
@@ -149,8 +153,8 @@ export function exportEntries(sqlite: BetterSqlite3.Database, dataDir: string): 
   const flows = sqlite.prepare('select id, slug, title, status, article_id, start_id, nodes, revision, published_at from flows order by slug').all() as Record<string, any>[];
   for (const f of flows) out.push({ name: `flows/${f.slug}.json`, data: Buffer.from(JSON.stringify({ ...f, nodes: parseJson(f.nodes, []) }, null, 2) + '\n') });
   for (const f of fileRows) {
-    const p = resolve(dataDir, 'uploads', f.path);
-    if (existsSync(p)) out.push({ name: `files/${fileNames[f.id]}`, data: readFileSync(p) });
+    const root = resolve(dataDir, 'uploads'), p = resolve(root, f.path);
+    if (p.startsWith(root + sep) && existsSync(p)) out.push({ name: `files/${fileNames[f.id]}`, data: readFileSync(p) });
   }
   out.push({
     name: 'index.json',

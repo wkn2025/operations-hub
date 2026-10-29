@@ -1,7 +1,7 @@
 import type BetterSqlite3 from 'better-sqlite3';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { zip } from './zip';
+import { zip, type ZipEntry } from './zip';
 
 /** Filesystem-safe UTC timestamp, e.g. 2026-10-29T13-05-00-123Z. */
 export const stamp = () => new Date().toISOString().replace(/[:.]/g, '-');
@@ -15,6 +15,8 @@ export function rowCounts(db: BetterSqlite3.Database): Record<string, number> {
 /**
  * Hot backup: SQLite online backup API (safe while the server is writing) -> <outRoot>/<ts>/app.db,
  * plus <DATA_DIR>/uploads/* -> <outRoot>/<ts>/uploads.zip.
+ * The two are captured moments apart (DB first, then files): an upload during the backup lands in the zip without a DB row
+ * (harmless orphan); a file deleted in between is skipped and listed in `missing` (its row then points at nothing).
  * ponytail: uploads are zipped in memory (15 MB cap per file); stream if the upload folder grows past a few hundred MB.
  */
 export async function backup(sqlite: BetterSqlite3.Database, dataDir: string, outRoot: string) {
@@ -24,7 +26,17 @@ export async function backup(sqlite: BetterSqlite3.Database, dataDir: string, ou
   await sqlite.backup(dbPath);
   const up = resolve(dataDir, 'uploads');
   const names = existsSync(up) ? readdirSync(up, { withFileTypes: true }).filter((d) => d.isFile()).map((d) => d.name).sort() : [];
+  const { entries, missing } = readUploads(up, names);
   const zipPath = join(dir, 'uploads.zip');
-  writeFileSync(zipPath, zip(names.map((n) => ({ name: `uploads/${n}`, data: readFileSync(join(up, n)) }))));
-  return { dir, dbPath, zipPath, files: names.length, counts: rowCounts(sqlite) };
+  writeFileSync(zipPath, zip(entries));
+  return { dir, dbPath, zipPath, files: entries.length, missing, counts: rowCounts(sqlite) };
+}
+
+/** Reads upload files for the zip; files that vanish between listing and reading are skipped and reported, not fatal. */
+export function readUploads(up: string, names: string[]) {
+  const entries: ZipEntry[] = [], missing: string[] = [];
+  for (const n of names) {
+    try { entries.push({ name: `uploads/${n}`, data: readFileSync(join(up, n)) }); } catch { missing.push(n); }
+  }
+  return { entries, missing };
 }

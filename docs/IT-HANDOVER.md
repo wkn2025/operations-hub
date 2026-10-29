@@ -72,7 +72,7 @@ Roles are decided inside the app, not from Entra groups:
 
 ## 7. Backups
 
-- `npm run backup` (or `docker exec <container> sh -c 'cd /app && npm run backup'`) takes a consistent hot backup: `app.db` + `uploads.zip` in a timestamped folder. Restore procedure (tested): DEPLOYMENT.md -> Restore.
+- `npm run backup` (or `docker exec <container> sh -c 'cd /app && npm run backup'`) writes `app.db` (SQLite online backup API, designed for use while the server runs; tested only on an idle database) + `uploads.zip` in a timestamped folder. The two are taken moments apart, so schedule backups for a quiet time (details in DEPLOYMENT.md -> Backups). Restore procedure (tested): DEPLOYMENT.md -> Restore. With Docker bind mounts, the host folders must be owned by uid 1000.
 - **IT decides:** schedule (suggested daily), retention (suggested 30 days), off-server/encrypted storage, and who runs a restore test (suggested quarterly). The script does not rotate or ship backups.
 - A content export (JSON + Markdown) is available to admins via **Admin -> Articles -> Export all content**; it is a readable copy, not a restore format.
 

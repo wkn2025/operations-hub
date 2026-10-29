@@ -64,4 +64,4 @@ A flow is a list of nodes (question with options, result/action, article link) w
 | `packages/shared/test` | Vitest | flow validation and runner |
 | `apps/server/test` | Vitest + Fastify `inject` | every route, RBAC and viewer-bypass cases, revisions, search, files, flows, seed, backup/export, static serving, headers, cookies, config fail-closed |
 | `apps/web/src/**/*.test.tsx` | Vitest + Testing Library (jsdom) | renderer, editor, search dialog, admin pages |
-| `e2e/*.spec.ts` | Playwright (Chromium) | acceptance criteria end to end, editor, flows, admin, seed rendering |
+| `e2e/*.spec.ts` | Playwright (Chromium) | acceptance criteria end to end, editor, flows, admin, seed rendering; `built-app.spec.ts` runs the production build under the real CSP |

@@ -10,11 +10,11 @@ import { spawn, spawnSync } from 'node:child_process';
 const root = resolve(import.meta.dirname, '..');
 const server = join(root, 'apps/server');
 const tsx = join(root, 'node_modules/tsx/dist/cli.mjs');
-const dataDir = join(tmpdir(), 'ops-hub-e2e'); // ponytail: one fixed dir, wiped at start; parallel e2e runs would need unique dirs
+const port = process.env.E2E_API_PORT ?? '3101';
+const dataDir = join(tmpdir(), `ops-hub-e2e-${port}`); // ponytail: one dir per port, wiped at start; parallel e2e runs on the same ports would clash
 rmSync(dataDir, { recursive: true, force: true });
 mkdirSync(dataDir, { recursive: true });
 
-const port = process.env.E2E_API_PORT ?? '3101';
 const env = { ...process.env, DATA_DIR: dataDir, AUTH_MODE: 'dev', NODE_ENV: 'development', PORT: port, ADMIN_BOOTSTRAP_EMAILS: 'admin@demo.test' };
 const seed = spawnSync(process.execPath, [tsx, 'src/seed/run.ts'], { cwd: server, env, stdio: 'inherit' });
 if (seed.status !== 0) process.exit(seed.status ?? 1);
