@@ -11,6 +11,7 @@ export const devLoginBody = z.object({ email: emailSchema, name: z.string().trim
 // ---- Task 2: categories & articles ----
 const pmDocSchema = z.object({ type: z.literal('doc'), content: z.array(z.any()).optional() }).passthrough();
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine((v) => { const d = new Date(v + 'T00:00:00Z'); return !isNaN(+d) && d.toISOString().startsWith(v); }, 'invalid date');
+const relatedList = z.array(z.string().min(1)).max(20); // explicit 'related' article ids (Task 6)
 const tagList = z.array(z.string().trim().min(1).max(40)).max(30);
 
 export const categoryCreateBody = z.object({
@@ -35,6 +36,7 @@ export const articleCreateBody = z.object({
   fields: z.record(z.unknown()).optional(),
   tags: tagList.optional(),
   reviewDate: isoDate.nullish(),
+  related: relatedList.optional(),
 });
 export const articlePatchBody = z.object({
   baseRevision: z.number().int().min(1),
@@ -46,4 +48,6 @@ export const articlePatchBody = z.object({
   tags: tagList.optional(),
   reviewDate: isoDate.nullable().optional(),
   note: z.string().max(200).optional(),
+  related: relatedList.optional(),
+  ownerId: z.string().min(1).optional(),
 });

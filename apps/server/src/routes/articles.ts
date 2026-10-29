@@ -49,5 +49,13 @@ export function articleRoutes(app: FastifyInstance) {
   app.post<{ Params: { id: string; rev: string } }>('/api/articles/:id/revisions/:rev/restore', { preHandler: writer }, async (req) =>
     show(req, restoreRevision(app, U(req), req.params.id, Number(req.params.rev))));
 
+  // Editor helpers (Task 6): tag autocomplete and owner picker.
+  app.get('/api/tags', { preHandler: writer }, async () => ({
+    tags: (app.sqlite.prepare('select distinct t.name from tags t join article_tags x on x.tag_id = t.id order by t.name').all() as { name: string }[]).map((t) => t.name),
+  }));
+  app.get('/api/owners', { preHandler: writer }, async () => ({
+    owners: app.sqlite.prepare("select id, name, email from users where active = 1 and role in ('editor','admin') order by name").all(),
+  }));
+
   app.get<{ Params: { id: string } }>('/api/articles/:id/backlinks', { preHandler: reader }, async (req) => ({ backlinks: backlinks(app, U(req), req.params.id) }));
 }

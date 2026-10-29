@@ -119,6 +119,21 @@ function syncFiles(s: Svc, id: string, content: unknown) {
   }
 }
 
+/** Replaces the explicit 'related' links (Task 6 MetaPanel); unknown ids and self links are ignored. */
+function setRelated(s: Svc, id: string, ids: string[]) {
+  s.db.delete(articleLinks).where(and(eq(articleLinks.fromArticleId, id), eq(articleLinks.kind, 'related'))).run();
+  for (const to of new Set(ids)) {
+    if (to === id || !s.db.select({ id: articles.id }).from(articles).where(eq(articles.id, to)).get()) continue;
+    s.db.insert(articleLinks).values({ fromArticleId: id, toArticleId: to, kind: 'related' }).run();
+  }
+}
+
+/** Owner must be an active editor/admin. */
+function checkOwner(s: Svc, ownerId: string) {
+  const u = s.db.select().from(users).where(eq(users.id, ownerId)).get();
+  if (!u || !u.active || u.role === 'viewer') throw new ApiError(400, { error: 'invalid', message: 'owner must be an active editor or admin' });
+}
+
 export function view(s: Svc, a: ArticleRow, user: User) {
   const { contentText: _t, ...rest } = a;
   const cats = allCategories(s);
@@ -128,10 +143,19 @@ export function view(s: Svc, a: ArticleRow, user: User) {
     const raw = s.db.select({ status: articles.status }).from(articles).where(eq(articles.id, l.toArticleId)).get();
     linkTargets[l.toArticleId] = t ? { status: t.status, title: t.title, slug: t.slug } : { status: raw?.status === 'archived' ? 'archived' : 'unavailable' };
   }
+  const related = s.db.select().from(articleLinks).where(and(eq(articleLinks.fromArticleId, a.id), eq(articleLinks.kind, 'related'))).all()
+    .map((l) => readable(s, user, l.toArticleId)).filter((x): x is ArticleRow => !!x)
+    .map((x) => ({ id: x.id, title: x.title, slug: x.slug, status: x.status }));
+  // The editor UI shows only the actions the server would allow (it never relies on this for security).
+  const res = { status: a.status, ownerId: a.ownerId ?? undefined }, opts = { requireApproval: requireApproval(s.sqlite) };
+  const permissions = {
+    write: can(user, 'article:write', res, opts), publish: can(user, 'article:publish', res, opts),
+    submit: can(user, 'article:submit', res, opts), archive: can(user, 'article:archive', res, opts),
+  };
   const owner = a.ownerId ? s.db.select({ id: users.id, name: users.name }).from(users).where(eq(users.id, a.ownerId)).get() ?? null : null;
   return {
     ...rest, owner, content: JSON.parse(a.content), fields: JSON.parse(a.fields),
-    tags: tagsOf(s.sqlite, a.id), categoryPath: a.categoryId ? categoryPath(cats, a.categoryId) : '', linkTargets,
+    tags: tagsOf(s.sqlite, a.id), categoryPath: a.categoryId ? categoryPath(cats, a.categoryId) : '', linkTargets, related, permissions,
   };
 }
 
@@ -148,7 +172,7 @@ function checkCategory(s: Svc, id: string | null | undefined) {
 
 const EMPTY_DOC = { type: 'doc', content: [] };
 
-export function createArticle(s: Svc, user: User, b: { title: string; type?: ArticleRow['type']; categoryId?: string | null; content?: unknown; fields?: Record<string, unknown>; tags?: string[]; reviewDate?: string | null }) {
+export function createArticle(s: Svc, user: User, b: { title: string; type?: ArticleRow['type']; categoryId?: string | null; content?: unknown; fields?: Record<string, unknown>; tags?: string[]; reviewDate?: string | null; related?: string[] }) {
   if (!can(user, 'article:write', {})) throw new ApiError(403, { error: 'forbidden' });
   return s.sqlite.transaction(() => {
     checkCategory(s, b.categoryId);
@@ -163,6 +187,7 @@ export function createArticle(s: Svc, user: User, b: { title: string; type?: Art
     setTags(s.sqlite, id, b.tags ?? []);
     syncLinks(s, id, content);
     syncFiles(s, id, content);
+    if (b.related) setRelated(s, id, b.related);
     indexArticle(s.sqlite, id);
     audit(s.db, { actorId: user.id, action: 'article.create', entity: 'article', entityId: id, summary: `Created "${row.title}"` });
     return id;
@@ -171,13 +196,14 @@ export function createArticle(s: Svc, user: User, b: { title: string; type?: Art
 
 export function updateArticle(s: Svc, user: User, id: string, b: {
   baseRevision: number; title?: string; type?: ArticleRow['type']; categoryId?: string | null; content?: unknown;
-  fields?: Record<string, unknown>; tags?: string[]; reviewDate?: string | null; note?: string;
+  fields?: Record<string, unknown>; tags?: string[]; reviewDate?: string | null; note?: string; related?: string[]; ownerId?: string;
 }) {
   return s.sqlite.transaction(() => {
     const cur = readable(s, user, id);
     if (!cur) throw notFound();
     if (!can(user, 'article:write', { status: cur.status, ownerId: cur.ownerId ?? undefined }, { requireApproval: requireApproval(s.sqlite) })) throw new ApiError(403, { error: 'forbidden' });
     if (b.categoryId !== undefined && b.categoryId !== cur.categoryId) checkCategory(s, b.categoryId);
+    if (b.ownerId !== undefined && b.ownerId !== cur.ownerId) checkOwner(s, b.ownerId);
     if (cur.revision !== b.baseRevision) throw new ApiError(409, { error: 'conflict', current: { revision: cur.revision, updatedAt: cur.updatedAt } });
     const now = new Date().toISOString(), title = b.title ?? cur.title;
     const content = b.content !== undefined ? JSON.stringify(b.content) : cur.content;
@@ -188,10 +214,11 @@ export function updateArticle(s: Svc, user: User, id: string, b: {
       content, contentText: b.content !== undefined ? extractText(b.content) : cur.contentText, fields,
       reviewDate: b.reviewDate === undefined ? cur.reviewDate : b.reviewDate,
       slug: !cur.publishedAt && title !== cur.title ? uniqueSlug(s.sqlite, 'articles', title, id) : cur.slug, // stable once published
-      revision: rev, updatedAt: now,
+      ownerId: b.ownerId ?? cur.ownerId, revision: rev, updatedAt: now,
     }).where(eq(articles.id, id)).run();
     s.db.insert(revisions).values({ articleId: id, rev, title, content, fields, authorId: user.id, createdAt: now, note: b.note ?? null }).run();
     if (b.tags) setTags(s.sqlite, id, b.tags);
+    if (b.related) setRelated(s, id, b.related);
     if (b.content !== undefined) { syncLinks(s, id, b.content); syncFiles(s, id, b.content); }
     indexArticle(s.sqlite, id);
     audit(s.db, { actorId: user.id, action: 'article.update', entity: 'article', entityId: id, summary: `Saved revision ${rev} of "${title}"` });
