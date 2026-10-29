@@ -1,12 +1,17 @@
 import type { Database } from 'better-sqlite3';
 import { eq } from 'drizzle-orm';
-import { INCOMPLETE_CODES, validateFlow, type ArticleStatus, type Flow, type FlowNode, type FlowValidation, type User } from '@ops/shared';
+import { ARTICLE_STATUSES, INCOMPLETE_CODES, validateFlow, type ArticleStatus, type Flow, type FlowNode, type FlowValidation, type User } from '@ops/shared';
 import { articles, flows } from '../db/schema';
 import { can } from '../auth/policy';
 import { audit } from './audit';
 import { ApiError, notFound, readable, requireApproval, uniqueSlug, type Svc } from './articles';
 
 type FlowRow = typeof flows.$inferSelect;
+
+/** The one visibility rule for flows (list, get and search all use it): statuses the user may read per can('flow:read'). */
+export const readableStatuses = (user: User): ArticleStatus[] => ARTICLE_STATUSES.filter((st) => can(user, 'flow:read', { status: st }));
+/** SQL predicate over alias `alias` derived from readableStatuses. */
+export const flowVisibilitySql = (user: User, alias = 'f') => `${alias}.status in (${readableStatuses(user).map((st) => "'" + st + "'").join(',') || "''"})`;
 
 const nodesOf = (row: FlowRow): FlowNode[] => { try { return JSON.parse(row.nodes) as FlowNode[]; } catch { return []; } };
 
@@ -48,15 +53,15 @@ export function flowView(s: Svc, row: FlowRow, user: User) {
     const a = readable(s, user, id);
     return a ? { status: a.status, title: a.title, slug: a.slug } : { status: 'unavailable' as const };
   };
-  const articlesMap: Record<string, ReturnType<typeof art>> = {};
-  for (const n of nodes) if (n.articleId && !articlesMap[n.articleId]) articlesMap[n.articleId] = art(n.articleId);
+  const articlesMap = new Map<string, ReturnType<typeof art>>(); // Map: ids like __proto__ stay plain keys
+  for (const n of nodes) if (n.articleId && !articlesMap.has(n.articleId)) articlesMap.set(n.articleId, art(n.articleId));
   const linked = row.articleId ? readable(s, user, row.articleId) : null;
   const res = { status: row.status }, opts = { requireApproval: requireApproval(s.sqlite) };
   const writer = user.role !== 'viewer';
   return {
     id: row.id, slug: row.slug, title: row.title, status: row.status, revision: row.revision, startId: row.startId ?? '',
     articleId: row.articleId, article: linked ? { id: linked.id, slug: linked.slug, title: linked.title } : null,
-    nodes, articles: articlesMap, updatedAt: row.updatedAt, publishedAt: row.publishedAt,
+    nodes, articles: Object.fromEntries(articlesMap), updatedAt: row.updatedAt, publishedAt: row.publishedAt,
     permissions: {
       write: can(user, 'flow:write', res, opts), publish: can(user, 'flow:publish', res, opts),
       submit: can(user, 'flow:submit', res, opts), archive: can(user, 'flow:archive', res, opts),
@@ -110,7 +115,7 @@ export function createFlow(s: Svc, user: User, b: { title: string; nodes?: FlowN
   })();
 }
 
-export function updateFlow(s: Svc, user: User, key: string, b: { baseRevision: number; title?: string; nodes?: FlowNode[]; startId?: string; articleId?: string | null }) {
+export function updateFlow(s: Svc, user: User, key: string, b: { baseRevision: number; title?: string; nodes?: FlowNode[]; startId?: string; articleId?: string | null; autosave?: boolean }) {
   return s.sqlite.transaction(() => {
     const cur = readableFlow(s, user, key);
     if (!cur) throw notFound();
@@ -125,7 +130,12 @@ export function updateFlow(s: Svc, user: User, key: string, b: { baseRevision: n
       slug: !cur.publishedAt && title !== cur.title ? uniqueSlug(s.sqlite, 'flows', title, cur.id) : cur.slug, // stable once published
     }).where(eq(flows.id, cur.id)).run();
     indexFlow(s.sqlite, cur.id);
-    audit(s.db, { actorId: user.id, action: 'flow.update', entity: 'flow', entityId: cur.id, summary: `Saved flow "${title}" (version ${revision})` });
+    const entry = { actorId: user.id, action: 'flow.update', entity: 'flow', entityId: cur.id, summary: `Saved flow "${title}" (version ${revision})` };
+    // autosaves by the same author within 10 min share one audit row (like articles share one revision)
+    const last = b.autosave ? s.sqlite.prepare("select id, actor_id, action, created_at from audit_log where entity = 'flow' and entity_id = ? order by id desc limit 1").get(cur.id) as { id: number; actor_id: string; action: string; created_at: string } | undefined : undefined;
+    if (last && last.action === 'flow.update' && last.actor_id === user.id && Date.now() - Date.parse(last.created_at) < 10 * 60_000) {
+      s.sqlite.prepare('update audit_log set detail = ? where id = ?').run(JSON.stringify({ summary: entry.summary }), last.id);
+    } else audit(s.db, entry);
     return cur.id;
   })();
 }
@@ -145,7 +155,7 @@ export function transitionFlow(s: Svc, user: User, key: string, action: FlowTran
     const t = TRANSITIONS[action];
     if (!can(user, t.perm, { status: cur.status }, { requireApproval: requireApproval(s.sqlite) })) throw new ApiError(403, { error: 'forbidden' });
     if (!(t.from as readonly string[]).includes(cur.status)) throw new ApiError(409, { error: 'invalid_transition', status: cur.status });
-    if (action === 'publish') checkWrite(s, { title: cur.title, startId: cur.startId ?? '', nodes: nodesOf(cur) }, 'published');
+    if (action === 'publish' || action === 'submit') checkWrite(s, { title: cur.title, startId: cur.startId ?? '', nodes: nodesOf(cur) }, 'published');
     const now = new Date().toISOString();
     s.db.update(flows).set({ status: t.to, updatedAt: now, revision: cur.revision + 1, publishedAt: action === 'publish' ? (cur.publishedAt ?? now) : cur.publishedAt }).where(eq(flows.id, cur.id)).run();
     indexFlow(s.sqlite, cur.id);

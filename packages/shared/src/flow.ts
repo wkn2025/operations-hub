@@ -112,33 +112,34 @@ export function validateFlow(flow: Flow): FlowValidation {
 }
 
 // ---- runner state machine (pure; the UI holds the state) ----
-export interface RunState { nodeId: string; trail: string[]; error?: 'unknown_node' | 'bad_option' | 'too_many_steps' }
+/** trail[i] is a visited question, choices[i] the answer index taken there */
+export interface RunState { nodeId: string; trail: string[]; choices: number[]; error?: 'unknown_node' | 'bad_option' | 'too_many_steps' }
 
 export function start(flow: Flow): RunState {
-  return flow.nodes.some((n) => n.id === flow.startId) ? { nodeId: flow.startId, trail: [] } : { nodeId: flow.startId, trail: [], error: 'unknown_node' };
+  return flow.nodes.some((n) => n.id === flow.startId) ? { nodeId: flow.startId, trail: [], choices: [] } : { nodeId: flow.startId, trail: [], choices: [], error: 'unknown_node' };
 }
 export const restart = start;
 
 /** Take answer `optionIndex` of the current question. Never throws; problems come back as `error` on an otherwise unchanged state. */
 export function step(flow: Flow, state: RunState, optionIndex: number): RunState {
   const cur = flow.nodes.find((n) => n.id === state.nodeId);
-  const base = { nodeId: state.nodeId, trail: state.trail };
+  const base = { nodeId: state.nodeId, trail: state.trail, choices: state.choices };
   if (!cur) return { ...base, error: 'unknown_node' };
   const to = cur.kind === 'question' ? cur.options?.[optionIndex]?.to : undefined;
   if (to === undefined) return { ...base, error: 'bad_option' };
   if (!flow.nodes.some((n) => n.id === to)) return { ...base, error: 'unknown_node' };
   if (state.trail.length >= MAX_STEPS) return { ...base, error: 'too_many_steps' };
-  return { nodeId: to, trail: [...state.trail, state.nodeId] };
+  return { nodeId: to, trail: [...state.trail, state.nodeId], choices: [...state.choices, optionIndex] };
 }
 
 /** One step back (no-op at the start). Clears an error state. */
 export function back(state: RunState): RunState {
   const prev = state.trail[state.trail.length - 1];
-  return prev === undefined ? { nodeId: state.nodeId, trail: state.trail } : { nodeId: prev, trail: state.trail.slice(0, -1) };
+  return prev === undefined ? { nodeId: state.nodeId, trail: state.trail, choices: state.choices } : { nodeId: prev, trail: state.trail.slice(0, -1), choices: state.choices.slice(0, -1) };
 }
 /** Jump to position `index` of the trail (breadcrumb click). */
 export function goTo(state: RunState, index: number): RunState {
-  return index >= 0 && index < state.trail.length ? { nodeId: state.trail[index]!, trail: state.trail.slice(0, index) } : { nodeId: state.nodeId, trail: state.trail };
+  return index >= 0 && index < state.trail.length ? { nodeId: state.trail[index]!, trail: state.trail.slice(0, index), choices: state.choices.slice(0, index) } : { nodeId: state.nodeId, trail: state.trail, choices: state.choices };
 }
 
 /** The worked example from the spec; also used by tests. */

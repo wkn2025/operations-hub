@@ -54,18 +54,22 @@ describe('runner', () => {
   const f = flow([q('a', 'b', 'c'), q('b', 'a', 'c'), res('c')]);
   it('steps, goes back, goes to a trail position and restarts', () => {
     let s = start(f);
-    expect(s).toEqual({ nodeId: 'a', trail: [] });
-    s = step(f, s, 0); expect(s).toEqual({ nodeId: 'b', trail: ['a'] });
-    s = step(f, s, 1); expect(s).toEqual({ nodeId: 'c', trail: ['a', 'b'] });
-    expect(back(s)).toEqual({ nodeId: 'b', trail: ['a'] });
-    expect(goTo(s, 0)).toEqual({ nodeId: 'a', trail: [] });
+    expect(s).toEqual({ nodeId: 'a', trail: [], choices: [] });
+    s = step(f, s, 0); expect(s).toEqual({ nodeId: 'b', trail: ['a'], choices: [0] });
+    s = step(f, s, 1); expect(s).toEqual({ nodeId: 'c', trail: ['a', 'b'], choices: [0, 1] });
+    expect(back(s)).toEqual({ nodeId: 'b', trail: ['a'], choices: [0] });
+    expect(goTo(s, 0)).toEqual({ nodeId: 'a', trail: [], choices: [] });
     expect(back(start(f))).toEqual(start(f));
     expect(restart(f)).toEqual(start(f));
   });
+  it('records which answer was chosen even when two answers lead to the same node', () => {
+    const twin = flow([q('a', 'r', 'r'), res('r')]);
+    expect(step(twin, start(twin), 1).choices).toEqual([1]);
+  });
   it('unknown node, bad option and results give an error state, never a crash', () => {
-    expect(step(f, { nodeId: 'ghost', trail: [] }, 0).error).toBe('unknown_node');
+    expect(step(f, { nodeId: 'ghost', trail: [], choices: [] }, 0).error).toBe('unknown_node');
     expect(step(f, start(f), 9).error).toBe('bad_option');
-    expect(step(f, { nodeId: 'c', trail: [] }, 0).error).toBe('bad_option');
+    expect(step(f, { nodeId: 'c', trail: [], choices: [] }, 0).error).toBe('bad_option');
     expect(start(flow([], 'x')).error).toBe('unknown_node');
   });
   it('a loop is cut after MAX_STEPS', () => {

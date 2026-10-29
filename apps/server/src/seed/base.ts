@@ -123,10 +123,11 @@ function seedFlows(app: App, admin: User) {
   for (const d of SEED_FLOWS) {
     const nodes = d.nodes.map(({ articleSlug, ...n }) => (articleSlug ? { ...n, articleId: articleId(articleSlug) } : n));
     const link = d.articleSlug ? articleId(d.articleSlug) : null;
-    const row = app.db.select().from(flows).where(eq(flows.slug, slugify(d.title))).get();
+    // also adopts the pre-DEMO-label row (same title without the suffix) so existing databases are renamed, not duplicated
+    const row = app.db.select().from(flows).where(eq(flows.slug, slugify(d.title))).get() ?? app.db.select().from(flows).where(eq(flows.slug, slugify(d.title.replace(/ \(DEMO\)$/, '')))).get();
     const id = row?.id ?? createFlow(app, admin, { title: d.title, nodes, startId: d.startId, articleId: link });
     const cur = app.db.select().from(flows).where(eq(flows.id, id)).get()!;
-    if (cur.nodes !== JSON.stringify(nodes) || cur.startId !== d.startId || cur.articleId !== link) updateFlow(app, admin, id, { baseRevision: cur.revision, nodes, startId: d.startId, articleId: link });
+    if (cur.title !== d.title || cur.nodes !== JSON.stringify(nodes) || cur.startId !== d.startId || cur.articleId !== link) updateFlow(app, admin, id, { baseRevision: cur.revision, title: d.title, nodes, startId: d.startId, articleId: link });
     if (cur.status !== 'published') transitionFlow(app, admin, id, cur.status === 'archived' ? 'restore' : 'publish');
     if (cur.status === 'archived') transitionFlow(app, admin, id, 'publish');
   }

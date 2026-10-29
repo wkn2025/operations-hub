@@ -19,6 +19,10 @@ const SEVERITY: Record<FlowSeverity, { icon: LucideIcon; label: string; tile: st
 };
 
 const editable = (t: EventTarget | null) => t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+/** Shortcuts act only when focus is on the page body or inside the runner: never in dialogs, menus, popovers or other widgets. */
+const owns = (root: HTMLElement | null, t: EventTarget | null) =>
+  t === document.body || t === document.documentElement || t === null
+  || (t instanceof HTMLElement && !!root?.contains(t) && !t.closest('[role=dialog],[role=alertdialog],[role=menu],[role=menuitem],[role=listbox],[role=combobox]'));
 
 /**
  * Guided troubleshooting runner: one question per screen. State lives in the shared pure state machine
@@ -29,11 +33,12 @@ export function FlowRunner({ flow, keyboard = true }: { flow: RunnableFlow; keyb
   const [state, setState] = useState<RunState>(() => start(flow));
   const dir = useRef(1);
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const node = flow.nodes.find((n) => n.id === state.nodeId);
   const stuck = !!state.error || !node; // unknown node, loop guard, or the flow changed under us
 
   const go = (next: RunState, d: number) => { dir.current = d; setState(next); };
-  const choose = (i: number) => { const next = step(flow, state, i); if (!next.error) go(next, 1); };
+  const choose = (i: number) => { const next = step(flow, state, i); go(next, 1); }; // an error state shows the broken-flow panel
   const goBack = () => { if (state.trail.length) go(back(state), -1); };
   const restart = () => go(start(flow), -1);
 
@@ -42,7 +47,7 @@ export function FlowRunner({ flow, keyboard = true }: { flow: RunnableFlow; keyb
   useEffect(() => {
     if (!keyboard) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || editable(e.target)) return;
+      if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || editable(e.target) || !owns(rootRef.current, e.target)) return;
       const { choose: c, goBack: b, node: n } = latest.current;
       if (e.key === 'Backspace') { e.preventDefault(); b(); }
       else if (/^[1-9]$/.test(e.key) && n?.kind === 'question' && n.options?.[Number(e.key) - 1]) { e.preventDefault(); c(Number(e.key) - 1); }
@@ -57,12 +62,11 @@ export function FlowRunner({ flow, keyboard = true }: { flow: RunnableFlow; keyb
 
   const label = (id: string) => flow.nodes.find((n) => n.id === id);
   const crumbs = state.trail.map((id, i) => {
-    const next = state.trail[i + 1] ?? state.nodeId;
-    return { id, i, question: label(id)?.text ?? id, answer: label(id)?.options?.find((o) => o.to === next)?.label ?? '' };
+    return { id, i, question: label(id)?.text ?? id, answer: label(id)?.options?.[state.choices[i] ?? -1]?.label ?? '' };
   });
 
   return (
-    <div data-testid="flow-runner">
+    <div data-testid="flow-runner" ref={rootRef}>
       <div className="flex items-start gap-3">
         <nav aria-label="Progress" className="min-w-0 flex-1">
           <ol className="flex flex-wrap items-center gap-1.5">
@@ -84,7 +88,7 @@ export function FlowRunner({ flow, keyboard = true }: { flow: RunnableFlow; keyb
         {state.trail.length > 0 && node?.kind === 'question' && <Button variant="ghost" onClick={restart} className="shrink-0 !py-1.5"><RotateCcw size={14} aria-hidden /> Start over</Button>}
       </div>
 
-      <div className="relative mt-6" aria-live="polite">
+      <div className="relative mt-6">
         <AnimatePresence mode="wait" initial={false} custom={dir.current}>
           <motion.section key={stuck ? 'stuck' : state.nodeId} custom={dir.current}
             initial={{ opacity: 0, x: dir.current * 36 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: dir.current * -36, transition: { duration: 0.12 } }}

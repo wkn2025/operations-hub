@@ -76,4 +76,41 @@ describe('FlowRunner', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/can.t run this flow/i);
     await waitFor(() => expect(screen.getByRole('button', { name: 'Start over' })).toBeInTheDocument());
   });
+
+  it('a step the flow cannot take shows the broken-flow panel instead of doing nothing', async () => {
+    const u = userEvent.setup();
+    const bad = { title: 'x', startId: 'a', nodes: [{ id: 'a', kind: 'question' as const, text: 'Q?', options: [{ label: 'Go', to: 'ghost' }, { label: 'Stay', to: 'a' }] }] };
+    renderApp(<FlowRunner flow={bad} />);
+    await u.click(screen.getByRole('button', { name: /Go/ }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/can.t run this flow/i);
+  });
+
+  it('the trail shows the answer that was chosen, even when two answers lead to the same node', async () => {
+    const u = userEvent.setup();
+    const twin = { title: 'x', startId: 'a', nodes: [
+      { id: 'a', kind: 'question' as const, text: 'Pick?', options: [{ label: 'One', to: 'r' }, { label: 'Two', to: 'r' }] },
+      { id: 'r', kind: 'result' as const, text: 'Done' },
+    ] };
+    renderApp(<FlowRunner flow={twin} />);
+    await u.click(screen.getByRole('button', { name: /Two/ }));
+    const nav = await screen.findByRole('navigation', { name: 'Progress' });
+    expect(nav).toHaveTextContent('Two');
+    expect(nav).not.toHaveTextContent('One');
+  });
+
+  it('Back and number shortcuts are ignored inside dialogs and menus', async () => {
+    const u = userEvent.setup();
+    renderApp(<><div role="dialog" aria-label="d"><button>inside</button></div><FlowRunner flow={flow} /></>);
+    await u.keyboard('1');
+    await screen.findByRole('heading', { name: 'Is the member ID valid?' });
+    screen.getByRole('button', { name: 'inside' }).focus();
+    await u.keyboard('{Backspace}');
+    await u.keyboard('2');
+    expect(screen.getByRole('heading', { name: 'Is the member ID valid?' })).toBeInTheDocument();
+  });
+
+  it('does not announce twice: no live region around the moving screen', async () => {
+    renderApp(<FlowRunner flow={flow} />);
+    expect(document.querySelector('[data-testid=flow-runner] [aria-live]')).toBeNull();
+  });
 });

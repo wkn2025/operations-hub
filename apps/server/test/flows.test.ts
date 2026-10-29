@@ -155,13 +155,13 @@ describe('flow search', () => {
     expect((await flowHits(c.editor, 'zebra')).map((h) => h.id)).toEqual([draft.slug]);
     await c.req(c.admin, 'POST', `/api/flows/${f.id}/archive`);
     expect(await flowHits(c.viewer, 'rejected')).toHaveLength(0);
-    expect(await flowHits(c.editor, 'rejected')).toHaveLength(0); // editors: archived excluded, like articles
+    expect(await flowHits(c.editor, 'rejected')).toHaveLength(1); // editors may read archived flows, so search shows them too (one rule: can(flow:read))
   });
 });
 
 describe('seed flows', () => {
   it('ship 3 demo flows with >= 8 nodes that pass validateFlow', () => {
-    expect(SEED_FLOWS.map((f) => f.title)).toEqual(['EDI claim failed to import', 'Invoice cannot be registered', 'Payment returned by bank']);
+    expect(SEED_FLOWS.map((f) => f.title)).toEqual(['EDI claim failed to import (DEMO)', 'Invoice cannot be registered (DEMO)', 'Payment returned by bank (DEMO)']);
     for (const f of SEED_FLOWS) {
       expect(f.nodes.length, f.title).toBeGreaterThanOrEqual(8);
       const v = validateFlow({ title: f.title, startId: f.startId, nodes: f.nodes.map((n) => (n.kind === 'article' ? { ...n, articleId: 'x' } : n)) });
@@ -178,7 +178,7 @@ describe('seedBase flows', () => {
     const s = await setup(mkdtempSync(join(tmpdir(), 'ops-flow-')));
     await seedBase(s.app);
     const first = (await s.req(s.viewer, 'GET', '/api/flows')).body.flows;
-    expect(first.map((f: any) => f.title).sort()).toEqual(['EDI claim failed to import', 'Invoice cannot be registered', 'Payment returned by bank']);
+    expect(first.map((f: any) => f.title).sort()).toEqual(['EDI claim failed to import (DEMO)', 'Invoice cannot be registered (DEMO)', 'Payment returned by bank (DEMO)']);
     for (const f of first) {
       const full = (await s.req(s.admin, 'GET', `/api/flows/${f.id}`)).body;
       expect(full.validation, f.title).toMatchObject({ ok: true, errors: [], warnings: [] });
@@ -190,6 +190,75 @@ describe('seedBase flows', () => {
     await seedBase(s.app);
     expect(s.app.sqlite.prepare('select revision from flows order by slug').all()).toEqual(rev);
     const art = (await s.req(s.viewer, 'GET', '/api/articles/edi-claim-failed-to-import')).body;
-    expect(art.flow).toMatchObject({ slug: 'edi-claim-failed-to-import' });
+    expect(art.flow).toMatchObject({ slug: 'edi-claim-failed-to-import-demo' });
+  });
+});
+
+describe('review fixes', () => {
+  it('submit runs the same completeness validation as publish', async () => {
+    const f = await mk({ title: 'Half', nodes: [{ id: 'a', kind: 'question', text: 'Q?' }], startId: 'a' });
+    const r = await c.req(c.editor, 'POST', `/api/flows/${f.id}/submit`);
+    expect(r.status).toBe(422);
+    expect((await c.req(c.editor, 'GET', `/api/flows/${f.id}`)).body.status).toBe('draft');
+  });
+
+  it('list, get and search agree for viewer, editor and admin across every status', async () => {
+    const a = await article();
+    const ids: Record<string, string> = {};
+    for (const st of ['draft', 'in_review', 'published', 'archived']) {
+      const f = await mk({ ...ediWith(a.id), title: `Visibility probe ${st.replace('_', 'x')}` });
+      ids[st] = f.id;
+      if (st !== 'draft') c.app.sqlite.prepare('update flows set status = ? where id = ?').run(st, f.id);
+    }
+    for (const [who, name] of [[c.viewer, 'viewer'], [c.editor, 'editor'], [c.admin, 'admin']] as const) {
+      const listed = new Set((await c.req(who, 'GET', '/api/flows')).body.flows.map((x: any) => x.id));
+      const found = new Set(((await c.req(who, 'GET', '/api/search?q=visibility+probe')).body.groups.find((g: any) => g.kind === 'flow')?.hits ?? []).map((h: any) => h.id));
+      for (const [st, id] of Object.entries(ids)) {
+        const slug = c.app.sqlite.prepare('select slug from flows where id = ?').get(id) as { slug: string };
+        const got = (await c.req(who, 'GET', `/api/flows/${id}`)).status === 200;
+        expect(listed.has(id), `${name} list ${st}`).toBe(got);
+        expect(found.has(slug.slug), `${name} search ${st}`).toBe(got);
+      }
+    }
+  });
+
+  it('article map has no prototype keys', async () => {
+    const { f } = await mkPublished();
+    const body = (await c.req(c.viewer, 'GET', `/api/flows/${f.id}`)).body;
+    const nodes = body.nodes.map((n: any) => (n.kind === 'article' ? { ...n, articleId: '__proto__' } : n));
+    const g = await mk({ title: 'Proto', nodes, startId: 'gop' });
+    const v = (await c.req(c.editor, 'GET', `/api/flows/${g.id}`)).body;
+    expect(Object.prototype.hasOwnProperty.call(v.articles, '__proto__')).toBe(true);
+    expect(({} as any).status).toBeUndefined();
+  });
+
+  it('autosaves coalesce into one flow.update audit row; explicit saves add rows', async () => {
+    const a = await article();
+    const g = await mk({ ...ediWith(a.id), title: 'Audit me too' });
+    let rev = g.revision;
+    for (let i = 0; i < 4; i++) rev = (await c.req(c.editor, 'PATCH', `/api/flows/${g.id}`, { baseRevision: rev, title: `Audit v${i}`, autosave: true })).body.revision;
+    const count = () => (c.app.sqlite.prepare("select count(*) n from audit_log where action = 'flow.update' and entity_id = ?").get(g.id) as any).n;
+    expect(count()).toBe(1);
+    await c.req(c.editor, 'PATCH', `/api/flows/${g.id}`, { baseRevision: rev, title: 'Checkpoint' });
+    expect(count()).toBe(2);
+  });
+
+  it('demo flow titles are labelled DEMO and the first step says so', () => {
+    for (const f of SEED_FLOWS) {
+      expect(f.title, f.title).toMatch(/\(DEMO\)$/);
+      expect(f.nodes.find((n) => n.id === f.startId)!.detail, f.title).toMatch(/DEMO/);
+    }
+  });
+});
+
+describe('seed rename', () => {
+  it('a database seeded before the DEMO label is renamed, not duplicated', async () => {
+    const { mkdtempSync } = await import('node:fs'), { tmpdir } = await import('node:os'), { join } = await import('node:path');
+    const { seedBase } = await import('../src/seed/base');
+    const s = await setup(mkdtempSync(join(tmpdir(), 'ops-flow-')));
+    await seedBase(s.app);
+    s.app.sqlite.prepare("update flows set title = replace(title, ' (DEMO)', ''), slug = replace(slug, '-demo', '')").run();
+    await seedBase(s.app);
+    expect(s.app.sqlite.prepare('select title from flows order by title').all().map((r: any) => r.title)).toEqual(['EDI claim failed to import (DEMO)', 'Invoice cannot be registered (DEMO)', 'Payment returned by bank (DEMO)']);
   });
 });

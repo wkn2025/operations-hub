@@ -1,5 +1,6 @@
 import type { Database } from 'better-sqlite3';
 import type { User } from '@ops/shared';
+import { flowVisibilitySql } from './flows';
 import { categoryPath, hiddenCategoryIds, visibility, type Svc } from './articles';
 
 /** Rebuild the FTS row for one article. Call inside the same transaction as the save. */
@@ -54,11 +55,10 @@ export function searchAll(s: Svc, user: User, q: string, limit = 20): Group[] {
   const glo = rows.filter((r) => r.type === 'glossary').map(toHit);
   if (art.length) groups.push({ kind: 'article', hits: art });
 
-  // flows: viewers published only, editors everything but archived, admins all (hit id = slug, the URL key)
-  const flowVis = user.role === 'viewer' ? "f.status = 'published'" : user.role === 'editor' ? "f.status != 'archived'" : '1=1';
+  // flows: same rule as can(flow:read) via flowVisibilitySql (hit id = slug, the URL key)
   const flowRows = sqlite.prepare(
     `select f.slug, f.title, snippet(flow_fts, -1, char(1), char(2), '…', 14) as snip from flow_fts join flows f on f.id = flow_fts.flow_id
-     where flow_fts match ? and ${flowVis} order by bm25(flow_fts, 10, 1) limit ?`,
+     where flow_fts match ? and ${flowVisibilitySql(user)} order by bm25(flow_fts, 10, 1) limit ?`,
   ).all(match, limit) as { slug: string; title: string; snip: string }[];
   if (flowRows.length) {
     groups.push({ kind: 'flow', hits: flowRows.map((r) => ({

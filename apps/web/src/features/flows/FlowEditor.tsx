@@ -134,6 +134,16 @@ function Workspace({ initial }: { initial: FlowView }) {
     return () => window.removeEventListener('keydown', onKey);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const TABS = ['checks', 'outline', 'test'] as const;
+  // WAI-ARIA tabs: arrows/Home/End move between tabs (automatic activation) and move focus with them
+  const onTabKey = (e: React.KeyboardEvent) => {
+    const i = TABS.indexOf(tab);
+    const n = e.key === 'ArrowRight' ? (i + 1) % TABS.length : e.key === 'ArrowLeft' ? (i + TABS.length - 1) % TABS.length : e.key === 'Home' ? 0 : e.key === 'End' ? TABS.length - 1 : -1;
+    if (n < 0) return;
+    e.preventDefault(); setTab(TABS[n]!);
+    requestAnimationFrame(() => document.getElementById(`flow-tab-${TABS[n]}`)?.focus());
+  };
+
   const canWrite = view.permissions.write;
   const v = useMemo(() => validateFlow(draft), [draft]);
   const errorCount = v.issues.filter((i) => i.level === 'error').length;
@@ -269,9 +279,9 @@ function Workspace({ initial }: { initial: FlowView }) {
 
         <aside aria-label="Flow tools" className="xl:sticky xl:top-[150px] xl:self-start">
           <div className="flex flex-col overflow-hidden rounded-[20px] bg-white shadow-md ring-1 ring-neutral-200/80 xl:max-h-[calc(100vh-208px)]">
-            <div role="tablist" aria-label="Panels" className="flex shrink-0 gap-1 border-b border-neutral-200/70 p-1.5">
+            <div role="tablist" aria-label="Panels" className="flex shrink-0 gap-1 border-b border-neutral-200/70 p-1.5" onKeyDown={onTabKey}>
               {([['checks', 'Checks'], ['outline', 'Outline'], ['test', 'Test run']] as const).map(([k, label]) => (
-                <button key={k} role="tab" type="button" aria-selected={tab === k} onClick={() => setTab(k)}
+                <button key={k} role="tab" type="button" id={`flow-tab-${k}`} aria-controls={`flow-panel-${k}`} aria-selected={tab === k} tabIndex={tab === k ? 0 : -1} onClick={() => setTab(k)}
                   className={clsx('flex flex-1 items-center justify-center gap-1.5 rounded-[12px] py-2 text-[13px] font-medium transition-colors', tab === k ? 'bg-primary-soft text-primary' : 'text-neutral-500 hover:bg-neutral-50 hover:text-neutral-800')}>
                   {label}
                   {k === 'checks' && (errorCount > 0
@@ -280,7 +290,7 @@ function Workspace({ initial }: { initial: FlowView }) {
                 </button>
               ))}
             </div>
-            <div role="tabpanel" className="min-h-0 flex-1 overflow-y-auto p-4">
+            <div role="tabpanel" id={`flow-panel-${tab}`} aria-labelledby={`flow-tab-${tab}`} tabIndex={0} className="min-h-0 flex-1 overflow-y-auto p-4">
               {tab === 'checks' && <Checks issues={v.issues} onJump={jump} />}
               {tab === 'outline' && <Outline flow={draft} onJump={jump} />}
               {tab === 'test' && (

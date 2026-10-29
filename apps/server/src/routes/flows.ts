@@ -21,8 +21,7 @@ export function flowRoutes(app: FastifyInstance) {
     return reply.code(201).send(show(req, id));
   });
   app.patch<{ Params: { key: string } }>('/api/flows/:key', { preHandler: writer }, async (req) => {
-    const { autosave: _a, ...b } = parse(flowPatchBody, req.body);
-    return show(req, updateFlow(app, U(req), req.params.key, b));
+    return show(req, updateFlow(app, U(req), req.params.key, parse(flowPatchBody, req.body)));
   });
   for (const action of ['submit', 'publish', 'archive', 'restore'] as FlowTransition[]) {
     app.post<{ Params: { key: string } }>(`/api/flows/:key/${action}`, { preHandler: writer }, async (req) =>

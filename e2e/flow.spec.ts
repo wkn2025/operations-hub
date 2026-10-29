@@ -18,8 +18,8 @@ test('viewer runs the EDI flow to a result, goes back and restarts; cannot edit'
   await loginAs(page, 'viewer@demo.test');
   await page.goto('/flows');
   await shot(page, '17-flows-list');
-  await page.getByRole('link', { name: 'EDI claim failed to import' }).first().click();
-  await expect(page).toHaveURL(/\/flows\/edi-claim-failed-to-import$/);
+  await page.getByRole('link', { name: 'EDI claim failed to import (DEMO)' }).first().click();
+  await expect(page).toHaveURL(/\/flows\/edi-claim-failed-to-import-demo$/);
   await heading(page, 'Is there a GOP for this case?');
   await shot(page, '18-flow-question');
 
@@ -46,10 +46,10 @@ test('viewer runs the EDI flow to a result, goes back and restarts; cannot edit'
 
   // the troubleshooting article exposes the flow
   await page.goto('/article/edi-claim-failed-to-import');
-  await expect(page.getByRole('link', { name: /Start guided flow/ })).toHaveAttribute('href', '/flows/edi-claim-failed-to-import');
+  await expect(page.getByRole('link', { name: /Start guided flow/ })).toHaveAttribute('href', '/flows/edi-claim-failed-to-import-demo');
 
   // viewers: no edit page, no writes
-  await page.goto('/flows/edi-claim-failed-to-import/edit');
+  await page.goto('/flows/edi-claim-failed-to-import-demo/edit');
   await expect(page.getByRole('heading', { name: /Editing isn.t available/ })).toBeVisible();
   const list = await (await page.request.get('/api/flows')).json();
   const f = list.flows[0];
@@ -58,7 +58,7 @@ test('viewer runs the EDI flow to a result, goes back and restarts; cannot edit'
   expect((await page.request.post(`/api/flows/${f.id}/archive`)).status()).toBe(403);
 });
 
-test('editor builds a flow, fixes a validation error, publishes; a viewer runs it', async ({ page }) => {
+test('editor builds a flow, fixes a validation error, publishes; a viewer runs it', async ({ page, playwright, baseURL }) => {
   await loginAs(page, 'editor@demo.test');
   await page.goto('/flows');
   await page.getByRole('link', { name: 'New flow' }).click();
@@ -102,6 +102,15 @@ test('editor builds a flow, fixes a validation error, publishes; a viewer runs i
   await shot(page, '24-flow-editor-test-run');
 
   await saved(page);
+
+  // while it is a draft a viewer gets 404 by id and it is not listed
+  const flowId = page.url().match(/flows\/([0-9a-f-]{36})\/edit/)![1]!;
+  const viewer = await playwright.request.newContext({ baseURL });
+  expect((await viewer.post('/api/auth/dev/login', { data: { email: 'viewer@demo.test' } })).ok()).toBeTruthy();
+  expect((await viewer.get(`/api/flows/${flowId}`)).status()).toBe(404);
+  expect(JSON.stringify(await (await viewer.get('/api/flows')).json())).not.toContain(title);
+  await viewer.dispose();
+
   await page.getByRole('button', { name: /^Publish/ }).click();
   await expect(page.getByRole('status').filter({ hasText: /Published/ })).toBeVisible();
 

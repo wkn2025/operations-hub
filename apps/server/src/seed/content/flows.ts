@@ -11,11 +11,11 @@ const yn = (yes: string, no: string) => [{ label: 'Yes', to: yes }, { label: 'No
 
 export const SEED_FLOWS: SeedFlow[] = [
   {
-    title: 'EDI claim failed to import',
+    title: 'EDI claim failed to import (DEMO)',
     articleSlug: 'edi-claim-failed-to-import',
     startId: 'gop',
     nodes: [
-      { id: 'gop', kind: 'question', text: 'Is there a GOP for this case?', detail: 'Open the case in Globo and look at the Guarantees tab.', options: yn('member', 'no-gop') },
+      { id: 'gop', kind: 'question', text: 'Is there a GOP for this case?', detail: 'Open the case in Globo and look at the Guarantees tab. DEMO flow: fictional procedure and data.', options: yn('member', 'no-gop') },
       { id: 'no-gop', kind: 'result', severity: 'warning', text: 'The matcher rejects claims without a guarantee (E-112 NO_GOP).', detail: 'Ask the medical team to issue a GOP, then re-queue the claim from Quarantine.' },
       { id: 'member', kind: 'question', text: 'Does the member ID on the claim match the policy record?', detail: 'Compare NM1*IL in the claim with the policy. Providers often drop leading zeros.', options: [{ label: 'Yes, they match', to: 'case' }, { label: 'No, they differ', to: 'fix-member' }, { label: 'I am not sure', to: 'recheck-member' }] },
       { id: 'recheck-member', kind: 'result', severity: 'info', text: 'Look the member up by name and date of birth first.', detail: 'Once you have the policy record open, come back and answer again.' },
@@ -30,10 +30,10 @@ export const SEED_FLOWS: SeedFlow[] = [
     ],
   },
   {
-    title: 'Invoice cannot be registered',
+    title: 'Invoice cannot be registered (DEMO)',
     startId: 'case',
     nodes: [
-      { id: 'case', kind: 'question', text: 'Does Globo find the case number on the invoice?', options: yn('gop', 'by-name') },
+      { id: 'case', kind: 'question', text: 'Does Globo find the case number on the invoice?', detail: 'DEMO flow: fictional procedure and data.', options: yn('gop', 'by-name') },
       { id: 'by-name', kind: 'question', text: 'Does a search by name and date of birth find exactly one case?', detail: 'Check that the admission date matches the invoice.', options: yn('gop', 'no-case') },
       { id: 'no-case', kind: 'result', severity: 'info', text: 'Ask the provider for the case number or assign the invoice to your team lead.' },
       { id: 'gop', kind: 'question', text: 'Is there an active GOP on the case?', options: yn('amount', 'no-gop') },
@@ -46,10 +46,10 @@ export const SEED_FLOWS: SeedFlow[] = [
     ],
   },
   {
-    title: 'Payment returned by bank',
+    title: 'Payment returned by bank (DEMO)',
     startId: 'reason',
     nodes: [
-      { id: 'reason', kind: 'question', text: 'What reason did the bank give for returning the payment?', options: [{ label: 'Account closed or not found', to: 'iban' }, { label: 'Name does not match', to: 'name' }, { label: 'Another reason', to: 'other' }] },
+      { id: 'reason', kind: 'question', text: 'What reason did the bank give for returning the payment?', detail: 'DEMO flow: fictional procedure and data.', options: [{ label: 'Account closed or not found', to: 'iban' }, { label: 'Name does not match', to: 'name' }, { label: 'Another reason', to: 'other' }] },
       { id: 'iban', kind: 'question', text: 'Is the IBAN on the invoice the same as the one in the provider record?', options: yn('contact-bank', 'update-iban') },
       { id: 'update-iban', kind: 'result', severity: 'warning', text: 'Confirm the new IBAN by phone with the provider, then update the record.', detail: 'Never change bank details based on an e-mail alone.' },
       { id: 'contact-bank', kind: 'result', severity: 'info', text: 'The details are right, so ask the finance desk to contact the bank with the return reference.' },

@@ -102,3 +102,41 @@ describe('FlowEditor', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/Fix the 1 problem/);
   });
 });
+
+describe('FlowEditor tabs and unsaved edits', () => {
+  it('tabs are wired with aria-controls and labelled panels, and arrows move between them', async () => {
+    const u = userEvent.setup();
+    mount();
+    await screen.findByDisplayValue('Invoice problems');
+    const checks = screen.getByRole('tab', { name: /Checks/ });
+    expect(checks).toHaveAttribute('aria-controls', 'flow-panel-checks');
+    expect(screen.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', 'flow-tab-checks');
+    checks.focus();
+    await u.keyboard('{ArrowRight}');
+    expect(screen.getByRole('tab', { name: 'Outline' })).toHaveAttribute('aria-selected', 'true');
+    await waitFor(() => expect(screen.getByRole('tab', { name: 'Outline' })).toHaveFocus());
+    expect(screen.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', 'flow-tab-outline');
+    await u.keyboard('{End}');
+    expect(screen.getByRole('tab', { name: 'Test run' })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('a refused autosave (422, loop with no exit) keeps the edit on screen, names the rule, and still warns before unload', async () => {
+    const u = userEvent.setup();
+    const fetchMock = mount();
+    const inner = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (input, init) => (init?.method === 'PATCH'
+      ? new Response(JSON.stringify({ error: 'invalid_flow', errors: ['"Is there a GOP?" is part of a loop with no way out to a result or article.'] }), { status: 422, headers: { 'content-type': 'application/json' } })
+      : inner(input, init)));
+    await screen.findByDisplayValue('Invoice problems');
+    const text = within(document.getElementById('node-q1')!).getByRole('textbox', { name: 'Question' });
+    await u.clear(text);
+    await u.type(text, 'Edited but refused');
+    const alert = await screen.findByRole('alert', undefined, { timeout: 4000 });
+    expect(alert).toHaveTextContent(/Not saved: .*loop with no way out/);
+    expect(text).toHaveValue('Edited but refused'); // nothing was thrown away
+    await waitFor(() => expect(document.querySelector('[data-save-state=error]')).toBeTruthy());
+    const ev = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(ev);
+    expect(ev.defaultPrevented).toBe(true); // the browser still warns before leaving
+  });
+});
