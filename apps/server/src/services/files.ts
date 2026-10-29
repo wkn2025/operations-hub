@@ -124,8 +124,8 @@ export function attach(s: Svc, user: User, articleId: string, fileId: string, on
 
 export function articleFileList(s: Svc, user: User, articleId: string) {
   if (!readable(s, user, articleId)) throw notFound();
-  return s.sqlite.prepare('select f.* from article_files x join files f on f.id = x.file_id where x.article_id = ? order by f.created_at').all(articleId)
-    .map((r: any) => fileCols({ id: r.id, name: r.name, mime: r.mime, size: r.size, path: r.path, uploadedBy: r.uploaded_by, createdAt: r.created_at }));
+  return s.sqlite.prepare('select f.*, x.source from article_files x join files f on f.id = x.file_id where x.article_id = ? order by f.created_at').all(articleId)
+    .map((r: any) => ({ ...fileCols({ id: r.id, name: r.name, mime: r.mime, size: r.size, path: r.path, uploadedBy: r.uploaded_by, createdAt: r.created_at }), source: r.source as 'attached' | 'embedded' }));
 }
 
 export function adminFiles(s: Svc) {

@@ -222,3 +222,14 @@ describe('persistence', () => {
     await a2.close();
   });
 });
+
+describe('article file list source (Task 6 editor)', () => {
+  it('marks embedded vs attached rows', async () => {
+    const img = (await upload(c.editor, 'a.png', PNG, 'image/png')).json();
+    const pdf = (await upload(c.editor, 'b.pdf', PDF)).json();
+    const a = await mk({ type: 'doc', content: [{ type: 'image', attrs: { src: img.url } }] });
+    await c.req(c.editor, 'POST', `/api/articles/${a.id}/files/${pdf.id}`);
+    const list = (await c.req(c.editor, 'GET', `/api/articles/${a.id}/files`)).body.files;
+    expect(Object.fromEntries(list.map((f: any) => [f.name, f.source]))).toEqual({ 'a.png': 'embedded', 'b.pdf': 'attached' });
+  });
+});
