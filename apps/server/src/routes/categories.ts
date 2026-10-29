@@ -20,7 +20,9 @@ export function categoryRoutes(app: FastifyInstance) {
 
   app.post('/api/categories', { preHandler: admin }, async (req, reply) => {
     const b = parse(categoryCreateBody, req.body);
-    if (b.parentId && !find(b.parentId)) throw new ApiError(400, { error: 'invalid', message: 'unknown parentId' });
+    const parent = b.parentId ? find(b.parentId) : undefined;
+    if (b.parentId && !parent) throw new ApiError(400, { error: 'invalid', message: 'unknown parentId' });
+    if (parent?.archived) throw new ApiError(409, { error: 'parent_archived', message: 'parent category is archived' });
     const id = crypto.randomUUID();
     app.sqlite.transaction(() => {
       app.db.insert(categories).values({
@@ -44,8 +46,10 @@ export function categoryRoutes(app: FastifyInstance) {
         if (x.id === cur.id) throw new ApiError(400, { error: 'invalid', message: 'category cannot be its own descendant' });
       }
     }
-    if (b.archived === false && cur.parentId && all.find((c) => c.id === (b.parentId === undefined ? cur.parentId : b.parentId))?.archived) {
-      throw new ApiError(409, { error: 'parent_archived', message: 'restore the parent category first' });
+    const parentId = b.parentId === undefined ? cur.parentId : b.parentId;
+    if ((b.parentId !== undefined || b.archived !== undefined) && !(b.archived ?? cur.archived) && parentId
+      && all.find((c) => c.id === parentId)?.archived) {
+      throw new ApiError(409, { error: 'parent_archived', message: 'parent category is archived' });
     }
     if (b.archived === true && all.some((c) => c.parentId === cur.id && !c.archived)) {
       throw new ApiError(409, { error: 'has_active_children', message: 'archive or move the child categories first' });

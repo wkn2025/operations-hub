@@ -49,8 +49,8 @@ describe('requireApproval protects published content', () => {
     }
     for (const raw of ['false', 'garbage', '0']) {
       rawSetting(raw);
-      expect((await c.req(c.editor, 'PATCH', `/api/articles/${id}`, { baseRevision: 1, title: 'ok' })).status, raw).toBe(200);
-      return;
+      const cur = (await c.req(c.editor, 'GET', `/api/articles/${id}`)).body.revision;
+      expect((await c.req(c.editor, 'PATCH', `/api/articles/${id}`, { baseRevision: cur, title: 'ok' })).status, raw).toBe(200);
     }
   });
 });
@@ -73,6 +73,25 @@ describe('integrity', () => {
     await c.req(c.admin, 'PATCH', `/api/categories/${ch}`, { archived: true });
     await c.req(c.admin, 'PATCH', `/api/categories/${p}`, { archived: true });
     expect((await c.req(c.admin, 'PATCH', `/api/categories/${ch}`, { archived: false })).status).toBe(409);
+  });
+  it('categories: no active category under an archived parent', async () => {
+    const mk = async (name: string, parentId?: string) => (await c.req(c.admin, 'POST', '/api/categories', { name, parentId })).body.id;
+    const arch = await mk('Arch'); await c.req(c.admin, 'PATCH', `/api/categories/${arch}`, { archived: true });
+    const root = await mk('Root'); const ok = await mk('Ok');
+    expect((await c.req(c.admin, 'POST', '/api/categories', { name: 'Kid', parentId: arch })).status).toBe(409);
+    expect((await c.req(c.admin, 'PATCH', `/api/categories/${root}`, { parentId: arch })).status).toBe(409);
+    await c.req(c.admin, 'PATCH', `/api/categories/${ok}`, { archived: true });
+    expect((await c.req(c.admin, 'PATCH', `/api/categories/${ok}`, { archived: false, parentId: arch })).status).toBe(409); // root unarchived + archived parent in one PATCH
+    expect((await c.req(c.admin, 'PATCH', `/api/categories/${ok}`, { parentId: arch })).status).toBe(200); // stays archived: allowed
+    expect((await c.req(c.admin, 'PATCH', `/api/categories/${root}`, { parentId: ok, name: 'R2' })).status).toBe(409);
+  });
+  it('raw control chars in body cannot create stray <mark>', async () => {
+    const a = (await c.req(c.editor, 'POST', '/api/articles', { title: 'Body ctl', content: doc('foo\u0001bar\u0002 zzq') })).body;
+    await c.req(c.editor, 'POST', `/api/articles/${a.id}/publish`);
+    const hit = (await c.req(c.viewer, 'GET', '/api/search?q=zzq')).body.groups[0].hits[0];
+    expect(hit.snippet).not.toMatch(/[\u0001\u0002]/);
+    expect(hit.snippet.match(/<mark>/g)!.length).toBe(1);
+    expect(hit.snippet.match(/<\/mark>/g)!.length).toBe(1);
   });
   it('invalid category / reviewDate rejected', async () => {
     expect((await c.req(c.editor, 'POST', '/api/articles', { title: 'x', categoryId: 'nope' })).status).toBe(400);
