@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { ArrowUp, CornerDownRight, Download, Paperclip } from 'lucide-react';
+import { ArrowUp, CornerDownRight, Download, Paperclip, PenLine } from 'lucide-react';
 import type { PmNode } from '@ops/shared';
-import { api, HttpError, useArticle, useArticles, useCategories, type ArticleSummary, type FileRef } from '../../api/client';
+import { api, HttpError, isEditorRole, useArticle, useArticles, useCategories, useSession, type ArticleSummary, type FileRef } from '../../api/client';
 import { Breadcrumbs, categoryCrumbs } from '../../components/ui/Breadcrumbs';
 import { IconTile, Skeleton, TEMPLATE_ICON } from '../../components/ui/primitives';
 import { useActiveCategory } from '../../layout/Shell';
@@ -25,6 +25,7 @@ export function ArticlePage() {
   const q = useArticle(slug);
   const cats = useCategories();
   const list = useArticles();
+  const canEdit = isEditorRole(useSession().data?.user?.role);
   const a = q.data;
   useActiveCategory(a?.categoryId);
   useEffect(() => { if (a) document.title = `${a.title} · Operations Hub`; return () => { document.title = 'Operations Hub'; }; }, [a]);
@@ -45,14 +46,24 @@ export function ArticlePage() {
 
   const inline = imageSrcs(a.content);
   const attachments = (files.data ?? []).filter((f) => !inline.has(f.url));
-  const related = (list.data ?? []).filter((x) => x.id !== a.id && x.categoryId === a.categoryId && x.status === 'published').slice(0, 4);
+  // explicit related picks win; otherwise other published articles in the same category
+  const related: Pick<ArticleSummary, 'id' | 'slug' | 'title' | 'type'>[] = a.related?.length
+    ? a.related.map((r) => ({ ...r, type: list.data?.find((x) => x.id === r.id)?.type ?? 'standard' }))
+    : (list.data ?? []).filter((x) => x.id !== a.id && x.categoryId === a.categoryId && x.status === 'published').slice(0, 4);
   const back = backlinks.data ?? [];
   const catName = a.categoryPath.split(' / ').pop();
 
   return (
     <div className="grid gap-14 xl:grid-cols-[minmax(0,1fr)_220px]">
       <div className="min-w-0 max-w-[760px]">
-        <Breadcrumbs items={[{ label: 'Home', to: '/' }, ...categoryCrumbs(a.categoryPath, cats.data ?? []), { label: a.title }]} />
+        <div className="flex items-center gap-4">
+          <div className="min-w-0 flex-1"><Breadcrumbs items={[{ label: 'Home', to: '/' }, ...categoryCrumbs(a.categoryPath, cats.data ?? []), { label: a.title }]} /></div>
+          {canEdit && (
+            <Link to={`/edit/${a.id}`} className="inline-flex shrink-0 items-center gap-1.5 rounded-[11px] bg-white px-3 py-1.5 text-[13px] font-medium text-neutral-700 shadow-sm ring-1 ring-neutral-200 transition-colors hover:text-primary hover:ring-primary/30">
+              <PenLine size={14} aria-hidden /> Edit
+            </Link>
+          )}
+        </div>
         <div className="mt-7"><ArticleTemplate key={a.id} article={a} /></div>
 
         {attachments.length > 0 && (
@@ -76,7 +87,7 @@ export function ArticlePage() {
           <div className="mt-14 grid gap-8 border-t border-neutral-200/70 pt-10 sm:grid-cols-2">
             {related.length > 0 && (
               <section aria-labelledby="h-related">
-                <h2 id="h-related" className="text-[15px] font-semibold text-neutral-900">More in {catName}</h2>
+                <h2 id="h-related" className="text-[15px] font-semibold text-neutral-900">{a.related?.length ? 'Related articles' : `More in ${catName}`}</h2>
                 <ul className="mt-3 space-y-1">
                   {related.map((r) => <MiniLink key={r.id} a={r} />)}
                 </ul>
@@ -107,7 +118,7 @@ export function ArticlePage() {
   );
 }
 
-function MiniLink({ a }: { a: ArticleSummary }) {
+function MiniLink({ a }: { a: Pick<ArticleSummary, 'id' | 'slug' | 'title' | 'type'> }) {
   return (
     <li>
       <Link to={`/article/${a.slug}`} className="group -mx-2 flex items-center gap-2.5 rounded-[10px] px-2 py-1.5 text-[14px] text-neutral-700 transition-colors hover:bg-neutral-50 hover:text-primary">

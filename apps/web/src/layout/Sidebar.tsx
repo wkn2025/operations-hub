@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router';
 import { AnimatePresence, motion } from 'motion/react';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import clsx from 'clsx';
-import { ChevronRight, House, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { ChevronRight, House, PanelLeftClose, PanelLeftOpen, SquarePen } from 'lucide-react';
 import type { Category } from '../api/client';
 import { categoryIcon } from '../components/ui/primitives';
 import { usePref } from '../lib/prefs';
@@ -14,8 +14,8 @@ const spring = { type: 'spring', stiffness: 380, damping: 36, mass: 0.9 } as con
 
 export function useSidebarCollapsed() { return usePref(SIDEBAR_PREF, false); }
 
-export function Sidebar({ categories, activeCategoryId, collapsed: collapsedProp, onCollapsedChange }: {
-  categories: Category[]; activeCategoryId?: string | null; collapsed?: boolean; onCollapsedChange?: (v: boolean) => void;
+export function Sidebar({ categories, activeCategoryId, collapsed: collapsedProp, onCollapsedChange, canEdit }: {
+  categories: Category[]; activeCategoryId?: string | null; collapsed?: boolean; onCollapsedChange?: (v: boolean) => void; canEdit?: boolean;
 }) {
   const [prefCollapsed, setPref] = useSidebarCollapsed();
   const collapsed = collapsedProp ?? prefCollapsed;
@@ -49,6 +49,7 @@ export function Sidebar({ categories, activeCategoryId, collapsed: collapsedProp
 
         <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 pb-3 pt-1">
           <NavItem to="/" label="Home" icon={<House size={18} strokeWidth={1.8} />} active={pathname === '/'} collapsed={collapsed} />
+          {canEdit && <NavItem to="/edit/new" label="New article" icon={<SquarePen size={18} strokeWidth={1.8} />} active={pathname === '/edit/new'} collapsed={collapsed} />}
           <Fade show={!collapsed}>
             <p className="mb-1 mt-5 px-3 text-xs font-medium text-ink-muted">Categories</p>
           </Fade>

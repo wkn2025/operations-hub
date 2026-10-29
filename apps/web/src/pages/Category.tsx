@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import clsx from 'clsx';
-import { FileQuestion } from 'lucide-react';
+import { FileQuestion, Plus } from 'lucide-react';
 import { TEMPLATE_LABELS } from '@ops/shared';
 import { ARTICLE_CAP, subtree, useArticles, useCategories, useSession } from '../api/client';
 import { Breadcrumbs, categoryCrumbs } from '../components/ui/Breadcrumbs';
@@ -35,12 +35,17 @@ export function CategoryPage() {
       <Breadcrumbs items={[{ label: 'Home', to: '/' }, ...categoryCrumbs(cat.path, all)]} />
       <header className="mt-6 flex items-start gap-5">
         <IconTile icon={categoryIcon(top.name)} size="lg" />
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h1 className="text-[32px] font-semibold leading-tight tracking-[-0.025em] text-neutral-900">{cat.name}</h1>
           <p className="mt-1.5 max-w-[62ch] text-[16px] leading-relaxed text-neutral-500">
             {cat.description ?? (parent ? `Part of ${parent.name}.` : '')}
           </p>
         </div>
+        {(role === 'editor' || role === 'admin') && (
+          <Link to={`/edit/new?category=${cat.id}`} className="inline-flex shrink-0 items-center gap-2 rounded-[12px] bg-primary px-4 py-2 text-sm font-medium text-white shadow-button transition-colors hover:bg-primary-hover">
+            <Plus size={16} aria-hidden /> New article
+          </Link>
+        )}
       </header>
 
       {subs.length > 0 && (

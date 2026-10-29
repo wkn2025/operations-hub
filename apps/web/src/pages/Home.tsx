@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { Link } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { CalendarClock, Search } from 'lucide-react';
+import { CalendarClock, Plus, Search } from 'lucide-react';
 import { ARTICLE_CAP, api, subtree, useArticles, useCategories, useSession, type ReviewDue } from '../api/client';
 import { useSearch, isMac } from '../features/search/SearchDialog';
 import { IconTile, Kbd, Skeleton, TEMPLATE_ICON, categoryIcon } from '../components/ui/primitives';
@@ -27,7 +27,14 @@ export function Home() {
   return (
     <div>
       <section className="animate-rise pt-6">
-        <h1 className="text-[34px] font-semibold tracking-[-0.025em] text-neutral-900">{greeting()}, {me.name}</h1>
+        <div className="flex items-start justify-between gap-4">
+          <h1 className="text-[34px] font-semibold tracking-[-0.025em] text-neutral-900">{greeting()}, {me.name}</h1>
+          {isEditor && (
+            <Link to="/edit/new" className="mt-1.5 inline-flex shrink-0 items-center gap-2 rounded-[12px] bg-primary px-4 py-2 text-sm font-medium text-white shadow-button transition-colors hover:bg-primary-hover">
+              <Plus size={16} aria-hidden /> New article
+            </Link>
+          )}
+        </div>
         <p className="mt-2 text-[17px] text-neutral-500">
           {arts.isPending ? 'Loading the knowledge base…' : arts.isError ? 'The article list is unavailable right now.' : `${published.length} published article${published.length === 1 ? '' : 's'} across ${tops.length} categories.`}
         </p>

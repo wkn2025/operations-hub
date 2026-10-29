@@ -26,11 +26,15 @@ export interface Article {
   id: string; slug: string; title: string; type: ArticleType; status: ArticleStatus; categoryId: string | null; categoryPath: string;
   owner: { id: string; name: string } | null; revision: number; updatedAt: string; publishedAt: string | null; reviewDate: string | null;
   tags: string[]; fields: TemplateFields; content: PmNode; linkTargets: Record<string, LinkTarget>;
+  /** explicit related articles (readable ones only); empty -> UI falls back to same-category articles */
+  related?: { id: string; title: string; slug: string; status: ArticleStatus }[];
+  /** what the server would allow this user to do right now (UI hints only; the server still enforces) */
+  permissions?: { write: boolean; publish: boolean; submit: boolean; archive: boolean };
 }
 export type ArticleSummary = Pick<Article, 'id' | 'slug' | 'title' | 'type' | 'status' | 'categoryId' | 'categoryPath' | 'revision' | 'updatedAt' | 'publishedAt' | 'reviewDate'> & { summary?: string | null };
 export interface SearchHit { id: string; title: string; snippet: string; categoryPath: string }
 export interface SearchGroup { kind: 'article' | 'category' | 'tag' | 'glossary'; hits: SearchHit[] }
-export interface FileRef { id: string; url: string; name: string; mime: string; size: number }
+export interface FileRef { id: string; url: string; name: string; mime: string; size: number; source?: 'attached' | 'embedded' }
 export interface ReviewDue { id: string; slug: string; title: string; reviewDate: string; overdue: boolean }
 
 // ---- hooks ----
@@ -39,6 +43,7 @@ export const useCategories = () => useQuery({ queryKey: ['categories'], queryFn:
 /** ponytail: one list of up to 200 visible articles feeds counts, category pages and "recent"; paginate when the KB outgrows it. */
 export const ARTICLE_CAP = 200;
 export const useArticles = () => useQuery({ queryKey: ['articles'], queryFn: () => api<{ articles: ArticleSummary[] }>(`/api/articles?limit=${ARTICLE_CAP}`).then((r) => r.articles) });
+export const isEditorRole = (role: Role | undefined) => role === 'editor' || role === 'admin';
 export const useArticle = (idOrSlug: string) =>
   useQuery({ queryKey: ['article', idOrSlug], queryFn: () => api<Article>(`/api/articles/${encodeURIComponent(idOrSlug)}`), retry: false });
 

@@ -24,7 +24,7 @@ export function renderApp(ui: ReactElement, route = '/') {
 
 /** fetch stub: first matching url prefix wins; unmatched -> 404. */
 export function mockFetch(routes: Record<string, unknown>) {
-  const fn = vi.fn(async (input: RequestInfo | URL) => {
+  const fn = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
     const url = String(input);
     const key = Object.keys(routes).find((k) => url.startsWith(k));
     if (!key) return new Response(JSON.stringify({ error: 'not_found' }), { status: 404 });
