@@ -277,7 +277,7 @@ function TitleInput({ value, onChange, onEnter, disabled }: { value: string; onC
   const err = !value.trim();
   return (
     <div className="mb-6">
-      <textarea aria-label="Title" rows={1} value={value} disabled={disabled} placeholder="Untitled article" maxLength={200} autoFocus={!value}
+      <textarea aria-label="Article title" rows={1} value={value} disabled={disabled} placeholder="Untitled article" maxLength={200} autoFocus={!value}
         onChange={(e) => onChange(e.target.value.replace(/\n/g, ''))} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onEnter(); } }}
         className="block w-full resize-none bg-transparent text-balance text-[34px] font-semibold leading-[1.15] tracking-[-0.025em] text-neutral-900 outline-none [field-sizing:content] placeholder:text-neutral-300 focus-visible:outline-none" />
       {err && value !== '' && <p className="mt-1 text-xs text-danger">Give the article a title.</p>}
