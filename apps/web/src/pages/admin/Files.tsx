@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../api/client';
 import { fmtDate } from '../../lib/text';
@@ -13,6 +13,14 @@ export function Files() {
   const users = useAdminUsers().data ?? [];
   const act = useAdminAction();
   const [confirm, setConfirm] = useState<string | null>(null);
+  // the Delete button and its confirm group replace each other: move focus with them (to the heading if the row is gone)
+  const [focusId, setFocusId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!focusId) return;
+    (document.getElementById(focusId) ?? document.getElementById('admin-page-title'))?.focus();
+    setFocusId(null);
+  }, [focusId, files.data]);
+  const ask = (id: string | null, focus: string) => { setConfirm(id); setFocusId(focus); };
 
   return (
     <section>
@@ -34,12 +42,12 @@ export function Files() {
                   {confirm === f.id ? (
                     <span role="group" aria-label={`Confirm deleting ${f.name}`} className="flex flex-wrap gap-1.5">
                       <button type="button" className={smallBtn + ' text-danger ring-danger/40'} disabled={act.busy === f.id}
-                        onClick={() => { setConfirm(null); void act.run(f.id, () => api(`/api/admin/files/${f.id}`, { method: 'DELETE' })); }}>Delete for good</button>
-                      <button type="button" className={smallBtn} onClick={() => setConfirm(null)}>Cancel</button>
+                        onClick={async () => { setConfirm(null); await act.run(f.id, () => api(`/api/admin/files/${f.id}`, { method: 'DELETE' })); setFocusId(`file-delete-${f.id}`); }}>Delete for good</button>
+                      <button type="button" id={`file-cancel-${f.id}`} className={smallBtn} onClick={() => ask(null, `file-delete-${f.id}`)}>Cancel</button>
                     </span>
                   ) : (
-                    <button type="button" className={smallBtn} disabled={f.references > 0} aria-label={`Delete ${f.name}`}
-                      title={f.references > 0 ? 'In use: remove it from its articles first' : undefined} onClick={() => setConfirm(f.id)}>Delete</button>
+                    <button type="button" id={`file-delete-${f.id}`} className={smallBtn} disabled={f.references > 0} aria-label={`Delete ${f.name}`}
+                      title={f.references > 0 ? 'In use: remove it from its articles first' : undefined} onClick={() => ask(f.id, `file-cancel-${f.id}`)}>Delete</button>
                   )}
                 </td>
               </tr>

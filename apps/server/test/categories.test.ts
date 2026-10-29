@@ -13,6 +13,27 @@ describe('categories', () => {
     expect(list.map((x: any) => x.id).sort()).toEqual([a, b].sort());
     expect(new Set(list.map((x: any) => x.slug)).size).toBe(2);
   });
+  it('reorder: applies all moves in one transaction; any invalid move rolls back every move', async () => {
+    const a = await mk('A'), b = await mk('B'), x = await mk('X', a);
+    const state = async () => Object.fromEntries(((await c.req(c.admin, 'GET', '/api/categories')).body.categories as any[]).map((k) => [k.name, `${k.parentId ?? '-'}:${k.sortOrder}`]));
+    const before = await state();
+    // second move would make A its own descendant: nothing may change
+    expect((await c.req(c.admin, 'POST', '/api/categories/reorder', { moves: [{ id: b, sortOrder: 0 }, { id: a, sortOrder: 0, parentId: x }] })).status).toBe(400);
+    expect((await c.req(c.admin, 'POST', '/api/categories/reorder', { moves: [{ id: b, sortOrder: 0 }, { id: 'nope', sortOrder: 1 }] })).status).toBe(404);
+    expect(await state()).toEqual(before);
+    await c.req(c.admin, 'PATCH', `/api/categories/${b}`, { archived: true });
+    expect((await c.req(c.admin, 'POST', '/api/categories/reorder', { moves: [{ id: a, sortOrder: 5 }, { id: x, sortOrder: 0, parentId: b }] })).status).toBe(409); // parent archived
+    expect(await state()).toEqual({ ...before, B: before.B });
+    // valid batch: reorder + reparent; FTS path follows the new parent
+    await c.req(c.admin, 'PATCH', `/api/categories/${b}`, { archived: false });
+    const art = (await c.req(c.editor, 'POST', '/api/articles', { title: 'Zebra note', categoryId: x })).body.id;
+    const r = await c.req(c.admin, 'POST', '/api/categories/reorder', { moves: [{ id: b, sortOrder: 0 }, { id: a, sortOrder: 1 }, { id: x, sortOrder: 0, parentId: b }] });
+    expect(r.status).toBe(200);
+    expect(await state()).toEqual({ A: '-:1', B: '-:0', X: `${b}:0` });
+    expect((c.app.sqlite.prepare('select category from article_fts where article_id = ?').get(art) as any).category).toBe('B / X');
+    expect((await c.req(c.editor, 'POST', '/api/categories/reorder', { moves: [{ id: a, sortOrder: 0 }] })).status).toBe(403);
+    expect((await c.req(c.admin, 'POST', '/api/categories/reorder', { moves: [] })).status).toBe(400);
+  });
   it('anonymous cannot list', async () => {
     expect((await c.req(undefined, 'GET', '/api/categories')).status).toBe(401);
   });

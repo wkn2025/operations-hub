@@ -21,7 +21,8 @@ export function Home() {
   const review = useQuery({ queryKey: ['review-due'], enabled: isEditor, queryFn: () => api<{ articles: ReviewDue[] }>('/api/admin/review-due?days=30').then((r) => r.articles) });
 
   const published = useMemo(() => (arts.data ?? []).filter((a) => a.status === 'published'), [arts.data]);
-  const tops = useMemo(() => (cats.data ?? []).filter((c) => !c.parentId).sort((a, b) => a.sortOrder - b.sortOrder), [cats.data]);
+  // archived categories are hidden here like in the sidebar (viewers never receive them; admins manage them in Admin)
+  const tops = useMemo(() => (cats.data ?? []).filter((c) => !c.parentId && !c.archived).sort((a, b) => a.sortOrder - b.sortOrder), [cats.data]);
   const count = (id: string) => { const ids = subtree(cats.data ?? [], id); return published.filter((a) => a.categoryId && ids.has(a.categoryId)).length; };
   const recent = (arts.data ?? []).filter((a) => a.status !== 'archived').slice(0, 6);
 
@@ -80,7 +81,7 @@ export function Home() {
         <ul className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {cats.isPending && Array.from({ length: 9 }, (_, i) => <li key={i}><Skeleton className="h-[148px] rounded-[18px]" /></li>)}
           {tops.map((c) => {
-            const subs = (cats.data ?? []).filter((s) => s.parentId === c.id);
+            const subs = (cats.data ?? []).filter((s) => s.parentId === c.id && !s.archived);
             const n = count(c.id);
             return (
               <li key={c.id}>

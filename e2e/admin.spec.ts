@@ -87,3 +87,41 @@ test('an archived article appears in Archive and can be restored', async ({ page
   await expect(page.getByRole('row', { name: new RegExp(`${title} review`) })).toHaveCount(0);
   expect((await (await page.request.get(`/api/articles/${sub.id}`)).json()).status).toBe('draft');
 });
+
+test('admin drags categories: drop before, after and inside another one', async ({ page }) => {
+  await loginAs(page, 'admin@demo.test');
+  const t = Date.now(), [A, B, C] = ['A', 'B', 'C'].map((x) => `Drag ${x} ${t}`) as [string, string, string];
+  const id: Record<string, string> = {};
+  for (const [i, n] of [A, B, C].entries()) id[n] = (await (await page.request.post('/api/categories', { data: { name: n, sortOrder: 200 + i } })).json()).id;
+  await page.goto('/admin/categories');
+  const row = (n: string) => page.locator(`[data-category="${n}"]`);
+  const order = async () => (await sidebar(page).getByRole('link').allTextContents()).filter((s) => s.includes(String(t))).join(' | ');
+  const drag = async (from: string, to: string, pos: 'before' | 'after' | 'inside') => {
+    const src = (await row(from).boundingBox())!, dst = (await row(to).boundingBox())!;
+    const y = pos === 'before' ? 4 : pos === 'after' ? dst.height - 4 : dst.height / 2;
+    await row(from).dragTo(row(to), { sourcePosition: { x: 20, y: src.height / 2 }, targetPosition: { x: 200, y } });
+  };
+  await expect.poll(order).toBe(`${A} | ${B} | ${C}`);
+
+  await drag(C, A, 'before');
+  await expect.poll(order).toBe(`${C} | ${A} | ${B}`);
+  await expect(row(C)).toHaveAttribute('draggable', 'true'); // move finished: drag re-enabled
+  await drag(A, B, 'after');
+  await expect.poll(order).toBe(`${C} | ${B} | ${A}`);
+  await expect(row(A)).toHaveAttribute('draggable', 'true');
+  await drag(C, B, 'inside');
+  await expect.poll(async () => {
+    const cats = (await (await page.request.get('/api/categories')).json()).categories as { id: string; parentId: string | null }[];
+    return cats.find((c) => c.id === id[C])?.parentId;
+  }).toBe(id[B]);
+  await expect.poll(order).toBe(`${B} | ${A}`); // C now lives under B (collapsed in the sidebar)
+});
+
+test('an expired session during an admin write goes to /login like the rest of the app', async ({ page }) => {
+  await loginAs(page, 'admin@demo.test');
+  await page.goto('/admin/users');
+  await expect(page.getByRole('row', { name: /viewer@demo\.test/ })).toBeVisible();
+  await page.request.post('/api/auth/logout'); // same cookie jar as the page: the session is now gone
+  await page.getByRole('button', { name: 'Deactivate viewer@demo.test' }).click();
+  await expect(page).toHaveURL(/\/login\?next=%2Fadmin%2Fusers/);
+});

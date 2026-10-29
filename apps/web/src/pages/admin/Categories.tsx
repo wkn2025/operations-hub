@@ -1,4 +1,4 @@
-import { useState, type DragEvent } from 'react';
+import { useEffect, useState, type DragEvent } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { ArrowDown, ArrowUp, GripVertical, Plus } from 'lucide-react';
@@ -6,6 +6,8 @@ import { api, subtree, useCategories, type Category } from '../../api/client';
 import { Button, Chip } from '../../components/ui/primitives';
 import { InlineError, PageHeader, QueryBlock, field, smallBtn, useAdminAction } from './common';
 import { moveBy, moveCategory, siblingsOf, type CategoryPatch } from './ops';
+
+const idFor = (kind: 'up' | 'down' | 'parent' | 'rename', id: string) => `cat-${kind}-${id}`;
 
 type DropPos = 'before' | 'inside' | 'after';
 
@@ -20,14 +22,22 @@ export function Categories() {
   const [said, setSaid] = useState('');
   const [newName, setNewName] = useState('');
   const [newParent, setNewParent] = useState('');
+  // controls that unmount or move (rename form, reordered rows) hand focus back here after the next render
+  const [focusId, setFocusId] = useState<string | null>(null);
+  useEffect(() => { if (focusId) { document.getElementById(focusId)?.focus(); setFocusId(null); } }, [focusId, all]);
+  // one move at a time: the next one is computed from the server's answer, not from an in-flight guess
+  const moving = act.busy !== null;
 
-  const apply = (c: Category, patches: CategoryPatch[] | null, message: string) => {
-    if (!patches?.length) return;
-    // optimistic: the sidebar and this tree move at once; the refetch after the PATCHes settles the truth
+  const apply = (c: Category, patches: CategoryPatch[] | null, message: string, refocus?: string) => {
+    if (moving || !patches?.length) return;
+    // optimistic: the sidebar and this tree move at once. The server applies the whole move in one transaction,
+    // and the refetch afterwards (success or failure) replaces this guess with the truth.
     qc.setQueryData<Category[]>(['categories'], (old) => old?.map((x) => ({ ...x, ...patches.find((p) => p.id === x.id) })));
     setSaid(message);
-    void act.run(c.id, async () => { for (const { id, ...b } of patches) await api(`/api/categories/${id}`, { method: 'PATCH', json: b }); });
+    if (refocus) setFocusId(refocus);
+    void act.run(c.id, () => api('/api/categories/reorder', { method: 'POST', json: { moves: patches } }));
   };
+  const endRename = (c: Category) => { setRenaming(null); setFocusId(idFor('rename', c.id)); };
   const patch = (c: Category, body: Partial<Pick<Category, 'name' | 'archived'>>) =>
     act.run(c.id, () => api(`/api/categories/${c.id}`, { method: 'PATCH', json: body }));
 
@@ -52,10 +62,10 @@ export function Categories() {
     const dropHere = over?.id === c.id ? over.pos : null;
     return (
       <li key={c.id}>
-        <div draggable={renaming !== c.id}
+        <div draggable={renaming !== c.id && !moving} data-category={c.name}
           onDragStart={(e) => { e.dataTransfer.setData('text/plain', c.id); e.dataTransfer.effectAllowed = 'move'; setDragId(c.id); }}
           onDragEnd={() => { setDragId(null); setOver(null); }}
-          onDragOver={(e) => { const pos = posOf(e); if (dropPatches(c, pos)) { e.preventDefault(); setOver({ id: c.id, pos }); } else if (over?.id === c.id) setOver(null); }}
+          onDragOver={(e) => { const pos = posOf(e); if (dropPatches(c, pos)) { e.preventDefault(); if (over?.id !== c.id || over.pos !== pos) setOver({ id: c.id, pos }); } else if (over?.id === c.id) setOver(null); }}
           onDragLeave={() => setOver((o) => (o?.id === c.id ? null : o))}
           onDrop={(e) => {
             e.preventDefault();
@@ -70,11 +80,11 @@ export function Categories() {
           <GripVertical size={16} aria-hidden className="shrink-0 cursor-grab text-neutral-300 group-hover:text-neutral-500" />
           {renaming === c.id ? (
             <form className="flex min-w-0 flex-1 items-center gap-2"
-              onSubmit={(e) => { e.preventDefault(); const v = String(new FormData(e.currentTarget).get('name') ?? '').trim(); setRenaming(null); if (v && v !== c.name) void patch(c, { name: v }); }}>
+              onSubmit={(e) => { e.preventDefault(); const v = String(new FormData(e.currentTarget).get('name') ?? '').trim(); endRename(c); if (v && v !== c.name) void patch(c, { name: v }); }}>
               <input name="name" aria-label="Category name" defaultValue={c.name} autoFocus maxLength={100} className={clsx(field, 'min-w-0 flex-1')}
-                onKeyDown={(e) => { if (e.key === 'Escape') setRenaming(null); }} />
+                onKeyDown={(e) => { if (e.key === 'Escape') endRename(c); }} />
               <button type="submit" className={smallBtn}>Save</button>
-              <button type="button" className={smallBtn} onClick={() => setRenaming(null)}>Cancel</button>
+              <button type="button" className={smallBtn} onClick={() => endRename(c)}>Cancel</button>
             </form>
           ) : (
             <span className={clsx('min-w-0 flex-1 truncate text-[14.5px]', depth === 0 ? 'font-medium text-neutral-900' : 'text-neutral-700', c.archived && 'line-through decoration-neutral-300')}>
@@ -82,15 +92,17 @@ export function Categories() {
             </span>
           )}
           <span className="flex flex-wrap items-center gap-1.5">
-            <button type="button" className={smallBtn} aria-label={`Move ${c.name} up`} disabled={idx <= 0} onClick={() => apply(c, moveBy(all, c.id, -1), `${c.name} moved up`)}><ArrowUp size={14} aria-hidden /></button>
-            <button type="button" className={smallBtn} aria-label={`Move ${c.name} down`} disabled={idx >= sibs.length - 1} onClick={() => apply(c, moveBy(all, c.id, 1), `${c.name} moved down`)}><ArrowDown size={14} aria-hidden /></button>
-            <select aria-label={`Parent of ${c.name}`} className={clsx(field, 'max-w-[200px] !py-1 text-[13px]')} value={c.parentId ?? ''}
-              onChange={(e) => apply(c, moveCategory(all, c.id, e.target.value || null, Infinity), `${c.name} moved`)}>
+            <button type="button" id={idFor('up', c.id)} className={smallBtn} aria-label={`Move ${c.name} up`} disabled={idx <= 0} aria-disabled={moving || undefined}
+              onClick={() => apply(c, moveBy(all, c.id, -1), `${c.name} moved up`, idx - 1 <= 0 ? idFor('down', c.id) : idFor('up', c.id))}><ArrowUp size={14} aria-hidden /></button>
+            <button type="button" id={idFor('down', c.id)} className={smallBtn} aria-label={`Move ${c.name} down`} disabled={idx >= sibs.length - 1} aria-disabled={moving || undefined}
+              onClick={() => apply(c, moveBy(all, c.id, 1), `${c.name} moved down`, idx + 1 >= sibs.length - 1 ? idFor('up', c.id) : idFor('down', c.id))}><ArrowDown size={14} aria-hidden /></button>
+            <select id={idFor('parent', c.id)} aria-label={`Parent of ${c.name}`} className={clsx(field, 'max-w-[200px] !py-1 text-[13px]')} value={c.parentId ?? ''}
+              aria-disabled={moving || undefined} onChange={(e) => apply(c, moveCategory(all, c.id, e.target.value || null, Infinity), `${c.name} moved`, idFor('parent', c.id))}>
               <option value="">Top level</option>
-              {all.filter((x) => !forbiddenParents.has(x.id)).sort((a, b) => a.path.localeCompare(b.path)).map((x) => <option key={x.id} value={x.id}>{x.path}</option>)}
+              {all.filter((x) => !forbiddenParents.has(x.id) && (!x.archived || x.id === c.parentId)).sort((a, b) => a.path.localeCompare(b.path)).map((x) => <option key={x.id} value={x.id}>{x.path}</option>)}
             </select>
-            <button type="button" className={smallBtn} aria-label={`Rename ${c.name}`} onClick={() => setRenaming(c.id)}>Rename</button>
-            <button type="button" className={smallBtn} aria-label={`${c.archived ? 'Restore' : 'Archive'} ${c.name}`} disabled={act.busy === c.id}
+            <button type="button" id={idFor('rename', c.id)} className={smallBtn} aria-label={`Rename ${c.name}`} onClick={() => setRenaming(c.id)}>Rename</button>
+            <button type="button" className={smallBtn} aria-label={`${c.archived ? 'Restore' : 'Archive'} ${c.name}`} aria-disabled={moving || undefined}
               onClick={() => patch(c, { archived: !c.archived })}>{c.archived ? 'Restore' : 'Archive'}</button>
           </span>
           <InlineError className="ml-6 basis-full" message={act.errorFor(c.id)} />

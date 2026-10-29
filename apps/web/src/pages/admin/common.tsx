@@ -1,5 +1,5 @@
-import { useState, type ReactNode } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useRef, useState, type ReactNode } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Role } from '@ops/shared';
 import { api, type ArticleSummary } from '../../api/client';
 import { ErrorState } from '../../components/ui/ErrorState';
@@ -19,15 +19,22 @@ export const useArticlesByStatus = (status: string) =>
 /**
  * Runs an admin write, then refreshes everything cached (sidebar, lists, article views) so every screen agrees
  * without a reload. Errors become a sentence via adminError; refreshing also happens on failure (state may have moved).
+ * Writes go through the mutation cache, so a 401 signs the user out to /login like every other write in the app.
+ * One write at a time per page: a call made while another is in flight is ignored.
  */
 export function useAdminAction() {
   const qc = useQueryClient();
+  const write = useMutation({ mutationFn: (fn: () => Promise<unknown>) => fn() });
   const [error, setError] = useState<{ key: string; message: string } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const inFlight = useRef(false);
   const run = async (key: string, fn: () => Promise<unknown>) => {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setBusy(key); setError(null);
-    try { await fn(); } catch (e) { setError({ key, message: adminError(e) }); } finally {
+    try { await write.mutateAsync(fn); } catch (e) { setError({ key, message: adminError(e) }); } finally {
       await qc.invalidateQueries();
+      inFlight.current = false;
       setBusy(null);
     }
   };
@@ -38,7 +45,7 @@ export function PageHeader({ title, intro, children }: { title: string; intro: s
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
       <div>
-        <h2 className="text-[22px] font-semibold tracking-[-0.015em] text-neutral-900">{title}</h2>
+        <h2 id="admin-page-title" tabIndex={-1} className="text-[22px] font-semibold tracking-[-0.015em] text-neutral-900 focus:outline-none">{title}</h2>
         <p className="mt-1 max-w-[64ch] text-[14.5px] text-neutral-500">{intro}</p>
       </div>
       {children}
