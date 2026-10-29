@@ -64,17 +64,25 @@ export async function saveUpload(s: FileSvc, user: User, rawName: string, data: 
   // text/csv share the text sniff; every other type must match its extension exactly
   const ok = sniffed && want && (sniffed === want || (sniffed === 'text/plain' && want === 'text/csv'));
   if (!ok) throw new ApiError(415, { error: 'unsupported_type', message: 'file type not allowed or does not match its content' });
+  return storeFile(s, user, name, want, data);
+}
+
+/**
+ * Writes bytes + row with a mime the caller vouches for. User uploads reach it only through saveUpload's sniffing;
+ * the seed uses it directly for its own trusted SVG illustrations (served as nosniff attachment + CSP sandbox).
+ */
+export async function storeFile(s: FileSvc, user: User, name: string, mime: string, data: Buffer) {
   const id = crypto.randomUUID(), now = new Date().toISOString();
   // ponytail: a crash between the write and the insert leaves an orphan blob; no startup sweep (add one if orphans matter)
   await mkdir(root(s), { recursive: true });
   await writeFile(diskPath(s, id), data, { flag: 'wx' });
   try {
     s.sqlite.transaction(() => {
-      s.db.insert(files).values({ id, name, mime: want, size: data.length, path: id, uploadedBy: user.id, createdAt: now }).run();
+      s.db.insert(files).values({ id, name, mime, size: data.length, path: id, uploadedBy: user.id, createdAt: now }).run();
       audit(s.db, { actorId: user.id, action: 'file.upload', entity: 'file', entityId: id, summary: `Uploaded "${name}" (${data.length} bytes)` });
     })();
   } catch (e) { await unlink(diskPath(s, id)).catch(() => {}); throw e; }
-  return { id, url: `/api/files/${id}`, name, mime: want, size: data.length };
+  return { id, url: `/api/files/${id}`, name, mime, size: data.length };
 }
 
 /** Editors/admins: any file. Viewers: only files of a published, visible article. */

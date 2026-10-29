@@ -28,7 +28,9 @@ export function articleRoutes(app: FastifyInstance) {
     const id = createArticle(app, U(req), parse(articleCreateBody, req.body));
     return reply.code(201).send(show(req, id));
   });
-  app.get<{ Params: { id: string } }>('/api/articles/:id', { preHandler: reader }, async (req) => show(req, req.params.id));
+  // Accepts an id or a slug (the web app routes by slug); visibility is still decided by show().
+  const idOf = (k: string) => (app.sqlite.prepare('select id from articles where id = ? or slug = ? order by id = ? desc limit 1').get(k, k, k) as { id: string } | undefined)?.id ?? k;
+  app.get<{ Params: { id: string } }>('/api/articles/:id', { preHandler: reader }, async (req) => show(req, idOf(req.params.id)));
   app.patch<{ Params: { id: string } }>('/api/articles/:id', { preHandler: writer }, async (req) =>
     show(req, updateArticle(app, U(req), req.params.id, parse(articlePatchBody, req.body))));
 

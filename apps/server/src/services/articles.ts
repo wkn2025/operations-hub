@@ -3,7 +3,7 @@ import { and, eq } from 'drizzle-orm';
 import type { ZodTypeAny, z } from 'zod';
 import type { ArticleStatus, User } from '@ops/shared';
 import type { Db } from '../db/client';
-import { articleFiles, articleLinks, articles, categories, files, revisions } from '../db/schema';
+import { articleFiles, articleLinks, articles, categories, files, revisions, users } from '../db/schema';
 import { can } from '../auth/policy';
 import { audit } from './audit';
 import { extractFileIds, extractLinkIds, extractText } from './pm-text';
@@ -128,8 +128,9 @@ export function view(s: Svc, a: ArticleRow, user: User) {
     const raw = s.db.select({ status: articles.status }).from(articles).where(eq(articles.id, l.toArticleId)).get();
     linkTargets[l.toArticleId] = t ? { status: t.status, title: t.title, slug: t.slug } : { status: raw?.status === 'archived' ? 'archived' : 'unavailable' };
   }
+  const owner = a.ownerId ? s.db.select({ id: users.id, name: users.name }).from(users).where(eq(users.id, a.ownerId)).get() ?? null : null;
   return {
-    ...rest, content: JSON.parse(a.content), fields: JSON.parse(a.fields),
+    ...rest, owner, content: JSON.parse(a.content), fields: JSON.parse(a.fields),
     tags: tagsOf(s.sqlite, a.id), categoryPath: a.categoryId ? categoryPath(cats, a.categoryId) : '', linkTargets,
   };
 }

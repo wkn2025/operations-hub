@@ -1,6 +1,6 @@
 import { PM_NODES, type PmNode } from '@ops/shared';
 
-const BLOCK = new Set(['paragraph', 'heading', 'listItem', 'taskItem', 'tableRow', 'tableCell', 'tableHeader', 'callout', 'collapsible', 'steps', 'blockquote', 'codeBlock']);
+const BLOCK = new Set(['paragraph', 'heading', 'listItem', 'taskItem', 'tableRow', 'tableCell', 'tableHeader', 'callout', 'collapsible', 'steps', 'step', 'blockquote', 'codeBlock']);
 
 function walk(n: PmNode | undefined | null, out: string[]) {
   if (!n || typeof n !== 'object') return;
