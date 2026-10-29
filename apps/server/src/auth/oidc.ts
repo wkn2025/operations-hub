@@ -1,6 +1,6 @@
 import * as oc from 'openid-client';
 import type { Config } from '../config';
-import type { SessionProvider } from './session';
+import { secureCookies, type SessionProvider } from './session';
 
 export interface OidcChecks { state: string; nonce: string; codeVerifier: string }
 /** Thin seam over openid-client so the provider is unit-testable without an IdP. */
@@ -55,7 +55,7 @@ export function buildOidcProvider(cfg: NonNullable<Config['oidc']>, client: Oidc
         };
         reply.setCookie(TX_COOKIE, JSON.stringify(tx), {
           signed: true, httpOnly: true, sameSite: 'lax', path: '/api/auth', maxAge: 600,
-          secure: app.config.nodeEnv === 'production',
+          secure: secureCookies(app.config),
         });
         return reply.redirect((await client.authorizationUrl(tx)).toString());
       });

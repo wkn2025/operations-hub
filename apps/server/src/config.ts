@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 export interface Config {
   port: number;
@@ -8,7 +10,11 @@ export interface Config {
   sessionSecret: string;
   adminBootstrapEmails: string[];
   oidc?: { issuer: string; clientId: string; clientSecret: string; redirectUri: string };
+  /** built web app (apps/web/dist) served by this process; undefined = API only (dev uses Vite) */
+  webDist?: string;
 }
+
+const DEFAULT_WEB_DIST = fileURLToPath(new URL('../../web/dist', import.meta.url));
 
 const DEV_SECRET = 'dev-only-insecure-secret-do-not-use-in-prod';
 
@@ -38,6 +44,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     port,
     dataDir: env.DATA_DIR ?? './data',
     authMode, nodeEnv, sessionSecret, oidc,
+    // WEB_DIST wins; in production the repo's apps/web/dist is used when it has been built
+    webDist: env.WEB_DIST || (nodeEnv === 'production' && existsSync(DEFAULT_WEB_DIST + '/index.html') ? DEFAULT_WEB_DIST : undefined),
     adminBootstrapEmails: (env.ADMIN_BOOTSTRAP_EMAILS ?? '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),
   };
 }

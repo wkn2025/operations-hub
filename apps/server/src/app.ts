@@ -19,6 +19,8 @@ import { auditRoutes } from './routes/audit';
 import multipart from '@fastify/multipart';
 import { fileRoutes } from './routes/files';
 import { flowRoutes } from './routes/flows';
+import { exportRoutes } from './routes/export';
+import { securityHeaders, serveWeb } from './web';
 import { ApiError } from './services/articles';
 
 declare module 'fastify' {
@@ -45,6 +47,7 @@ export async function buildApp(opts: BuildOpts = {}): Promise<FastifyInstance> {
 
   await app.register(cookie, { secret: config.sessionSecret });
   await app.register(multipart, { limits: { fileSize: 15 * 1024 * 1024, files: 1, fields: 5, parts: 6 } });
+  securityHeaders(app);
   app.decorateRequest('user', null);
   app.addHook('onRequest', loadUser(app));
 
@@ -63,7 +66,8 @@ export async function buildApp(opts: BuildOpts = {}): Promise<FastifyInstance> {
   searchRoutes(app);
   fileRoutes(app);
   flowRoutes(app);
-  for (const r of [userRoutes, allowlistRoutes, settingsRoutes, reviewRoutes, auditRoutes]) r(app);
+  for (const r of [userRoutes, allowlistRoutes, settingsRoutes, reviewRoutes, auditRoutes, exportRoutes]) r(app);
+  if (config.webDist) serveWeb(app, config.webDist);
 
   return app;
 }

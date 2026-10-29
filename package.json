@@ -10,7 +10,9 @@
     "build": "npm run build -w packages/shared && npm run build -w apps/server && npm run build -w apps/web",
     "test": "npm test -w packages/shared && npm test -w apps/server && npm test -w apps/web",
     "seed": "npm run seed -w apps/server",
-    "db:generate": "npm run db:generate -w apps/server"
+    "db:generate": "npm run db:generate -w apps/server",
+    "backup": "tsx --env-file-if-exists=.env scripts/backup.ts",
+    "export": "tsx --env-file-if-exists=.env scripts/export.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.1",

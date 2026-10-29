@@ -8,6 +8,9 @@ import { ApiError } from '../services/articles';
 export const SESSION_COOKIE = 'sid';
 const SESSION_MAX_AGE_S = 12 * 60 * 60;
 
+/** Secure (HTTPS-only) cookies whenever real auth or production is in play; only the http://localhost dev demo goes without. */
+export const secureCookies = (c: { nodeEnv: string; authMode: string }) => c.nodeEnv === 'production' || c.authMode === 'oidc';
+
 /** Shared by dev and OIDC: they only differ in how they obtain a verified email. */
 export interface SessionApi {
   /** Find-or-create the user for a verified identity and start a session. */
@@ -49,7 +52,7 @@ export function createSessionApi(app: FastifyInstance): SessionApi {
       const expires = Date.now() + SESSION_MAX_AGE_S * 1000; // server-side expiry, independent of browser maxAge
       reply.setCookie(SESSION_COOKIE, `${user.id}.${expires}`, {
         signed: true, httpOnly: true, sameSite: 'lax', path: '/',
-        secure: app.config.nodeEnv === 'production', maxAge: SESSION_MAX_AGE_S,
+        secure: secureCookies(app.config), maxAge: SESSION_MAX_AGE_S,
       });
       return user;
     },

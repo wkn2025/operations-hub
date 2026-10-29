@@ -68,4 +68,12 @@ describe('admin area', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(screen.getByRole('button', { name: 'Delete old.pdf' })).toHaveFocus();
   });
+
+  it('articles page offers a real Export download (admin-only server route)', async () => {
+    stub('admin', undefined, { '/api/articles?limit=200': { articles: [] }, '/api/categories': { categories: [] } });
+    renderApp(<Admin />, '/admin/articles');
+    const link = await screen.findByRole('link', { name: /Export all content/ });
+    expect(link).toHaveAttribute('href', '/api/admin/export');
+    expect(link).toHaveAttribute('download');
+  });
 });
