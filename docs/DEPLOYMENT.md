@@ -1,0 +1,132 @@
+# Deployment
+
+How to run Operations Hub on a server. Items marked **[verified]** were run on the build machine (Windows 11, Node 22.23) on 2026-10-29; **[unverified]** items could not be tested there.
+
+## What runs
+
+One Node.js 22 process (`apps/server`) that serves the API under `/api` and the built web app for every other path. State is two things under `DATA_DIR`: `app.db` (SQLite) and `uploads/`. There is no other database, cache or queue. The server is designed for one instance; do not run two processes on the same `DATA_DIR`.
+
+## Environment variables
+
+| Variable | Required | Meaning |
+|---|---|---|
+| `NODE_ENV` | yes | `production` on a server. `development`/`test` only for demos and tests. |
+| `AUTH_MODE` | yes | `oidc` on a server. `dev` (demo picker) is refused unless `NODE_ENV` is `development` or `test`. |
+| `SESSION_SECRET` | yes (oidc) | Random, at least 32 characters, e.g. `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. Startup fails on short or placeholder values. Changing it signs everyone out. |
+| `OIDC_ISSUER` | yes (oidc) | `https://login.microsoftonline.com/<tenant-id>/v2.0` for Entra ID. |
+| `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` | yes (oidc) | From the Entra app registration. |
+| `OIDC_REDIRECT_URI` | yes (oidc) | `https://<host>/api/auth/callback`; must match the app registration exactly. |
+| `ADMIN_BOOTSTRAP_EMAILS` | recommended | Comma-separated emails that are always admin (cannot be demoted in the UI). At least one, so someone can administer the system after first sign-in. |
+| `DATA_DIR` | no | Default `./data` relative to `apps/server`. Use an absolute path (the Docker image uses `/data`). |
+| `PORT` | no | Default `3000`. The server listens on `0.0.0.0`. |
+| `WEB_DIST` | no | Path of the built web app. Default in production: `apps/web/dist` if it exists. |
+| `BACKUP_DIR` / `EXPORT_DIR` | no | Targets of `npm run backup` / `npm run export` (default `backups/`, `exports/` in the repo root). |
+
+`.env` in the repo root is read by `npm start -w apps/server`, `npm run seed`, `npm run backup` and `npm run export`.
+
+## Option A: Docker [unverified]
+
+The `Dockerfile` builds the web app in a build stage, prunes dev dependencies and runs as the non-root `node` user with `/data` as a volume and a health check on `/api/me`. **Docker was not available on the build machine, so the image has never been built or run.** Build and smoke-test it before relying on it.
+
+```bash
+docker build -t operations-hub .
+docker run -d --name ops-hub -p 127.0.0.1:3000:3000 \
+  -v ops-hub-data:/data -v /srv/ops-hub/backups:/app/backups \
+  -e SESSION_SECRET=... -e OIDC_ISSUER=... -e OIDC_CLIENT_ID=... -e OIDC_CLIENT_SECRET=... \
+  -e OIDC_REDIRECT_URI=https://hub.example.com/api/auth/callback -e ADMIN_BOOTSTRAP_EMAILS=it.admin@example.com \
+  operations-hub
+docker exec ops-hub sh -c 'cd /app && npm run backup'   # writes to /app/backups (mounted above)
+```
+
+## Option B: plain Node.js [verified with dummy OIDC settings]
+
+```bash
+npm ci
+npm run build                       # builds apps/web/dist
+# set the variables above (or put them in .env), then:
+npm start -w apps/server
+```
+
+Verified: with `NODE_ENV=production AUTH_MODE=oidc` and placeholder OIDC values the server started, served the web app at `/` and deep links such as `/admin/users` (SPA fallback), served hashed assets with `Cache-Control: public, max-age=31536000, immutable`, answered `/api/me` and returned 404 for the dev login route. Signing in was **not** tested (no tenant). Run it under a service manager (systemd, NSSM on Windows, or the container runtime) so it restarts on failure.
+
+The server runs the TypeScript source through `tsx` (a runtime dependency); there is no separate compile step for the server. `npm run build` only typechecks it.
+
+## TLS and reverse proxy
+
+TLS is required in production: session cookies are `Secure` whenever `AUTH_MODE=oidc` or `NODE_ENV=production`, so over plain HTTP browsers drop them and sign-in loops. Terminate TLS at a reverse proxy (IIS/ARR, nginx, Azure App Gateway, ...) and forward to the Node port. Keep the Node port reachable only from the proxy.
+
+Example nginx server block [unverified]:
+
+```nginx
+server {
+  listen 443 ssl;
+  server_name hub.example.com;
+  ssl_certificate     /etc/ssl/hub.crt;
+  ssl_certificate_key /etc/ssl/hub.key;
+  client_max_body_size 16m;            # uploads are capped at 15 MB by the app
+  location / {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto https;
+  }
+}
+```
+
+Add `Strict-Transport-Security` at the proxy once HTTPS is confirmed working; the app does not send HSTS itself.
+
+## Security headers sent by the app [verified]
+
+On every response: `X-Content-Type-Options: nosniff`, `Referrer-Policy: same-origin`, `X-Frame-Options: DENY`, and (unless the route sets its own) this Content-Security-Policy:
+
+```
+default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:;
+font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+```
+
+File downloads (`/api/files/:id`) keep their stricter `default-src 'none'; sandbox`. The built app was loaded in Chromium under this policy (sign-in page, article with screenshot, search, editor, flow runner, admin export) with no CSP violations or console errors.
+
+Consequences: images in articles must be uploaded; a pasted external image URL (`https://...png`) is blocked by the browser. `style-src` allows inline styles because the UI libraries set style attributes; scripts are strictly same-origin. In `npm run dev` the page itself is served by Vite, so this CSP applies only to API responses there.
+
+## Backups [verified]
+
+`npm run backup` writes `backups/<UTC timestamp>/app.db` (SQLite online backup API: a consistent copy taken while the server keeps running) and `uploads.zip` (every file in `DATA_DIR/uploads`). It prints row counts per table. Verified: the copy passes `PRAGMA integrity_check`, has identical row counts in every table, and Windows `Expand-Archive` extracts `uploads.zip` to byte-identical files.
+
+Schedule it (cron, Windows Task Scheduler) and copy the folder off the server; the script does not rotate or upload backups. Suggested: daily, keep 30 days, plus a copy before every upgrade. The schedule and off-site target are IT decisions (see IT-HANDOVER.md).
+
+### Restore [verified]
+
+1. Stop the server.
+2. Move the current `DATA_DIR` aside.
+3. Create an empty `DATA_DIR`, copy `app.db` from the backup into it, and extract `uploads.zip` into it (it contains an `uploads/` folder).
+4. Start the server. Pending migrations, if the backup is older than the code, are applied automatically.
+
+Verified on 2026-10-29: a backup of the seeded demo database was restored this way into a fresh folder; the server started on it, articles and their screenshots rendered in the browser and search worked.
+
+## Export [verified]
+
+`npm run export` (or **Admin -> Articles -> Export all content**, a zip download) produces `index.json`, `articles/<slug>.json` (metadata + raw ProseMirror JSON), `articles/<slug>.md` (front matter + Markdown), `flows/<slug>.json` and `files/` (the files those articles use). All statuses are included; each file states its status. It is a portable copy for reading or migration, not a restore format: use backups to restore.
+
+## Upgrades
+
+1. `npm run backup`.
+2. Deploy the new code, `npm ci`, `npm run build`.
+3. Restart. Database migrations run at startup.
+
+## Health and logs
+
+`GET /api/me` returns 200 (`{"user":null,...}` when not signed in) while the process is healthy; the Docker health check uses it. Logs are JSON lines on stdout (Fastify/pino); errors are logged server-side and clients only see `{"error":"internal"}`.
+
+## Known dependency advisories (`npm audit`, 2026-10-29)
+
+`npm audit fix` (non-breaking) was run; it changed no package versions. All remaining advisories need a major-version upgrade (`npm audit fix --force`), which was deliberately **not** done in this delivery because each needs migration work and regression testing. Totals: 46 (2 critical, 3 high, 41 moderate).
+
+| Package (installed) | Severity | Used at runtime? | Notes / fix |
+|---|---|---|---|
+| `drizzle-orm` 0.44 | high | **yes** (server) | SQL injection via improperly escaped SQL *identifiers*. The app only uses fixed identifiers from its own schema, never user input, so the vulnerable path is not reachable as far as reviewed. Fix: upgrade to >= 0.45.2. **Recommended first follow-up.** |
+| `zod` 3 | high | **yes** (server + web) | Memory exhaustion validating oversized constrained collections. Request bodies are limited by Fastify's default 1 MB body limit, which bounds the input size. Fix: zod 4 (API changes across all schemas). |
+| `@tiptap/*` 2.27.3 (latest v2) | moderate | yes (editor, browser) | `mergeAttributes()` `__proto__` handling. Fix only in Tiptap 3 (editor migration). |
+| `vite` 5, `esbuild` (via vite) | high / moderate | no (build + dev server only) | Dev-server issues; the production server does not run Vite. Fix: Vite 6+/8. |
+| `vitest` 2, `tinypool`, `vite-node`, `@vitest/mocker` | critical / moderate | no (tests only) | Test runner issues (UI server, worker options). Fix: Vitest 3+/5. |
+| `drizzle-kit`, `@esbuild-kit/*` | moderate | no (migration generator, dev only) | Fix: newer drizzle-kit. |
+
+The Docker image prunes dev dependencies, so the test/build-only packages are not in the runtime image (tsx, which runs the server, ships its own newer esbuild).
