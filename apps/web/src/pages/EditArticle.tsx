@@ -57,6 +57,7 @@ function Forbidden() {
 }
 
 function EditSession({ id, onCreated }: { id: string; onCreated: (id: string) => void }) {
+  const me = useSession().data?.user;
   const [params] = useSearchParams();
   const cats = useCategories();
   const isNew = id === 'new';
@@ -69,7 +70,7 @@ function EditSession({ id, onCreated }: { id: string; onCreated: (id: string) =>
 
   if (isNew) {
     if (!picked) return <TemplatePicker categoryId={cat ?? initialCat} onCategory={setCat} onPick={(type) => setPicked({ type, categoryId: cat ?? initialCat })} />;
-    const draft: Draft = { title: '', type: picked.type, categoryId: picked.categoryId ?? initialCat, content: STARTER[picked.type], fields: {}, tags: [], reviewDate: null, related: [], ownerId: null };
+    const draft: Draft = { title: '', type: picked.type, categoryId: picked.categoryId ?? initialCat, content: STARTER[picked.type], fields: {}, tags: [], reviewDate: null, related: [], ownerId: me?.id ?? null }; // the server makes the creator the owner
     return <Workspace initialDraft={draft} initialArticle={null} onCreated={onCreated} />;
   }
   if (q.isPending) return <p className="py-16 text-center text-sm text-ink-muted" aria-busy="true">Opening the editor…</p>;
@@ -247,8 +248,9 @@ function Workspace({ initialDraft, initialArticle, onCreated }: { initialDraft: 
           )}
         </div>
 
-        <aside aria-label="Article settings" className="xl:sticky xl:top-[150px] xl:max-h-[calc(100vh-170px)] xl:self-start">
-          <div className="flex max-h-full flex-col overflow-hidden rounded-[20px] bg-white shadow-md ring-1 ring-neutral-200/80">
+        <aside aria-label="Article settings" className="xl:sticky xl:top-[150px] xl:self-start">
+          {/* the panel scrolls inside itself so every field stays reachable while the rail is sticky */}
+          <div className="flex flex-col overflow-hidden rounded-[20px] bg-white shadow-md ring-1 ring-neutral-200/80 xl:max-h-[calc(100vh-208px)]">
             <div role="tablist" aria-label="Panels" className="flex shrink-0 gap-1 border-b border-neutral-200/70 p-1.5">
               {([['details', 'Details', SlidersHorizontal], ['history', 'History', History]] as const).map(([k, label, Icon]) => (
                 <button key={k} role="tab" type="button" aria-selected={tab === k} onClick={() => setTab(k)} disabled={k === 'history' && !article}

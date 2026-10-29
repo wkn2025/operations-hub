@@ -151,3 +151,15 @@ import type { ReactNode } from 'react';
 function Router({ children }: { children: ReactNode }) {
   return <QueryClientProvider client={createQueryClient({ retry: false })}><MemoryRouter>{children}</MemoryRouter></QueryClientProvider>;
 }
+
+describe('steps', () => {
+  it('inserting steps puts the cursor in the first step', () => {
+    const e = make({ type: 'doc', content: [p(t('intro')), p()] });
+    e.commands.focus('end');
+    e.commands.insertSteps();
+    e.commands.insertContent('first');
+    const steps = (e.getJSON().content as PmNode[]).find((n) => n.type === 'steps')!;
+    expect(JSON.stringify(steps.content![0])).toContain('first');
+    expect(JSON.stringify(steps.content![1])).not.toContain('first');
+  });
+});

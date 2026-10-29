@@ -1,4 +1,5 @@
 import { Node } from '@tiptap/core';
+import { TextSelection } from '@tiptap/pm/state';
 import { chromeView, el } from './nodeView';
 
 declare module '@tiptap/core' {
@@ -18,7 +19,18 @@ export const Steps = Node.create({
   parseHTML() { return [{ tag: 'ol[data-steps]' }]; },
   renderHTML() { return ['ol', { 'data-steps': '' }, 0]; },
   addCommands() {
-    return { insertSteps: () => ({ commands }) => commands.insertContent({ type: this.name, content: [emptyStep, emptyStep] }) };
+    return {
+      // insert, then put the cursor in the first step (insertContent leaves it after the block)
+      insertSteps: () => ({ chain, state }) => {
+        const from = Math.max(0, state.selection.from - 2);
+        return chain().insertContent({ type: this.name, content: [emptyStep, emptyStep] }).command(({ tr }) => {
+          let at: number | null = null;
+          tr.doc.nodesBetween(from, tr.doc.content.size, (n, pos) => { if (at === null && n.type.name === 'step') at = pos + 2; return at === null; });
+          if (at !== null) tr.setSelection(TextSelection.create(tr.doc, at));
+          return true;
+        }).run();
+      },
+    };
   },
   addNodeView() {
     return ({ node, editor, getPos }) => {

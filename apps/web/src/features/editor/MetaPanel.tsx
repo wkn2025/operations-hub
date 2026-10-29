@@ -238,8 +238,8 @@ function KeyLimits({ value, onChange, error, disabled }: { value: { label: strin
       <div className="space-y-2">
         {value.map((k, i) => (
           <div key={i} className="flex gap-2">
-            <input aria-label={`Limit ${i + 1} label`} placeholder="Annual limit" value={k.label} disabled={disabled} onChange={(e) => upd(i, { label: e.target.value })} className={clsx(inputCls, 'flex-[3]')} />
-            <input aria-label={`Limit ${i + 1} value`} placeholder="€ 50,000" value={k.value} disabled={disabled} onChange={(e) => upd(i, { value: e.target.value })} className={clsx(inputCls, 'flex-[2]')} />
+            <input aria-label={`Limit ${i + 1} label`} placeholder="Annual limit" value={k.label} disabled={disabled} onChange={(e) => upd(i, { label: e.target.value })} className={clsx(inputCls, 'min-w-0 flex-1')} />
+            <input aria-label={`Limit ${i + 1} value`} placeholder="€ 50,000" value={k.value} disabled={disabled} onChange={(e) => upd(i, { value: e.target.value })} className={clsx(inputCls, 'min-w-0 flex-1')} />
             {!disabled && <button type="button" aria-label={`Remove limit ${i + 1}`} onClick={() => onChange(value.filter((_, j) => j !== i))} className="shrink-0 rounded-[10px] px-2 text-neutral-400 hover:bg-neutral-100 hover:text-danger"><Trash2 size={14} /></button>}
           </div>
         ))}

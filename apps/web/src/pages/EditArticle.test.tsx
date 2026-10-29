@@ -30,6 +30,15 @@ describe('EditArticle', () => {
     }
   });
 
+  it('new article: picking a template does not create a draft until something is typed', async () => {
+    const f = mockFetch({ '/api/me': me('editor'), ...common });
+    page('/edit/new');
+    await userEvent.click(await screen.findByRole('button', { name: /^Article/ }));
+    await screen.findByLabelText('Article title');
+    await new Promise((r) => setTimeout(r, 1800));
+    expect(f.mock.calls.some(([, i]) => i?.method === 'POST')).toBe(false);
+  });
+
   it('shows the conflict banner when the server answers 409', async () => {
     mockFetch({
       '/api/me': me('editor'), ...common,

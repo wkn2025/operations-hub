@@ -100,9 +100,9 @@ function RevisionDialog({ articleId, rev, current, isCurrent, canRestore, onClos
                 <ul aria-label="Changes compared with now" className="mt-1.5 flex flex-wrap gap-1.5 text-xs">
                   {d.titleChanged && <li className="rounded-full bg-warning-soft px-2 py-0.5 font-medium text-warning">Title changed</li>}
                   <li className="rounded-full bg-neutral-100 px-2 py-0.5 font-medium text-neutral-600 tabular">
-                    {d.wordDelta === 0 ? 'Same length' : `${d.wordDelta > 0 ? '+' : '−'}${Math.abs(d.wordDelta)} words since`}
+                    {d.wordDelta === 0 ? 'Same length as now' : `${Math.abs(d.wordDelta)} word${Math.abs(d.wordDelta) === 1 ? '' : 's'} ${d.wordDelta > 0 ? 'added' : 'removed'} since`}
                   </li>
-                  <li className="rounded-full bg-neutral-100 px-2 py-0.5 font-medium text-neutral-600 tabular">{d.changedBlocks === 0 ? 'Same blocks' : `${d.changedBlocks} block${d.changedBlocks === 1 ? '' : 's'} differ`}</li>
+                  <li className="rounded-full bg-neutral-100 px-2 py-0.5 font-medium text-neutral-600 tabular">{d.changedBlocks === 0 ? 'Same blocks' : `${d.changedBlocks} block${d.changedBlocks === 1 ? ' differs' : 's differ'}`}</li>
                 </ul>
               )}
             </div>

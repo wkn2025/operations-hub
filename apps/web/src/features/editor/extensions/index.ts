@@ -26,7 +26,8 @@ export function editorExtensions(o: { placeholder?: string; onUploadError?: Imag
     StarterKit.configure({ heading: { levels: [2, 3, 4] } }),
     Underline,
     Highlight,
-    Link.configure({ openOnClick: false, autolink: true, validate: (href) => !!safeHref(href), HTMLAttributes: { rel: 'noopener noreferrer', target: null } }),
+    // autolink off: typed text like "Done.My" was turned into a link; pasted URLs still become links
+    Link.configure({ openOnClick: false, autolink: false, validate: (href) => !!safeHref(href), HTMLAttributes: { rel: 'noopener noreferrer', target: null } }),
     Image.configure({ inline: false, allowBase64: false }),
     Placeholder.configure({
       placeholder: ({ node }) => (node.type.name === 'heading' ? 'Heading' : o.placeholder ?? 'Write, or type / for blocks'),

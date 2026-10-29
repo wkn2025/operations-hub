@@ -28,7 +28,8 @@ export function useArticleEditor(o: {
     onUpdate: ({ editor }) => cb.current.onChange(editor.getJSON() as PmNode),
     onBlur: () => cb.current.onBlur(),
   });
-  useEffect(() => { editor.setEditable(o.editable); }, [editor, o.editable]);
+  // emitUpdate=false: toggling editability is not an edit (it would otherwise trigger an autosave)
+  useEffect(() => { if (editor.isEditable !== o.editable) editor.setEditable(o.editable, false); }, [editor, o.editable]);
   return editor;
 }
 
@@ -117,7 +118,7 @@ function FormatBubble({ editor, onArticle }: { editor: Editor; onArticle: () => 
   };
   return (
     <BubbleMenu editor={editor} pluginKey="formatBubble" updateDelay={80}
-      tippyOptions={{ duration: [180, 120], maxWidth: 'none', onHidden: () => setLinkMode(false) }}
+      tippyOptions={{ duration: [180, 120], maxWidth: 'none', appendTo: () => document.body, onHidden: () => setLinkMode(false) }}
       shouldShow={({ editor: e, state }) => {
         const s = state.selection;
         return e.isEditable && !s.empty && !(s instanceof NodeSelection) && !e.isActive('codeBlock');
@@ -155,7 +156,7 @@ function FormatBubble({ editor, onArticle }: { editor: Editor; onArticle: () => 
 function TableBubble({ editor }: { editor: Editor }) {
   const c = () => editor.chain().focus();
   return (
-    <BubbleMenu editor={editor} pluginKey="tableBubble" updateDelay={80} tippyOptions={{ placement: 'top-start', maxWidth: 'none', duration: [180, 120] }}
+    <BubbleMenu editor={editor} pluginKey="tableBubble" updateDelay={80} tippyOptions={{ placement: 'top-start', maxWidth: 'none', duration: [180, 120], appendTo: () => document.body }}
       shouldShow={({ editor: e, state }) => e.isEditable && state.selection.empty && e.isActive('table')}>
       <div className="ed-bubble glass flex items-center gap-0.5 rounded-[14px] p-1 text-[12.5px]">
         <Tool label="Add row below" onClick={() => c().addRowAfter().run()}><Rows3 size={15} /><span className="ml-1">+ Row</span></Tool>
