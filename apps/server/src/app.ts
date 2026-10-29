@@ -8,6 +8,10 @@ import { buildOidcProvider, type OidcClient } from './auth/oidc';
 import { devProvider } from './auth/dev';
 import { createSessionApi, loadUser } from './auth/session';
 import { authRoutes } from './routes/auth';
+import { categoryRoutes } from './routes/categories';
+import { articleRoutes } from './routes/articles';
+import { searchRoutes } from './routes/search';
+import { ApiError } from './services/articles';
 
 declare module 'fastify' {
   interface FastifyInstance { db: Db; sqlite: import('better-sqlite3').Database; config: Config }
@@ -37,6 +41,14 @@ export async function buildApp(opts: BuildOpts = {}): Promise<FastifyInstance> {
 
   const provider = config.authMode === 'oidc' ? buildOidcProvider(config.oidc!, opts.oidcClient) : devProvider;
   authRoutes(app, provider, createSessionApi(app));
+
+  app.setErrorHandler((err, _req, reply) => {
+    if (err instanceof ApiError) return reply.code(err.status).send(err.body);
+    return reply.send(err);
+  });
+  categoryRoutes(app);
+  articleRoutes(app);
+  searchRoutes(app);
 
   return app;
 }
