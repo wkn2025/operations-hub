@@ -13,8 +13,8 @@ export interface Ctx {
   req: (cookie: string | undefined, method: string, url: string, payload?: unknown) => Promise<{ status: number; body: any }>;
 }
 
-export async function setup(): Promise<Ctx> {
-  const app = await buildApp({ dbPath: ':memory:', env });
+export async function setup(dataDir?: string): Promise<Ctx> {
+  const app = await buildApp({ dbPath: ':memory:', env: dataDir ? { ...env, DATA_DIR: dataDir } : env });
   const now = new Date().toISOString();
   for (const e of ['ed@x.test', 'ed2@x.test']) app.db.insert(editorAllowlist).values({ email: e, addedBy: null, createdAt: now }).run();
   const login = async (email: string) => {

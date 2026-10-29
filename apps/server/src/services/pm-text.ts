@@ -30,3 +30,18 @@ export function extractLinkIds(doc: unknown): string[] {
   go(doc as PmNode);
   return [...ids];
 }
+
+/** Distinct file ids of image nodes whose src is /api/files/<id>. */
+export function extractFileIds(doc: unknown): string[] {
+  const ids = new Set<string>();
+  const go = (n: PmNode | undefined | null) => {
+    if (!n || typeof n !== 'object') return;
+    if (n.type === PM_NODES.image && typeof n.attrs?.src === 'string') {
+      const m = /^\/api\/files\/([\w-]+)$/.exec(n.attrs.src);
+      if (m) ids.add(m[1]);
+    }
+    if (Array.isArray(n.content)) n.content.forEach(go);
+  };
+  go(doc as PmNode);
+  return [...ids];
+}

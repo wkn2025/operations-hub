@@ -1,5 +1,8 @@
 {
-  "name": "@ops/server", "version": "0.0.0", "private": true, "type": "module",
+  "name": "@ops/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
   "scripts": {
     "dev": "cross-env NODE_ENV=development tsx watch --env-file-if-exists=../../.env src/index.ts",
     "start": "tsx --env-file-if-exists=../../.env src/index.ts",
@@ -8,12 +11,21 @@
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
-    "@ops/shared": "*", "@fastify/cookie": "^11.0.0", "better-sqlite3": "^12.0.0",
-    "drizzle-orm": "^0.44.0", "fastify": "^5.0.0", "openid-client": "^6.0.0", "zod": "^3.23.8"
+    "@fastify/cookie": "^11.0.0",
+    "@fastify/multipart": "^9.4.0",
+    "@ops/shared": "*",
+    "better-sqlite3": "^12.0.0",
+    "drizzle-orm": "^0.44.0",
+    "fastify": "^5.0.0",
+    "openid-client": "^6.0.0",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/node": "^22.0.0",
     "cross-env": "^7.0.3",
-    "@types/better-sqlite3": "^7.6.11", "@types/node": "^22.0.0", "drizzle-kit": "^0.31.0",
-    "tsx": "^4.19.0", "vitest": "^2.1.0"
+    "drizzle-kit": "^0.31.0",
+    "tsx": "^4.19.0",
+    "vitest": "^2.1.0"
   }
 }

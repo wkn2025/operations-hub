@@ -3,10 +3,10 @@ import { and, eq } from 'drizzle-orm';
 import type { ZodTypeAny, z } from 'zod';
 import type { ArticleStatus, User } from '@ops/shared';
 import type { Db } from '../db/client';
-import { articleLinks, articles, categories, revisions } from '../db/schema';
+import { articleFiles, articleLinks, articles, categories, files, revisions } from '../db/schema';
 import { can } from '../auth/policy';
 import { audit } from './audit';
-import { extractLinkIds, extractText } from './pm-text';
+import { extractFileIds, extractLinkIds, extractText } from './pm-text';
 import { indexArticle } from './search';
 
 export interface Svc { db: Db; sqlite: Database }
@@ -111,6 +111,13 @@ function syncLinks(s: Svc, id: string, content: unknown) {
   }
 }
 
+/** Embedded images (/api/files/<id>) become article_files rows. Add-only: detach removes (ponytail: no auto-removal when an image leaves the content). */
+function syncFiles(s: Svc, id: string, content: unknown) {
+  for (const f of extractFileIds(content)) {
+    if (s.db.select({ id: files.id }).from(files).where(eq(files.id, f)).get()) s.db.insert(articleFiles).values({ articleId: id, fileId: f }).onConflictDoNothing().run();
+  }
+}
+
 export function view(s: Svc, a: ArticleRow, user: User) {
   const { contentText: _t, ...rest } = a;
   const cats = allCategories(s);
@@ -153,6 +160,7 @@ export function createArticle(s: Svc, user: User, b: { title: string; type?: Art
     s.db.insert(revisions).values({ articleId: id, rev: 1, title: row.title, content: row.content, fields: row.fields, authorId: user.id, createdAt: now, note: 'created' }).run();
     setTags(s.sqlite, id, b.tags ?? []);
     syncLinks(s, id, content);
+    syncFiles(s, id, content);
     indexArticle(s.sqlite, id);
     audit(s.db, { actorId: user.id, action: 'article.create', entity: 'article', entityId: id, summary: `Created "${row.title}"` });
     return id;
@@ -182,7 +190,7 @@ export function updateArticle(s: Svc, user: User, id: string, b: {
     }).where(eq(articles.id, id)).run();
     s.db.insert(revisions).values({ articleId: id, rev, title, content, fields, authorId: user.id, createdAt: now, note: b.note ?? null }).run();
     if (b.tags) setTags(s.sqlite, id, b.tags);
-    if (b.content !== undefined) syncLinks(s, id, b.content);
+    if (b.content !== undefined) { syncLinks(s, id, b.content); syncFiles(s, id, b.content); }
     indexArticle(s.sqlite, id);
     audit(s.db, { actorId: user.id, action: 'article.update', entity: 'article', entityId: id, summary: `Saved revision ${rev} of "${title}"` });
     return id;
@@ -228,6 +236,7 @@ export function restoreRevision(s: Svc, user: User, id: string, rev: number) {
     }).where(eq(articles.id, id)).run();
     s.db.insert(revisions).values({ articleId: id, rev: next, title: old.title, content: old.content, fields: old.fields, authorId: user.id, createdAt: now, note: `restored from revision ${rev}` }).run();
     syncLinks(s, id, JSON.parse(old.content));
+    syncFiles(s, id, JSON.parse(old.content));
     indexArticle(s.sqlite, id);
     audit(s.db, { actorId: user.id, action: 'article.revision_restore', entity: 'article', entityId: id, summary: `Restored revision ${rev} as ${next}` });
     return id;

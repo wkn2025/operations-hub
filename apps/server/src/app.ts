@@ -16,6 +16,8 @@ import { allowlistRoutes } from './routes/allowlist';
 import { settingsRoutes } from './routes/settings';
 import { reviewRoutes } from './routes/review';
 import { auditRoutes } from './routes/audit';
+import multipart from '@fastify/multipart';
+import { fileRoutes } from './routes/files';
 import { ApiError } from './services/articles';
 
 declare module 'fastify' {
@@ -41,6 +43,7 @@ export async function buildApp(opts: BuildOpts = {}): Promise<FastifyInstance> {
   app.addHook('onClose', async () => { sqlite.close(); });
 
   await app.register(cookie, { secret: config.sessionSecret });
+  await app.register(multipart, { limits: { fileSize: 15 * 1024 * 1024, files: 1, fields: 5, parts: 6 } });
   app.decorateRequest('user', null);
   app.addHook('onRequest', loadUser(app));
 
@@ -57,6 +60,7 @@ export async function buildApp(opts: BuildOpts = {}): Promise<FastifyInstance> {
   categoryRoutes(app);
   articleRoutes(app);
   searchRoutes(app);
+  fileRoutes(app);
   for (const r of [userRoutes, allowlistRoutes, settingsRoutes, reviewRoutes, auditRoutes]) r(app);
 
   return app;
