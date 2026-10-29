@@ -26,11 +26,21 @@ export function createOidcClient(cfg: NonNullable<Config['oidc']>): OidcClient {
         pkceCodeVerifier: c.codeVerifier, expectedState: c.state, expectedNonce: c.nonce,
       });
       const claims = tokens.claims();
-      const email = String(claims?.email ?? claims?.preferred_username ?? claims?.upn ?? '');
-      if (!email.includes('@')) throw new Error('IdP returned no email claim');
-      return { email, name: claims?.name as string | undefined };
+      return emailFromClaims(claims ?? {});
     },
   };
+}
+
+/**
+ * Pick the identity email from ID-token claims.
+ * ponytail/IT item: which Entra claim is authoritative (email vs preferred_username vs upn) must be
+ * confirmed by IT; unverified or non-email values are rejected so a spoofable claim can't grant a role.
+ */
+export function emailFromClaims(claims: Record<string, unknown>): { email: string; name?: string } {
+  if (claims.email_verified === false) throw new Error('IdP email is not verified');
+  const email = [claims.email, claims.preferred_username, claims.upn].find((v) => typeof v === 'string' && v.includes('@'));
+  if (!email) throw new Error('IdP returned no usable email claim');
+  return { email: email as string, name: typeof claims.name === 'string' ? claims.name : undefined };
 }
 
 const TX_COOKIE = 'oidc_tx';

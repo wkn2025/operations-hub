@@ -6,8 +6,8 @@ const u = (role: User['role']): User => ({ id: role, email: `${role}@x.test`, na
 const [admin, editor, viewer] = [u('admin'), u('editor'), u('viewer')];
 
 describe('can()', () => {
-  it('anonymous can read published only', () => {
-    expect(can(null, 'article:read', { status: 'published' })).toBe(true);
+  it('anonymous can do nothing, even read published', () => {
+    expect(can(null, 'article:read', { status: 'published' })).toBe(false);
     expect(can(null, 'article:read', { status: 'draft' })).toBe(false);
     expect(can(null, 'article:write')).toBe(false);
   });

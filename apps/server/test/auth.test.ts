@@ -3,7 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../src/app';
 import { editorAllowlist } from '../src/db/schema';
 import { requireRole } from '../src/auth/policy';
-import type { OidcClient } from '../src/auth/oidc';
+import { emailFromClaims, type OidcClient } from '../src/auth/oidc';
 
 const env = {
   AUTH_MODE: 'dev', NODE_ENV: 'test',
@@ -53,6 +53,15 @@ describe('dev auth', () => {
     const { cookie } = await login(app, 'a@x.test');
     expect((await me(app, cookie.slice(0, -3) + 'xxx')).user).toBeNull();
     expect((await me(app)).user).toBeNull();
+  });
+  it('server-side expiry: expired signed value is anonymous, valid one works', async () => {
+    const { cookie } = await login(app, 'exp@x.test');
+    const id = app.db.$client.prepare('select id from users where email = ?').get('exp@x.test') as { id: string };
+    const mk = (ms: number) => `sid=${encodeURIComponent(app.signCookie(`${id.id}.${ms}`))}`;
+    expect((await me(app, mk(Date.now() - 1000))).user).toBeNull();
+    expect((await me(app, mk(Date.now() + 60_000))).user.email).toBe('exp@x.test');
+    expect((await me(app, `sid=${encodeURIComponent(app.signCookie(id.id))}`)).user).toBeNull(); // legacy/no-expiry value
+    expect(cookie).toMatch(/^sid=/);
   });
   it('logout clears the session', async () => {
     const { cookie } = await login(app, 'a@x.test');
@@ -111,5 +120,16 @@ describe('oidc provider (mocked client)', () => {
     expect(cb.statusCode).toBe(302);
     const sid = (cb.headers['set-cookie'] as string[]).find((c) => c.startsWith('sid='))!.split(';')[0];
     expect((await me(app, sid)).user.role).toBe('admin');
+  });
+});
+
+describe('emailFromClaims', () => {
+  it('prefers email, rejects unverified, requires @ in fallbacks', () => {
+    expect(emailFromClaims({ email: 'a@x.test', preferred_username: 'b@x.test', name: 'A' })).toEqual({ email: 'a@x.test', name: 'A' });
+    expect(emailFromClaims({ email: 'a@x.test', email_verified: true }).email).toBe('a@x.test');
+    expect(() => emailFromClaims({ email: 'a@x.test', email_verified: false })).toThrow(/verified/);
+    expect(emailFromClaims({ preferred_username: 'p@x.test' }).email).toBe('p@x.test');
+    expect(() => emailFromClaims({ preferred_username: 'just-a-name' })).toThrow();
+    expect(() => emailFromClaims({ upn: 'nope' })).toThrow();
   });
 });

@@ -15,11 +15,16 @@ const DEV_SECRET = 'dev-only-insecure-secret-do-not-use-in-prod';
 export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
   const authMode = z.enum(['dev', 'oidc']).parse(env.AUTH_MODE ?? 'dev');
   const nodeEnv = env.NODE_ENV ?? 'development';
-  const prod = nodeEnv === 'production';
-  if (authMode === 'dev' && prod) throw new Error('AUTH_MODE=dev is refused when NODE_ENV=production');
+    // Fail closed: dev auth only when NODE_ENV is explicitly development/test (unset counts as unsafe).
+  if (authMode === 'dev' && !['development', 'test'].includes(env.NODE_ENV ?? ''))
+    throw new Error("AUTH_MODE=dev is refused unless NODE_ENV is 'development' or 'test'");
 
-  const sessionSecret = env.SESSION_SECRET ?? (prod ? '' : DEV_SECRET);
-  if (prod && sessionSecret.length < 32) throw new Error('SESSION_SECRET (>=32 chars) is required in production');
+  const sessionSecret = env.SESSION_SECRET ?? (authMode === 'dev' ? DEV_SECRET : '');
+  if (authMode !== 'dev' && (sessionSecret.length < 32 || sessionSecret === DEV_SECRET || sessionSecret.startsWith('change-me')))
+    throw new Error('SESSION_SECRET must be a real random value of at least 32 chars');
+
+  const port = Number(env.PORT ?? 3000);
+  if (!Number.isInteger(port) || port <= 0 || port > 65535) throw new Error(`Invalid PORT: ${env.PORT}`);
 
   let oidc: Config['oidc'];
   if (authMode === 'oidc') {
@@ -30,7 +35,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   }
 
   return {
-    port: Number(env.PORT ?? 3000),
+    port,
     dataDir: env.DATA_DIR ?? './data',
     authMode, nodeEnv, sessionSecret, oidc,
     adminBootstrapEmails: (env.ADMIN_BOOTSTRAP_EMAILS ?? '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),

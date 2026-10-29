@@ -4,9 +4,10 @@ import type { Action, ArticleStatus, Role, User } from '@ops/shared';
 export interface Resource { status?: ArticleStatus; ownerId?: string }
 export interface PolicyOpts { requireApproval?: boolean }
 
-/** Single authorization decision point. Anonymous (null) is treated as viewer-without-write. */
+/** Single authorization decision point. Anonymous (null) can do nothing: the app requires login. */
 export function can(user: User | null, action: Action, resource: Resource = {}, opts: PolicyOpts = {}): boolean {
-  const role = user?.role;
+  if (!user) return false;
+  const role = user.role;
   if (role === 'admin') return true;
   const isEditor = role === 'editor';
   switch (action) {

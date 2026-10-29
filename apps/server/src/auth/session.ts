@@ -5,7 +5,7 @@ import type { Db } from '../db/client';
 import { editorAllowlist, users } from '../db/schema';
 
 export const SESSION_COOKIE = 'sid';
-const SESSION_MAX_AGE_S = 8 * 60 * 60;
+const SESSION_MAX_AGE_S = 12 * 60 * 60;
 
 /** Shared by dev and OIDC: they only differ in how they obtain a verified email. */
 export interface SessionApi {
@@ -46,7 +46,8 @@ export function createSessionApi(app: FastifyInstance): SessionApi {
         user = { id: crypto.randomUUID(), email, name: name ?? email.split('@')[0], role };
         app.db.insert(users).values({ ...user, createdAt: now, lastLoginAt: now }).run();
       }
-      reply.setCookie(SESSION_COOKIE, user.id, {
+      const expires = Date.now() + SESSION_MAX_AGE_S * 1000; // server-side expiry, independent of browser maxAge
+      reply.setCookie(SESSION_COOKIE, `${user.id}.${expires}`, {
         signed: true, httpOnly: true, sameSite: 'lax', path: '/',
         secure: app.config.nodeEnv === 'production', maxAge: SESSION_MAX_AGE_S,
       });
@@ -66,7 +67,9 @@ export function loadUser(app: FastifyInstance) {
     if (!raw) return;
     const { valid, value } = req.unsignCookie(raw);
     if (!valid || !value) return;
-    const row = app.db.select().from(users).where(eq(users.id, value)).get();
+    const dot = value.lastIndexOf('.');
+    if (dot < 0 || !(Number(value.slice(dot + 1)) > Date.now())) return; // expired or malformed
+    const row = app.db.select().from(users).where(eq(users.id, value.slice(0, dot))).get();
     if (row) req.user = { id: row.id, email: row.email, name: row.name, role: row.role };
   };
 }

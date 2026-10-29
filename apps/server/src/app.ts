@@ -17,11 +17,12 @@ declare module 'fastify' {
 export interface BuildOpts {
   dbPath?: string; // default: <DATA_DIR>/app.db; ':memory:' for tests
   env?: Record<string, string | undefined>;
+  config?: Config; // pre-loaded config (index.ts); wins over env
   oidcClient?: OidcClient; // test seam
 }
 
 export async function buildApp(opts: BuildOpts = {}): Promise<FastifyInstance> {
-  const config = loadConfig(opts.env ?? process.env); // throws on unsafe config before anything starts
+  const config = opts.config ?? loadConfig(opts.env ?? process.env); // throws on unsafe config before anything starts
   const app = Fastify({ logger: config.nodeEnv === 'test' ? false : { level: 'info' } });
 
   const { db, sqlite } = createDb(opts.dbPath ?? join(config.dataDir, 'app.db'));
