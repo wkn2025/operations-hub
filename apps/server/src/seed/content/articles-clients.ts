@@ -81,7 +81,7 @@ export const CLIENT_ARTICLES: SeedArticle[] = [
     reviewDate: '2027-01-01',
     fields: {
       summary: 'International health plan for expatriates. Covers planned and emergency care; direct billing with network hospitals.',
-      client: 'Meridian Expat Care (fictional)', contractRef: 'MER-EXP-2026-DEMO', validFrom: '2026-01-01', validTo: '2026-12-31', region: 'Worldwide excl. USA',
+      client: 'Meridian Expat Care (fictional)', contractRef: 'MER-EXP-2026-DEMO', validFrom: '2026-01-01', validTo: '2027-12-31', region: 'Worldwide excl. USA',
       keyLimits: [
         { label: 'Annual limit', value: 'EUR 2,000,000' },
         { label: 'Authorise without client', value: 'EUR 15,000' },
@@ -113,7 +113,7 @@ export const CLIENT_ARTICLES: SeedArticle[] = [
     reviewDate: '2026-12-31',
     fields: {
       summary: 'Assistance for cruise passengers: ship doctor bills, disembarkation and onward travel.',
-      client: 'Harbor Cruise Assist (fictional)', contractRef: 'HCA-2026-DEMO', validFrom: '2026-01-01', validTo: '2026-12-31', region: 'Worldwide, at sea and in port',
+      client: 'Harbor Cruise Assist (fictional)', contractRef: 'HCA-2026-DEMO', validFrom: '2026-01-01', validTo: '2027-12-31', region: 'Worldwide, at sea and in port',
       keyLimits: [
         { label: 'Medical expenses', value: 'EUR 500,000' },
         { label: 'Authorise without client', value: 'EUR 7,500' },

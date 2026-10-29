@@ -117,3 +117,11 @@ describe('seedDemo (Task 9)', () => {
     for (const a of SEED_ARTICLES.filter((x) => x.type === 'client_terms')) expect(a.fields?.client, a.title).toMatch(/fictional/i);
   });
 });
+
+describe('seed contract dates', () => {
+  it('no demo client contract runs out in 2026 (the demo would show expired T&Cs within weeks)', () => {
+    const ends = SEED_ARTICLES.map((a) => (a.fields as { validTo?: string } | undefined)?.validTo).filter((v): v is string => !!v);
+    expect(ends.length).toBeGreaterThanOrEqual(3);
+    expect(ends.filter((d) => d < '2027-01-01')).toEqual([]);
+  });
+});

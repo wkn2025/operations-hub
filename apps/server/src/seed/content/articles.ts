@@ -106,7 +106,7 @@ const CORE_ARTICLES: SeedArticle[] = [
     reviewDate: '2027-01-15',
     fields: {
       summary: 'What we may authorise for Northwind policyholders without calling the client first.',
-      client: 'Northwind Travel Insurance (fictional)', contractRef: 'NW-ASSIST-2026-DEMO', validFrom: '2026-01-01', validTo: '2026-12-31', region: 'Worldwide excl. USA/Canada',
+      client: 'Northwind Travel Insurance (fictional)', contractRef: 'NW-ASSIST-2026-DEMO', validFrom: '2026-01-01', validTo: '2027-12-31', region: 'Worldwide excl. USA/Canada',
       keyLimits: [
         { label: 'Medical expenses', value: 'EUR 250,000' },
         { label: 'Authorise without client', value: 'EUR 5,000' },
