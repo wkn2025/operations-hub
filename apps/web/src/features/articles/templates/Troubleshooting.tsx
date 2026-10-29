@@ -13,6 +13,8 @@ const STAGES: { key: 'symptom' | 'cause' | 'fix'; label: string; icon: LucideIco
 
 export function Troubleshooting({ article: a }: { article: Article }) {
   const f = a.fields;
+  // a published flow linked from the flow editor wins; the older free-text flowId field still works
+  const flowKey = a.flow?.slug ?? f.flowId;
   const stages = STAGES.filter((s) => f[s.key]);
   return (
     <article data-template="troubleshooting">
@@ -41,8 +43,8 @@ export function Troubleshooting({ article: a }: { article: Article }) {
             })}
           </ol>
         )}
-        {f.flowId && (
-          <Link to={`/flows/${encodeURIComponent(f.flowId)}`}
+        {flowKey && (
+          <Link to={`/flows/${encodeURIComponent(flowKey)}`}
             className="mt-5 inline-flex items-center gap-2 rounded-[12px] bg-primary px-4 py-2.5 text-sm font-medium text-white shadow-md transition-colors hover:bg-primary-hover">
             <Play size={15} aria-hidden /> Start guided flow
           </Link>

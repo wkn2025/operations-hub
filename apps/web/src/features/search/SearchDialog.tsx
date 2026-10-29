@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import * as Dialog from '@radix-ui/react-dialog';
 import clsx from 'clsx';
-import { ArrowDown, ArrowUp, BookA, CornerDownLeft, FileText, Folder, Hash, History, RotateCw, Search, X, type LucideIcon } from 'lucide-react';
+import { ArrowDown, ArrowUp, BookA, CornerDownLeft, FileText, Folder, Hash, History, Route, RotateCw, Search, X, type LucideIcon } from 'lucide-react';
 import { api, useCategories, type SearchGroup, type SearchHit } from '../../api/client';
 import { parseMarked } from '../../lib/text';
 import { readPref, writePref } from '../../lib/prefs';
@@ -33,6 +33,7 @@ export function SearchProvider({ children }: { children: ReactNode }) {
 // ---- dialog ----
 const GROUPS: { kind: SearchGroup['kind']; label: string; icon: LucideIcon }[] = [
   { kind: 'article', label: 'Articles', icon: FileText },
+  { kind: 'flow', label: 'Flows', icon: Route },
   { kind: 'glossary', label: 'Glossary', icon: BookA },
   { kind: 'category', label: 'Categories', icon: Folder },
   { kind: 'tag', label: 'Tags', icon: Hash },
@@ -79,7 +80,7 @@ export function SearchDialog() {
     setOpen(false);
     // category hits carry an id; route by slug so the sidebar highlights it (Category page also accepts ids)
     const slug = cats.data?.find((c) => c.id === item.hit.id)?.slug ?? item.hit.id;
-    navigate(item.kind === 'category' ? `/category/${slug}` : `/article/${item.hit.id}`);
+    navigate(item.kind === 'category' ? `/category/${slug}` : item.kind === 'flow' ? `/flows/${item.hit.id}` : `/article/${item.hit.id}`);
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {

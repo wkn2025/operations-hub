@@ -240,7 +240,7 @@ function TemplateFieldsForm({ draft, setF, errors, disabled }: { draft: Draft; s
       <Text label="Symptom" multiline value={f.symptom} max={TEMPLATE_FIELD_MAX.symptom} error={errors.symptom} disabled={d} onChange={(v) => setF({ symptom: v })} placeholder="What the user sees" />
       <Text label="Likely cause" multiline value={f.cause} max={TEMPLATE_FIELD_MAX.cause} error={errors.cause} disabled={d} onChange={(v) => setF({ cause: v })} />
       <Text label="Quick fix" multiline value={f.fix} max={TEMPLATE_FIELD_MAX.fix} error={errors.fix} disabled={d} onChange={(v) => setF({ fix: v })} />
-      <Text label="Guided flow" value={f.flowId} max={TEMPLATE_FIELD_MAX.flowId} error={errors.flowId} disabled={d} onChange={(v) => setF({ flowId: v || undefined })} placeholder="Flow ID" hint="Links a step-by-step troubleshooting flow. Flows can be built once the flow editor is available." />
+      <Text label="Guided flow" value={f.flowId} max={TEMPLATE_FIELD_MAX.flowId} error={errors.flowId} disabled={d} onChange={(v) => setF({ flowId: v || undefined })} placeholder="Flow ID" hint="Optional. Normally you link a flow from the flow editor (Guided flows) instead of typing an ID here." />
     </>);
     case 'glossary': return (<>
       <Text label="Term" value={f.term} max={TEMPLATE_FIELD_MAX.term} error={errors.term} disabled={d} onChange={(v) => setF({ term: v })} />

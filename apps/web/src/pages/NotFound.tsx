@@ -2,7 +2,7 @@ import { Link } from 'react-router';
 import { Compass } from 'lucide-react';
 import { IconTile } from '../components/ui/primitives';
 
-export function NotFound({ what = 'page' }: { what?: 'page' | 'article' | 'category' }) {
+export function NotFound({ what = 'page' }: { what?: 'page' | 'article' | 'category' | 'flow' }) {
   return (
     <div className="flex flex-col items-center py-24 text-center">
       <IconTile icon={Compass} size="lg" />

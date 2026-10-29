@@ -2,8 +2,8 @@ import { useMemo } from 'react';
 import { Link } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { CalendarClock, Plus, Search } from 'lucide-react';
-import { ARTICLE_CAP, api, subtree, useArticles, useCategories, useSession, type ReviewDue } from '../api/client';
+import { ArrowRight, CalendarClock, Plus, Route, Search } from 'lucide-react';
+import { ARTICLE_CAP, api, subtree, useArticles, useCategories, useFlows, useSession, type ReviewDue } from '../api/client';
 import { useSearch, isMac } from '../features/search/SearchDialog';
 import { IconTile, Kbd, Skeleton, TEMPLATE_ICON, categoryIcon } from '../components/ui/primitives';
 import { fmtDate } from '../lib/text';
@@ -15,6 +15,7 @@ export function Home() {
   const me = useSession().data!.user!;
   const cats = useCategories();
   const arts = useArticles();
+  const flows = useFlows();
   const { setOpen } = useSearch();
   const isEditor = me.role !== 'viewer';
   const review = useQuery({ queryKey: ['review-due'], enabled: isEditor, queryFn: () => api<{ articles: ReviewDue[] }>('/api/admin/review-due?days=30').then((r) => r.articles) });
@@ -51,6 +52,29 @@ export function Home() {
           <ErrorState title="Couldn’t load articles" onRetry={() => { cats.refetch(); arts.refetch(); }} retrying={cats.isFetching || arts.isFetching} />
         </div>
       ) : (<>
+      {!!flows.data?.length && (
+        <section aria-labelledby="h-flows" className="mt-14 animate-rise [animation-delay:40ms]">
+          <div className="flex items-baseline justify-between">
+            <h2 id="h-flows" className="text-[17px] font-semibold text-neutral-900">Something not working? Start here</h2>
+            <Link to="/flows" className="text-sm font-medium text-primary hover:underline">All guided flows</Link>
+          </div>
+          <ul className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {flows.data.filter((f) => f.status === 'published').slice(0, 3).map((f) => (
+              <li key={f.id}>
+                <Link to={`/flows/${f.slug}`} className="group flex h-full items-center gap-3.5 rounded-[18px] bg-primary-soft/60 p-4 ring-1 ring-primary/10 transition-[box-shadow,transform] duration-300 ease-out hover:-translate-y-0.5 hover:bg-white hover:shadow-md">
+                  <IconTile icon={Route} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[15px] font-semibold leading-snug text-neutral-900 group-hover:text-primary">{f.title}</span>
+                    <span className="block text-xs text-ink-muted">{f.nodeCount} steps</span>
+                  </span>
+                  <ArrowRight size={16} className="text-primary transition-transform group-hover:translate-x-0.5" aria-hidden />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <section aria-labelledby="h-cats" className="mt-14 animate-rise [animation-delay:80ms]">
         <h2 id="h-cats" className="text-[17px] font-semibold text-neutral-900">Browse by category</h2>
         <ul className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">

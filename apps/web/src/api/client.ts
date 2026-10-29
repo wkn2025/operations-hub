@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import type { ArticleStatus, ArticleType, PmNode, Role, TemplateFields } from '@ops/shared';
+import type { ArticleStatus, ArticleType, FlowNode, FlowValidation, PmNode, Role, TemplateFields } from '@ops/shared';
 
 export class HttpError extends Error {
   constructor(public status: number, public body: unknown) { super(`HTTP ${status}`); }
@@ -27,13 +27,15 @@ export interface Article {
   owner: { id: string; name: string } | null; revision: number; updatedAt: string; publishedAt: string | null; reviewDate: string | null;
   tags: string[]; fields: TemplateFields; content: PmNode; linkTargets: Record<string, LinkTarget>;
   /** explicit related articles (readable ones only); empty -> UI falls back to same-category articles */
+  /** published guided flow attached to this article (set from the flow editor) */
+  flow?: { id: string; slug: string; title: string } | null;
   related?: { id: string; title: string; slug: string; status: ArticleStatus }[];
   /** what the server would allow this user to do right now (UI hints only; the server still enforces) */
   permissions?: { write: boolean; publish: boolean; submit: boolean; archive: boolean };
 }
 export type ArticleSummary = Pick<Article, 'id' | 'slug' | 'title' | 'type' | 'status' | 'categoryId' | 'categoryPath' | 'revision' | 'updatedAt' | 'publishedAt' | 'reviewDate'> & { summary?: string | null };
 export interface SearchHit { id: string; title: string; snippet: string; categoryPath: string }
-export interface SearchGroup { kind: 'article' | 'category' | 'tag' | 'glossary'; hits: SearchHit[] }
+export interface SearchGroup { kind: 'article' | 'flow' | 'category' | 'tag' | 'glossary'; hits: SearchHit[] }
 export interface FileRef { id: string; url: string; name: string; mime: string; size: number; source?: 'attached' | 'embedded' }
 export interface ReviewDue { id: string; slug: string; title: string; reviewDate: string; overdue: boolean }
 
@@ -56,3 +58,20 @@ export function subtree(cats: Category[], id: string): Set<string> {
   }
   return ids;
 }
+
+// ---- flows (apps/server routes/flows.ts) ----
+export interface FlowArticleRef { status: string; title?: string; slug?: string }
+export interface FlowView {
+  id: string; slug: string; title: string; status: ArticleStatus; revision: number; startId: string; articleId: string | null;
+  article: { id: string; slug: string; title: string } | null;
+  nodes: FlowNode[]; articles: Record<string, FlowArticleRef>; updatedAt: string; publishedAt: string | null;
+  permissions: { write: boolean; publish: boolean; submit: boolean; archive: boolean };
+  /** editors only */
+  validation?: FlowValidation;
+}
+export interface FlowSummary {
+  id: string; slug: string; title: string; status: ArticleStatus; updatedAt: string; articleId: string | null;
+  article: { id: string; slug: string; title: string } | null; nodeCount: number; startText: string;
+}
+export const useFlows = () => useQuery({ queryKey: ['flows'], queryFn: () => api<{ flows: FlowSummary[] }>('/api/flows').then((r) => r.flows) });
+export const useFlow = (key: string) => useQuery({ queryKey: ['flow', key], queryFn: () => api<FlowView>(`/api/flows/${encodeURIComponent(key)}`), retry: false });
