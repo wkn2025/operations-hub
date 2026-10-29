@@ -7,6 +7,6 @@ export const ecnetPaymentRunSvg = frame('ECNet', `${nav(['Payment runs', 'Postin
     ['Clinica Solaris', '14', 'EUR', '48,210.00', 'Approved'],
     ['Harbor Ambulance', '3', 'EUR', '6,400.00', 'Approved'],
     ['Bangkok Demo Hosp.', '6', 'THB', '412,500.00', 'Awaiting FX'],
-    ['Alpine Demo Klinik', '2', 'CHF', '9,870.00', 'Returned'],
+    ['Alpine Demo Klinik', '2', 'CHF', '9,870.00', 'On hold'],
   ], status)}
   ${note(370, 'Sign-off 1 of 2 complete', ['Signed by: Finance assistant (demo) at 09:42.', 'Second signature: Finance lead. The file is sent to the bank after both signatures.'], 'ok')}`);

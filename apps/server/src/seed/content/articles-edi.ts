@@ -1,5 +1,5 @@
 import type { SeedArticle } from './articles';
-import { b, callout, code, collapsible, demo, h, i, ol, p, pre, ref, shot, steps, table, tasks, ul } from './pm';
+import { b, callout, code, collapsible, demo, h, i, p, pre, ref, shot, steps, table, tasks, ul } from './pm';
 
 /** DEMO: EDI & Automation, EDI troubleshooting and EDI glossary entries. Fictional senders, IDs and timings. */
 export const EDI_ARTICLES: SeedArticle[] = [
@@ -123,7 +123,7 @@ export const EDI_ARTICLES: SeedArticle[] = [
       h(2, 'Check these in order'),
       steps(
         { title: 'Open the 999', body: [p('In the EDI Monitor choose ', b('Acknowledgements'), ' and open the 999 for the batch.')] },
-        { title: 'Find IK3 and IK4', body: [p(code('IK3'), ' names the segment and its position; ', code('IK4'), ' names the element and the error code.'), pre('x12', 'IK3*NM1*14**8~\nIK4*9*67*6*000712345678901~\nIK5*R*5~')] },
+        { title: 'Find IK3 and IK4', body: [p(code('IK3'), ' names the segment and its position; ', code('IK4'), ' names the element and the error code.'), pre('x12', 'IK3*NM1*14**8~\nIK4*9*67*5*000712345678901~\nIK5*R*5~')] },
         { title: 'Translate the error', body: [table(['IK4 code', 'Meaning'], ['1', 'Mandatory element missing'], ['6', 'Invalid character'], ['7', 'Invalid code value'], ['8', 'Invalid date'], ['5', 'Element too long'])] },
         { title: 'Tell the sender', body: [p('UHCG Direct: e-mail the EDI desk. MacroHealth: open a ticket in their portal. Quote the ISA13 control number.')] },
         { title: 'Wait for the corrected file', body: [p('It must have a new control number. Watch the EDI Monitor for the new batch.')] },

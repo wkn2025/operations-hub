@@ -32,3 +32,17 @@ test('seeded DEMO articles render with screenshots, tables and working internal 
   await page.getByRole('link', { name: 'MacroHealth file not picked up' }).first().click();
   await expect(page.getByRole('heading', { level: 1, name: 'MacroHealth file not picked up' })).toBeVisible();
 });
+
+test('seeded articles with empty table cells open in the editor', async ({ page }) => {
+  expect((await page.request.post('/api/auth/dev/login', { data: { email: 'admin@demo.test' } })).ok()).toBeTruthy();
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  for (const slug of ['bluefin-corporate-health-coverage-summary', 'working-with-assistance-partners']) {
+    const { id } = await (await page.request.get(`/api/articles/${slug}`)).json();
+    await page.goto(`/edit/${id}`);
+    const editor = page.locator('[contenteditable=true]').first();
+    await expect(editor).toBeVisible();
+    await expect(editor.locator('table').first()).toBeVisible();
+  }
+  expect(errors).toEqual([]);
+});

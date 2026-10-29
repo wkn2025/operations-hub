@@ -66,6 +66,7 @@ describe('seedDemo (Task 9)', () => {
         n.marks?.forEach((m) => expect(markTypes.has(m.type), `${a.title}: mark ${m.type}`).toBe(true));
         if (n.type === 'internalLink') { links++; expect(ids.has(n.attrs!.articleId as string), `${a.title} -> ${n.attrs!.label}`).toBe(true); }
         if (n.type === 'image') expect(n.attrs!.src, a.title).toMatch(/^\/api\/files\/[\w-]+$/);
+        if (n.type === 'text') expect(n.text, `${a.title}: empty text node`).toBeTruthy(); // ProseMirror rejects empty text nodes
       });
     }
     expect(links).toBeGreaterThanOrEqual(30);
@@ -83,12 +84,31 @@ describe('seedDemo (Task 9)', () => {
     }
   });
 
-  it('covers the required operational topics and they are searchable', async () => {
-    for (const q of ['MacroHealth', 'UHCG', '837', '999', 'GOP', 'reimbursement', 'denial', 'medical records', 'Globo', 'ECNet', 'payment', 'coverage', 'provider network', 'acronyms', 'registration', 'approval']) {
+  it('covers the required operational topics and search finds the new articles by title', async () => {
+    const cases: [string, string][] = [
+      ['MacroHealth 837P', 'MacroHealth EDI: 837P and 837I exchange'],
+      ['UHCG Direct pipeline', 'UHCG Direct EDI: inbound 837I pipeline'],
+      ['segment-by-segment', '837 claim file: segment-by-segment guide'],
+      ['277CA', 'Acknowledgements: 999 and 277CA handling'],
+      ['IK5', '999 rejected a whole batch (IK5*R)'],
+      ['missing GOP', 'Request a missing GOP'],
+      ['member reimbursement', 'Process a member reimbursement'],
+      ['denial reasons', 'Invoice denial reasons and how to explain them'],
+      ['medical records request', 'Send a medical records request'],
+      ['Bluefin', 'Bluefin Corporate Health: coverage summary'],
+      ['Atlas Student', 'Atlas Student Travel Cover: coverage summary'],
+      ['returned bank', 'Payment returned by the bank'],
+      ['onboard network provider', 'Onboard a new network provider'],
+      ['ECNet payment files', 'ECNet: postings and payment files'],
+      ['Globo guarantees', 'Globo: cases, guarantees and invoices'],
+      ['acronyms', 'Operations acronyms A to Z'],
+      ['Explanation of Benefits', 'Explanation of Benefits (EOB)'],
+    ];
+    for (const [q, title] of cases) {
       const r = await c.req(c.viewer, 'GET', `/api/search?q=${encodeURIComponent(q)}`);
       expect(r.status, q).toBe(200);
-      const hits = (r.body.groups as { kind: string; hits: unknown[] }[]).find((g) => g.kind === 'article')?.hits ?? [];
-      expect(hits.length, q).toBeGreaterThan(0);
+      const titles = (r.body.groups as { hits: { title: string }[] }[]).flatMap((g) => g.hits.map((h) => h.title));
+      expect(titles, q).toContain(title);
     }
   });
 

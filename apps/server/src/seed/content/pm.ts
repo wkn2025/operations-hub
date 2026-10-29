@@ -2,7 +2,8 @@ import type { CalloutKind, PmNode } from '@ops/shared';
 
 /** Tiny ProseMirror JSON builders for seed content. Strings become text nodes; `**x**` is not parsed — use b(). */
 type Inline = string | PmNode;
-const inl = (xs: Inline[]): PmNode[] => xs.map((x) => (typeof x === 'string' ? { type: 'text', text: x } : x));
+// empty strings are dropped: ProseMirror rejects empty text nodes (an empty table cell becomes an empty paragraph)
+const inl = (xs: Inline[]): PmNode[] => xs.filter((x) => x !== '').map((x) => (typeof x === 'string' ? { type: 'text', text: x } : x));
 const mark = (type: string, attrs?: Record<string, unknown>) => (text: string): PmNode => ({ type: 'text', text, marks: [{ type, ...(attrs ? { attrs } : {}) }] });
 
 export const b = mark('bold');
@@ -13,7 +14,7 @@ export const a = (text: string, href: string): PmNode => mark('link', { href })(
 /** Seed-only placeholder resolved to { articleId } by seedBase. Target is the article title. */
 export const ref = (title: string, label?: string): PmNode => ({ type: 'internalLink', attrs: { seedRef: title, label: label ?? title } });
 
-export const p = (...xs: Inline[]): PmNode => ({ type: 'paragraph', content: inl(xs) });
+export const p = (...xs: Inline[]): PmNode => { const c = inl(xs); return { type: 'paragraph', ...(c.length ? { content: c } : {}) }; };
 export const h = (level: 2 | 3 | 4, text: string): PmNode => ({ type: 'heading', attrs: { level }, content: inl([text]) });
 const items = (xs: (Inline | PmNode[])[]): PmNode[] =>
   xs.map((x) => ({ type: 'listItem', content: Array.isArray(x) ? x : [p(x)] }));
