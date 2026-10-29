@@ -26,8 +26,8 @@ describe('autosave coalescing', () => {
       base = r.body.revision;
     }
     const list = await revs(a.id);
-    expect(list.map((r) => r.rev)).toEqual([21, 1]); // coalesced row carries the latest number
-    const latest = (await c.req(c.editor, 'GET', `/api/articles/${a.id}/revisions/21`)).body;
+    expect(list.map((r) => r.rev)).toEqual([2, 1]); // the open row keeps its number; articles.revision (21) runs ahead
+    const latest = (await c.req(c.editor, 'GET', `/api/articles/${a.id}/revisions/2`)).body;
     expect(JSON.stringify(latest.content)).toContain('v20');
     // stale base still 409s
     expect((await save(a.id, 20, 'stale', true)).status).toBe(409);
@@ -40,7 +40,7 @@ describe('autosave coalescing', () => {
     const r3 = await save(a.id, r2.body.revision, 'explicit', false);
     const r4 = await save(a.id, r3.body.revision, 'auto3', true);
     await save(a.id, r4.body.revision, 'auto4', true);
-    expect((await revs(a.id)).map((r) => r.rev)).toEqual([6, 4, 3, 1]);
+    expect((await revs(a.id)).map((r) => r.rev)).toEqual([5, 4, 2, 1]);
   });
 
   it('a different author always starts a new revision', async () => {
@@ -79,12 +79,63 @@ describe('autosave coalescing', () => {
   it('a coalesced revision can be restored', async () => {
     const a = await create();
     const r1 = await save(a.id, a.revision, 'draft text A', true);
-    const r2 = await save(a.id, r1.body.revision, 'draft text B', true); // coalesced into rev 3
+    const r2 = await save(a.id, r1.body.revision, 'draft text B', true); // coalesced into rev 2
     const r3 = await save(a.id, r2.body.revision, 'explicit C', false);
-    const res = await c.req(c.editor, 'POST', `/api/articles/${a.id}/revisions/3/restore`);
+    const res = await c.req(c.editor, 'POST', `/api/articles/${a.id}/revisions/2/restore`);
     expect(res.status).toBe(200);
     expect(res.body.revision).toBe(r3.body.revision + 1);
     expect(JSON.stringify(res.body.content)).toContain('draft text B');
+  });
+});
+
+describe('revision numbers are stable', () => {
+  it('an open revision keeps its number while later autosaves overwrite it', async () => {
+    const a = await create();
+    const r1 = await save(a.id, a.revision, 'first', true); // opens rev 2
+    expect((await revs(a.id))[0]!.rev).toBe(2);
+    let base = r1.body.revision;
+    for (let i = 0; i < 5; i++) base = (await save(a.id, base, `newest ${i}`, true)).body.revision;
+    expect(base).toBe(7); // concurrency counter keeps going
+    const g = await c.req(c.editor, 'GET', `/api/articles/${a.id}/revisions/2`);
+    expect(g.status).toBe(200);
+    expect(JSON.stringify(g.body.content)).toContain('newest 4');
+    const list = await revs(a.id) as unknown as { rev: number; coalescable: boolean }[];
+    expect(list[0]).toMatchObject({ rev: 2, coalescable: true }); // shown as "Autosaved draft"
+  });
+
+  it('restoring an open revision after more autosaves works and numbers the restore after the counter', async () => {
+    const a = await create();
+    let base = (await save(a.id, a.revision, 'keep me', true)).body.revision; // rev 2 open
+    base = (await save(a.id, base, 'keep me too', false)).body.revision; // rev 3 checkpoint
+    for (let i = 0; i < 3; i++) base = (await save(a.id, base, `later ${i}`, true)).body.revision; // rev 4 open, counter 6
+    const res = await c.req(c.editor, 'POST', `/api/articles/${a.id}/revisions/2/restore`);
+    expect(res.status).toBe(200);
+    expect(res.body.revision).toBe(base + 1);
+    expect(JSON.stringify(res.body.content)).toContain('keep me');
+    expect((await revs(a.id)).map((r) => r.rev)).toEqual([base + 1, 4, 3, 2, 1]);
+    // after a restore the next autosave starts a fresh row (restore rows are sealed)
+    await save(a.id, res.body.revision, 'after restore', true);
+    expect((await revs(a.id))[0]!.rev).toBe(base + 2);
+  });
+
+  it('transitions seal the latest row even when the counter is ahead of it', async () => {
+    const a = await create();
+    let base = (await save(a.id, a.revision, 'x', true)).body.revision;
+    base = (await save(a.id, base, 'y', true)).body.revision; // counter 3, open row 2
+    await c.req(c.editor, 'POST', `/api/articles/${a.id}/submit`);
+    const sealed = (await revs(a.id))[0] as unknown as { rev: number; coalescable: boolean; note: string };
+    expect(sealed).toMatchObject({ rev: 2, coalescable: false, note: 'submitted for review' });
+    await save(a.id, base, 'z', true);
+    expect((await revs(a.id)).map((r) => r.rev)).toEqual([4, 2, 1]);
+  });
+
+  it('(article_id, rev) stays unique', async () => {
+    const a = await create();
+    let base = a.revision;
+    for (const [t, auto] of [['a', true], ['b', true], ['c', false], ['d', true], ['e', true]] as const) base = (await save(a.id, base, t, auto)).body.revision;
+    await c.req(c.editor, 'POST', `/api/articles/${a.id}/revisions/2/restore`);
+    const dup = c.app.sqlite.prepare('select rev, count(*) n from revisions where article_id = ? group by rev having n > 1').all(a.id);
+    expect(dup).toEqual([]);
   });
 });
 

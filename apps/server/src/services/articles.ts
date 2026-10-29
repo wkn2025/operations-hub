@@ -1,5 +1,5 @@
 import type { Database } from 'better-sqlite3';
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import type { ZodTypeAny, z } from 'zod';
 import type { ArticleStatus, User } from '@ops/shared';
 import type { Db } from '../db/client';
@@ -221,11 +221,11 @@ export function updateArticle(s: Svc, user: User, id: string, b: {
       ownerId: b.ownerId ?? cur.ownerId, revision: rev, updatedAt: now,
     }).where(eq(articles.id, id)).run();
     // Autosave coalescing: articles.revision is the concurrency counter (always +1, baseRevision semantics unchanged).
-    // The author's open autosave revision is renumbered to `rev` and overwritten, so revision numbers can have gaps.
-    const open = b.autosave && (cur.status === 'draft' || cur.status === 'in_review')
-      ? s.db.select().from(revisions).where(and(eq(revisions.articleId, id), eq(revisions.rev, cur.revision))).get() : undefined;
+    // A revision row's `rev` never changes: the author's open autosave row is overwritten in place, so articles.revision
+    // may run ahead of max(rev). New rows take rev = articles.revision, which is always above every existing rev.
+    const open = b.autosave && (cur.status === 'draft' || cur.status === 'in_review') ? latestRevision(s, id) : undefined;
     if (open && open.coalescable && open.authorId === user.id && open.note === null && b.note === undefined && Date.now() - Date.parse(open.createdAt) < COALESCE_MS) {
-      s.db.update(revisions).set({ rev, title, content, fields }).where(eq(revisions.id, open.id)).run();
+      s.db.update(revisions).set({ title, content, fields }).where(eq(revisions.id, open.id)).run();
     } else {
       s.db.insert(revisions).values({ articleId: id, rev, title, content, fields, authorId: user.id, createdAt: now, note: b.note ?? null, coalescable: !!b.autosave }).run();
     }
@@ -237,9 +237,14 @@ export function updateArticle(s: Svc, user: User, id: string, b: {
     if (b.related) setRelated(s, id, b.related);
     if (b.content !== undefined) { syncLinks(s, id, b.content); syncFiles(s, id, b.content); }
     indexArticle(s.sqlite, id);
-    audit(s.db, { actorId: user.id, action: 'article.update', entity: 'article', entityId: id, summary: `Saved revision ${rev} of "${title}"` });
+    audit(s.db, { actorId: user.id, action: 'article.update', entity: 'article', entityId: id, summary: `Saved "${title}" (version ${rev})` });
     return id;
   })();
+}
+
+/** Newest revision row (highest rev; not necessarily == articles.revision because of coalescing). */
+export function latestRevision(s: Svc, id: string) {
+  return s.db.select().from(revisions).where(eq(revisions.articleId, id)).orderBy(desc(revisions.rev)).limit(1).get();
 }
 
 /** Autosaves by the same author within this window update one revision instead of adding rows. */
@@ -265,7 +270,8 @@ export function transition(s: Svc, user: User, id: string, action: Transition) {
     s.db.update(articles).set({ status: t.to, updatedAt: now, publishedAt: action === 'publish' ? (cur.publishedAt ?? now) : cur.publishedAt }).where(eq(articles.id, id)).run();
     // seal the latest revision: it is the state at this transition, later autosaves start a new one
     const label = { submit: 'submitted for review', publish: 'published', archive: 'archived', restore: 'restored to draft' }[action];
-    s.sqlite.prepare('update revisions set coalescable = 0, note = coalesce(note, ?) where article_id = ? and rev = ?').run(label, id, cur.revision);
+    const last = latestRevision(s, id);
+    if (last) s.sqlite.prepare('update revisions set coalescable = 0, note = coalesce(note, ?) where id = ?').run(label, last.id);
     indexArticle(s.sqlite, id);
     audit(s.db, { actorId: user.id, action: `article.${action}`, entity: 'article', entityId: id, summary: `${action}: "${cur.title}" ${cur.status} -> ${t.to}` });
     return id;
