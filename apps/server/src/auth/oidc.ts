@@ -1,4 +1,5 @@
 import * as oc from 'openid-client';
+import { safeNextPath } from '@ops/shared';
 import type { Config } from '../config';
 import { ApiError } from '../services/articles';
 import { secureCookies, type SessionProvider } from './session';
@@ -58,7 +59,7 @@ export function buildOidcProvider(cfg: NonNullable<Config['oidc']>, client: Oidc
       app.get('/api/auth/login', async (req, reply) => {
         const tx: Tx = {
           state: oc.randomState(), nonce: oc.randomNonce(), codeVerifier: oc.randomPKCECodeVerifier(),
-          next: safeNext((req.query as Record<string, unknown>).next),
+          next: safeNextPath((req.query as Record<string, unknown>).next),
         };
         reply.setCookie(TX_COOKIE, JSON.stringify(tx), {
           signed: true, httpOnly: true, sameSite: 'lax', path: '/api/auth', maxAge: 600,
@@ -100,15 +101,11 @@ export function buildOidcProvider(cfg: NonNullable<Config['oidc']>, client: Oidc
   };
 }
 
-/** Same-origin path only ('/x'), never '//host' or '/\host' (browsers treat both as another origin). */
-function safeNext(v: unknown): string {
-  return typeof v === 'string' && /^\/(?![/\\])/.test(v) && v.length <= 2000 ? v : '/';
-}
 
 function parseTx(raw: string): Tx | null {
   try {
     const t = JSON.parse(raw) as Partial<Tx> | null;
     if (!t || typeof t.state !== 'string' || typeof t.nonce !== 'string' || typeof t.codeVerifier !== 'string') return null;
-    return { state: t.state, nonce: t.nonce, codeVerifier: t.codeVerifier, next: safeNext(t.next) };
+    return { state: t.state, nonce: t.nonce, codeVerifier: t.codeVerifier, next: safeNextPath(t.next) };
   } catch { return null; }
 }

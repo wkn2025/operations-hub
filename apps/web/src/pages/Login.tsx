@@ -3,6 +3,7 @@ import { Navigate, useNavigate, useSearchParams } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { ArrowRight, FlaskConical, ShieldCheck } from 'lucide-react';
+import { safeNextPath } from '@ops/shared';
 import { api, useSession } from '../api/client';
 import { Logo } from '../layout/Sidebar';
 import { Unreachable } from '../layout/Shell';
@@ -28,7 +29,7 @@ export function Login() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const next = params.get('next');
-  const target = next && next.startsWith('/') && !next.startsWith('//') ? next : '/';
+  const target = safeNextPath(next);
   const ssoError = params.get('error');
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);

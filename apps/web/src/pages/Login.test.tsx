@@ -18,4 +18,10 @@ describe('Login (Entra ID mode)', () => {
     expect(await screen.findByRole('link', { name: /Sign in with Microsoft/ })).toHaveAttribute('href', '/api/auth/login');
     expect(screen.queryByRole('alert')).toBeNull();
   });
+
+  it.each(['/\\evil.example', '/\t/evil.example', '/\n/evil.example', '/\r/evil.example'])('drops unsafe next %j (same rule as the server)', async (next) => {
+    mockFetch({ '/api/me': { user: null, authMode: 'oidc', demo: false } });
+    renderApp(<Login />, `/login?next=${encodeURIComponent(next)}`);
+    expect(await screen.findByRole('link', { name: /Sign in with Microsoft/ })).toHaveAttribute('href', '/api/auth/login');
+  });
 });

@@ -16,3 +16,12 @@ export interface User {
   name: string;
   role: Role;
 }
+
+/**
+ * Post-login redirect target: a same-origin path only. Rejects '//host', '/\host' and any control character
+ * (browsers strip tab/CR/LF from URLs, so '/<TAB>/host' would become '//host'). Used by the server and the web.
+ */
+export function safeNextPath(v: unknown): string {
+  // eslint-disable-next-line no-control-regex
+  return typeof v === 'string' && v.length <= 2000 && /^\/(?![/\\])/.test(v) && !/[\u0000-\u001f\u007f]/.test(v) ? v : '/';
+}

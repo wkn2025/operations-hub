@@ -142,6 +142,8 @@ describe('oidc provider (mocked client)', () => {
     expect(await go('//evil.example')).toBe('/');
     expect(await go('/\\evil.example')).toBe('/');
     expect(await go('https://evil.example')).toBe('/');
+    // browsers strip tab/CR/LF from Location, turning '/<TAB>/evil' into '//evil'
+    for (const c of ['\t', '\n', '\r', '\u0000', '\u007f']) expect(await go(`/${c}/evil.example`)).toBe('/');
   });
   it('happy path creates session via same provider interface', async () => {
     const app = await buildApp({ dbPath: ':memory:', env: oenv, oidcClient: fakeOidc('boss@x.test') });
