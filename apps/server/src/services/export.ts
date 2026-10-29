@@ -17,7 +17,18 @@ const escText = (s: string) => s.replace(/[\\`*_[\]~]/g, '\\$&').replace(/&/g, '
 /** Unknown node: visible marker; the type name is reduced to [\w-] so it cannot close the HTML comment. */
 const unsupported = (n: PmNode) => `<!-- unsupported: ${String(n.type).replace(/[^\w-]/g, '_').slice(0, 40)} -->`;
 const str = (v: unknown) => (typeof v === 'string' ? v : '');
-const indent = (s: string, n: number) => s.split('\n').map((l, i) => (i === 0 || !l ? l : ' '.repeat(n) + l)).join('\n');
+/** Same rule as the web renderer's safeHref: http(s), mailto or a relative path; no control chars, spaces-only tricks, backslashes or '//' hosts. */
+const safeUrl = (v: unknown): string | null => {
+  if (typeof v !== 'string' || !v.trim()) return null;
+  // eslint-disable-next-line no-control-regex
+  if (/[\u0000-\u001f\u007f\\]/.test(v) || v.trim().startsWith('//')) return null;
+  const scheme = /^\s*([a-z][a-z0-9+.-]*):/i.exec(v);
+  return scheme && !['http', 'https', 'mailto'].includes(scheme[1].toLowerCase()) ? null : v.trim();
+};
+/** Markdown link destination: whitespace, parentheses and angle brackets percent-encoded so it cannot end early. */
+// (encodeURIComponent leaves '(' and ')' alone, so percent-encode by hand)
+const dest = (u: string) => u.replace(/[()<>\s]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0'));
+const indent =(s: string, n: number) => s.split('\n').map((l, i) => (i === 0 || !l ? l : ' '.repeat(n) + l)).join('\n');
 
 function inline(nodes: PmNode[] | undefined, ctx: MdContext): string {
   return (nodes ?? []).map((n) => {
@@ -37,16 +48,19 @@ function inline(nodes: PmNode[] | undefined, ctx: MdContext): string {
     if (marks.has('underline')) s = `<u>${s}</u>`;
     if (marks.has('highlight')) s = `==${s}==`;
     const link = n.marks?.find((m) => m.type === 'link');
-    if (link) s = `[${s}](${str(link.attrs?.href).replace(/[()\s]/g, encodeURIComponent)})`;
+    const href = link && safeUrl(link.attrs?.href);
+    if (href) s = `[${s}](${dest(href)})`;
     return s;
   }).join('');
 }
 
 function image(n: PmNode, ctx: MdContext) {
   const src = str(n.attrs?.src), id = /^\/api\/files\/([\w-]+)$/.exec(src)?.[1];
-  const target = id ? `../files/${ctx.files?.[id] ?? id}` : src;
+  const target = id ? `../files/${ctx.files?.[id] ?? id}` : safeUrl(src);
+  const alt = escText(str(n.attrs?.alt));
+  if (!target) return alt;
   const title = str(n.attrs?.title);
-  return `![${escText(str(n.attrs?.alt))}](${target}${title ? ` "${title.replace(/"/g, '\\"')}"` : ''})`;
+  return `![${alt}](${dest(target)}${title ? ` "${title.replace(/[\\"()]/g, '\\$&')}"` : ''})`;
 }
 
 const blocks = (nodes: PmNode[] | undefined, ctx: MdContext, sep = '\n\n') => (nodes ?? []).map((n) => block(n, ctx)).filter((s) => s !== '').join(sep);
@@ -84,7 +98,8 @@ function block(n: PmNode, ctx: MdContext): string {
     case 'codeBlock': {
       const code = (n.content ?? []).map((t) => str(t.text)).join('');
       const fence = code.includes('```') ? '~~~~' : '```';
-      return `${fence}${str(n.attrs?.language)}\n${code}\n${fence}`;
+      const lang = /^[\w+#.-]{1,40}$/.test(str(n.attrs?.language)) ? str(n.attrs?.language) : '';
+      return `${fence}${lang}\n${code}\n${fence}`;
     }
     case 'horizontalRule':
       return '---';

@@ -193,6 +193,20 @@ describe('ProseMirror -> Markdown', () => {
   it('escapes markdown control characters in text', () => {
     expect(pmToMarkdown({ type: 'doc', content: [p(t('1. not a list *not bold* [x](y)'))] }).trim()).toBe('1\\. not a list \\*not bold\\* \\[x\\](y)');
   });
+  it('link hrefs pass a safeHref-equivalent; code languages and image urls/titles cannot break out', () => {
+    const link = (href: string) => pmToMarkdown({ type: 'doc', content: [p({ type: 'text', text: 'go', marks: [{ type: 'link', attrs: { href } }] })] }).trim();
+    expect(link('javascript:alert(1)')).toBe('go');
+    expect(link('data:text/html,x')).toBe('go');
+    expect(link('//evil.example')).toBe('go');
+    expect(link('https://ok.example/a b(c)')).toBe('[go](https://ok.example/a%20b%28c%29)');
+    expect(link('mailto:a@x.test')).toBe('[go](mailto:a@x.test)');
+    const code = pmToMarkdown({ type: 'doc', content: [{ type: 'codeBlock', attrs: { language: 'js\n<script>' }, content: [t('x')] }] });
+    expect(code.split('\n')[0]).toBe('```');
+    expect(pmToMarkdown({ type: 'doc', content: [{ type: 'codeBlock', attrs: { language: 'c++' }, content: [t('x')] }] }).split('\n')[0]).toBe('```c++');
+    const img = pmToMarkdown({ type: 'doc', content: [{ type: 'image', attrs: { src: '/api/files/f1', alt: 'a', title: 'x") [y](javascript:z' } }] }, { files: { f1: 'f(1).png' } }).trim();
+    expect(img).toBe('![a](../files/f%281%29.png "x\\"\\) [y]\\(javascript:z")');
+    expect(pmToMarkdown({ type: 'doc', content: [{ type: 'image', attrs: { src: 'javascript:alert(1)', alt: 'a' } }] }).trim()).toBe('a');
+  });
 });
 
 describe('serving the built web app', () => {
