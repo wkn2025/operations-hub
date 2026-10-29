@@ -1,0 +1,44 @@
+/* Single source of truth for design tokens. Tailwind theme (tailwind.config.ts) maps to these. */
+:root {
+  /* Brand */
+  --color-primary: #26408f;
+  --color-primary-hover: #1e3373;
+  --color-primary-soft: #e8ecf7;
+  --color-accent: #c7cd3d; /* small accents only */
+  --color-background: #ffffff;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f6f7f9;
+
+  /* Neutral scale */
+  --neutral-50: #f8f9fb;
+  --neutral-100: #f1f3f6;
+  --neutral-200: #e4e7ec;
+  --neutral-300: #cfd4dc;
+  --neutral-400: #9aa3b2;
+  --neutral-500: #6b7587;
+  --neutral-600: #4b5565;
+  --neutral-700: #364152;
+  --neutral-800: #202939;
+  --neutral-900: #111827;
+
+  /* Semantic */
+  --color-text: var(--neutral-900);
+  --color-text-muted: var(--neutral-500);
+  --color-border: var(--neutral-200);
+  --color-success: #1f8a4c;
+  --color-warning: #b7791f;
+  --color-danger: #c53030;
+
+  /* Radii (14–20px for floating panels) */
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --radius-xl: 20px;
+
+  /* Soft shadows */
+  --shadow-sm: 0 1px 2px rgb(17 24 39 / 0.05);
+  --shadow-md: 0 4px 16px rgb(17 24 39 / 0.07);
+  --shadow-lg: 0 12px 40px rgb(38 64 143 / 0.14);
+
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
