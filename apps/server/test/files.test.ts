@@ -128,6 +128,16 @@ describe('serving', () => {
     await c.req(c.editor, 'PATCH', `/api/articles/${a.id}`, { baseRevision: 2, content: doc('gone') });
     expect((await c.req(c.editor, 'GET', `/api/articles/${a.id}/files`)).body.files).toHaveLength(1);
   });
+  it('attach then detach of a still-embedded image keeps viewer access until removed from content', async () => {
+    const f = (await upload(c.editor, 'p.png', PNG)).json();
+    const a = await mk({ type: 'doc', content: [{ type: 'image', attrs: { src: f.url } }] });
+    await c.req(c.editor, 'POST', `/api/articles/${a.id}/publish`);
+    await c.req(c.editor, 'POST', `/api/articles/${a.id}/files/${f.id}`);
+    expect((await c.req(c.editor, 'DELETE', `/api/articles/${a.id}/files/${f.id}`)).status).toBe(200);
+    expect((await get(c.viewer, f.url)).statusCode).toBe(200);
+    await c.req(c.editor, 'PATCH', `/api/articles/${a.id}`, { baseRevision: 1, content: doc('none') });
+    expect((await get(c.viewer, f.url)).statusCode).toBe(404);
+  });
   it('requireApproval blocks editor PATCH of published before any file sync', async () => {
     const f = (await upload(c.editor, 'p.png', PNG)).json();
     const a = await mk(doc('x'));

@@ -6,6 +6,7 @@ import { can } from '../auth/policy';
 import { articleFiles, files } from '../db/schema';
 import { ApiError, notFound, readable, requireApproval, type Svc } from './articles';
 import { audit } from './audit';
+import { extractFileIds } from './pm-text';
 
 const MAX_NAME = 120;
 const EXT_MIME: Record<string, string> = {
@@ -107,6 +108,7 @@ export function attach(s: Svc, user: User, articleId: string, fileId: string, on
       if (!cur) s.db.insert(articleFiles).values({ articleId, fileId, source: 'attached' }).run();
       else if (cur.source === 'embedded') s.db.update(articleFiles).set({ source: 'attached' }).where(and(eq(articleFiles.articleId, articleId), eq(articleFiles.fileId, fileId))).run();
     } else if (cur?.source === 'embedded') throw new ApiError(409, { error: 'embedded', message: 'file is embedded in the content; remove it there' });
+    else if (cur && extractFileIds(JSON.parse(a.content)).includes(fileId)) s.db.update(articleFiles).set({ source: 'embedded' }).where(and(eq(articleFiles.articleId, articleId), eq(articleFiles.fileId, fileId))).run(); // still shown in content
     else if (cur) s.db.delete(articleFiles).where(and(eq(articleFiles.articleId, articleId), eq(articleFiles.fileId, fileId))).run();
     audit(s.db, { actorId: user.id, action: on ? 'file.attach' : 'file.detach', entity: 'article', entityId: articleId, summary: `${on ? 'Attached' : 'Detached'} file ${fileId} on "${a.title}"` });
   })();
