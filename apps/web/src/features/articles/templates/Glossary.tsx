@@ -12,7 +12,7 @@ export function Glossary({ article: a }: { article: Article }) {
     <article data-template="glossary">
       <header className="relative overflow-hidden rounded-[22px] bg-white px-8 pb-8 pt-9 shadow-md ring-1 ring-neutral-200/80">
         <h1 className="relative">
-          <span className="inline-block bg-[linear-gradient(transparent_66%,rgb(199_205_61/0.5)_66%,rgb(199_205_61/0.5)_86%,transparent_86%)] px-1 text-[64px] font-bold leading-none tracking-[-0.035em] text-primary -ml-1">{big}</span>
+          <span className="inline-block hl-under px-1 text-[64px] font-bold leading-none tracking-[-0.035em] text-primary -ml-1">{big}</span>
           {sub && <span className="mt-3 block text-[22px] font-semibold tracking-[-0.015em] text-neutral-900">{sub}</span>}
         </h1>
         {f.definition && <p className="relative mt-5 max-w-[60ch] text-[19px] leading-[1.6] text-neutral-700">{f.definition}</p>}

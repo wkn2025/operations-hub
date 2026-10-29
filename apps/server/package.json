@@ -3,7 +3,7 @@
   "scripts": {
     "dev": "cross-env NODE_ENV=development PORT=3001 tsx watch --env-file-if-exists=../../.env src/index.ts",
     "start": "tsx --env-file-if-exists=../../.env src/index.ts",
-    "seed": "cross-env NODE_ENV=development tsx --env-file-if-exists=../../.env src/seed/run.ts",
+    "seed": "tsx --env-file-if-exists=../../.env src/seed/run.ts",
     "build": "tsc -p .",
     "test": "vitest run",
     "db:generate": "drizzle-kit generate"

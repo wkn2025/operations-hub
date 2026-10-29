@@ -5,6 +5,7 @@ import { useCategories, useSession } from '../api/client';
 import { SearchDialog, SearchProvider } from '../features/search/SearchDialog';
 import { Sidebar, SIDEBAR_W, useSidebarCollapsed } from './Sidebar';
 import { Topbar } from './Topbar';
+import { ErrorState } from '../components/ui/ErrorState';
 
 /** Pages tell the sidebar which category they belong to (e.g. an article's category). */
 const ActiveCategory = createContext<(id: string | null) => void>(() => {});
@@ -21,7 +22,9 @@ export function Shell() {
   const loc = useLocation();
 
   if (session.isPending) return <Splash />;
-  if (!session.data?.user) return <Navigate to={`/login?next=${encodeURIComponent(loc.pathname)}`} replace />;
+  // network/5xx on /api/me is not "signed out": keep the user where they are and offer a retry
+  if (session.isError && !session.data) return <Unreachable onRetry={() => session.refetch()} retrying={session.isFetching} />;
+  if (!session.data?.user) return <Navigate to={`/login?next=${encodeURIComponent(loc.pathname + loc.search + loc.hash)}`} replace />;
 
   return (
     <SearchProvider>
@@ -40,6 +43,14 @@ export function Shell() {
         <SearchDialog />
       </ActiveCategory.Provider>
     </SearchProvider>
+  );
+}
+
+export function Unreachable({ onRetry, retrying }: { onRetry: () => void; retrying: boolean }) {
+  return (
+    <div className="flex min-h-screen items-center justify-center px-4">
+      <ErrorState title="Can’t reach the server" detail="Operations Hub could not check your session. Your work is not lost; try again in a moment." onRetry={onRetry} retrying={retrying} />
+    </div>
   );
 }
 

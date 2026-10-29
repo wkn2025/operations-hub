@@ -30,7 +30,7 @@ export function Topbar({ me }: { me: Me }) {
     <div className="sticky top-0 z-20 -mx-3 bg-gradient-to-b from-white via-white/85 to-white/0 px-3 pb-4 pt-3">
     <header className="glass flex h-14 items-center gap-3 rounded-[18px] pl-2 pr-2">
       <button type="button" onClick={() => setOpen(true)}
-        className="group flex h-10 w-full max-w-[440px] items-center gap-3 rounded-[12px] px-3 text-left text-[14px] text-neutral-400 transition-colors hover:bg-white/90 hover:text-neutral-600">
+        className="group flex h-10 w-full max-w-[440px] items-center gap-3 rounded-[12px] px-3 text-left text-[14px] text-ink-muted transition-colors hover:bg-white/90 hover:text-neutral-600">
         <Search size={17} strokeWidth={2} className="shrink-0 text-neutral-400 transition-colors group-hover:text-primary" aria-hidden />
         <span className="flex-1 truncate">Search articles, clients, error codes…</span>
         <span className="flex items-center gap-1" aria-hidden><Kbd>{isMac ? '⌘' : 'Ctrl'}</Kbd><Kbd>K</Kbd></span>
@@ -40,7 +40,7 @@ export function Topbar({ me }: { me: Me }) {
       <div className="ml-auto flex items-center gap-2">
         {me.demo && (
           <span title="Demo sign-in is on: anyone can pick any user. Production uses Microsoft Entra ID."
-            className="hidden items-center gap-1.5 rounded-full bg-accent-soft px-2.5 py-1 text-xs font-semibold text-[#5c600c] ring-1 ring-inset ring-accent/50 sm:inline-flex">
+            className="hidden items-center gap-1.5 rounded-full bg-accent-soft px-2.5 py-1 text-xs font-semibold text-accent-ink ring-1 ring-inset ring-accent/50 sm:inline-flex">
             <FlaskConical size={13} aria-hidden /> Demo auth
           </span>
         )}
@@ -62,7 +62,7 @@ export function Topbar({ me }: { me: Me }) {
                 <p className="mt-2.5 flex items-center gap-2 text-xs text-neutral-600">
                   <span className="rounded-full bg-primary-soft px-2 py-0.5 font-semibold text-primary">{role.label}</span>{role.can}
                 </p>
-                {me.demo && <p className="mt-2.5 rounded-[10px] bg-accent-soft px-2.5 py-2 text-xs leading-relaxed text-[#5c600c]">Demo sign-in. Production uses Microsoft Entra ID.</p>}
+                {me.demo && <p className="mt-2.5 rounded-[10px] bg-accent-soft px-2.5 py-2 text-xs leading-relaxed text-accent-ink">Demo sign-in. Production uses Microsoft Entra ID.</p>}
               </div>
               <Menu.Separator className="mx-2 my-1 h-px bg-neutral-200/80" />
               {me.demo && (

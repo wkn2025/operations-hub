@@ -10,3 +10,4 @@ class RO { observe() {} unobserve() {} disconnect() {} }
 (globalThis as any).IntersectionObserver ??= class { observe() {} unobserve() {} disconnect() {} takeRecords() { return []; } };
 Element.prototype.scrollIntoView ??= function () {};
 window.matchMedia ??= ((q: string) => ({ matches: false, media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, onchange: null, dispatchEvent: () => false })) as any;
+window.scrollTo = () => {};

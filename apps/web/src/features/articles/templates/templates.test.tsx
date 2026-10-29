@@ -34,7 +34,7 @@ describe('ArticleTemplate', () => {
 
   it('client terms: prominent DEMO banner, client, contract and key limits', () => {
     renderApp(<ArticleTemplate article={make('client_terms', { client: 'Northwind (fictional)', contractRef: 'NW-1', keyLimits: [{ label: 'Medical', value: 'EUR 250,000' }] })} />);
-    expect(screen.getByRole('alert')).toHaveTextContent(/DEMO – illustrative data/);
+    expect(screen.getByRole('note', { name: 'Demo data notice' })).toHaveTextContent(/DEMO – illustrative data/);
     expect(screen.getByText('Northwind (fictional)')).toBeInTheDocument();
     expect(screen.getByText('NW-1')).toBeInTheDocument();
     expect(screen.getByText('EUR 250,000')).toBeInTheDocument();

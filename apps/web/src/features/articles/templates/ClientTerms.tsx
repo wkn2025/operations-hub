@@ -9,8 +9,7 @@ export function ClientTerms({ article: a }: { article: Article }) {
   const validity = f.validFrom || f.validTo ? `${fmtDate(f.validFrom) || 'open'} to ${fmtDate(f.validTo) || 'open-ended'}` : undefined;
   return (
     <article data-template="client_terms">
-      <div role="alert" className="mb-8 flex items-center gap-3 rounded-[14px] px-4 py-3 text-[14px] text-neutral-800 ring-1 ring-inset ring-accent/60"
-        style={{ background: 'repeating-linear-gradient(135deg, var(--color-accent-soft) 0 12px, rgb(243 245 210 / 0.5) 12px 24px)' }}>
+      <div role="note" aria-label="Demo data notice" className="demo-stripe mb-8 flex items-center gap-3 rounded-[14px] px-4 py-3 text-[14px] text-neutral-800 ring-1 ring-inset ring-accent/60">
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-accent text-neutral-900"><FlaskConical size={17} aria-hidden /></span>
         <p><strong className="font-semibold">DEMO – illustrative data.</strong> Fictional client, limits and contract. Do not use for real authorisations.</p>
       </div>

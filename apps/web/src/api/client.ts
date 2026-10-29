@@ -37,7 +37,8 @@ export interface ReviewDue { id: string; slug: string; title: string; reviewDate
 export const useSession = () => useQuery({ queryKey: ['me'], queryFn: () => api<Me>('/api/me'), staleTime: 60_000 });
 export const useCategories = () => useQuery({ queryKey: ['categories'], queryFn: () => api<{ categories: Category[] }>('/api/categories').then((r) => r.categories) });
 /** ponytail: one list of up to 200 visible articles feeds counts, category pages and "recent"; paginate when the KB outgrows it. */
-export const useArticles = () => useQuery({ queryKey: ['articles'], queryFn: () => api<{ articles: ArticleSummary[] }>('/api/articles?limit=200').then((r) => r.articles) });
+export const ARTICLE_CAP = 200;
+export const useArticles = () => useQuery({ queryKey: ['articles'], queryFn: () => api<{ articles: ArticleSummary[] }>(`/api/articles?limit=${ARTICLE_CAP}`).then((r) => r.articles) });
 export const useArticle = (idOrSlug: string) =>
   useQuery({ queryKey: ['article', idOrSlug], queryFn: () => api<Article>(`/api/articles/${encodeURIComponent(idOrSlug)}`), retry: false });
 

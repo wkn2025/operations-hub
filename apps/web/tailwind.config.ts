@@ -10,7 +10,8 @@ export default {
     extend: {
       colors: {
         primary: { DEFAULT: c('color-primary'), hover: v('color-primary-hover'), soft: c('color-primary-soft'), line: c('color-primary-line') },
-        accent: { DEFAULT: c('color-accent'), soft: c('color-accent-soft') },
+        accent: { DEFAULT: c('color-accent'), soft: c('color-accent-soft'), ink: v('color-accent-ink') },
+        overlay: v('color-overlay'),
         background: v('color-background'),
         surface: { DEFAULT: v('color-surface'), muted: v('color-surface-muted') },
         border: v('color-border'),
@@ -21,7 +22,7 @@ export default {
         neutral: Object.fromEntries([50, 100, 200, 300, 400, 500, 600, 700, 800, 900].map((n) => [n, c(`neutral-${n}`)])),
       },
       borderRadius: { sm: v('radius-sm'), md: v('radius-md'), lg: v('radius-lg'), xl: v('radius-xl') },
-      boxShadow: { sm: v('shadow-sm'), md: v('shadow-md'), lg: v('shadow-lg') },
+      boxShadow: { sm: v('shadow-sm'), md: v('shadow-md'), lg: v('shadow-lg'), button: v('shadow-button') },
       fontFamily: { sans: v('font-sans'), mono: v('font-mono') },
       transitionTimingFunction: { out: v('ease-out'), spring: v('ease-spring') },
       keyframes: {

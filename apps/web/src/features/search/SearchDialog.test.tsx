@@ -77,4 +77,31 @@ describe('SearchDialog', () => {
     expect(await screen.findByRole('button', { name: 'gop' })).toBeInTheDocument();
     expect(JSON.parse(localStorage.getItem('ops.recentSearches')!)).toContain('gop');
   });
+
+  it('shows an error row with retry when search fails, and keeps recent searches outside the listbox', async () => {
+    const fetch = mockFetch({ '/api/search': { __status: 500 } });
+    localStorage.setItem('ops.recentSearches', JSON.stringify(['old query']));
+    renderApp(<SearchProvider><SearchDialog /></SearchProvider>);
+    await userEvent.keyboard('{Control>}k{/Control}');
+    const recent = await screen.findByRole('button', { name: 'old query' });
+    expect(recent.closest('[role=listbox]')).toBeNull();
+    await userEvent.type(screen.getByRole('combobox'), 'gop');
+    expect(await screen.findByText(/Search is unavailable/)).toBeInTheDocument();
+    const calls = fetch.mock.calls.length;
+    await userEvent.click(screen.getByRole('button', { name: 'Retry search' }));
+    await waitFor(() => expect(fetch.mock.calls.length).toBeGreaterThan(calls));
+  });
+
+  it('category hits navigate by slug', async () => {
+    mockFetch({
+      '/api/search': { groups: [{ kind: 'category', hits: [{ id: 'c9', title: 'EDI issues', snippet: '', categoryPath: 'Troubleshooting Center' }] }] },
+      '/api/categories': { categories: [{ id: 'c9', parentId: null, name: 'EDI issues', slug: 'edi-issues', description: null, sortOrder: 0, archived: false, path: 'EDI issues' }] },
+    });
+    renderApp(<SearchProvider><SearchDialog /></SearchProvider>);
+    await userEvent.keyboard('{Control>}k{/Control}');
+    await userEvent.type(screen.getByRole('combobox'), 'edi');
+    await screen.findByRole('option', { name: /EDI issues/ });
+    await userEvent.keyboard('{Enter}');
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/category/edi-issues'));
+  });
 });

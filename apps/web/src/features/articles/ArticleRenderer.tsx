@@ -87,7 +87,7 @@ function Marks({ text, marks }: { text: string; marks?: PmNode['marks'] }) {
 
 const CALLOUT: Record<CalloutKind, { icon: LucideIcon; label: string; box: string; icon_: string }> = {
   info: { icon: Info, label: 'Note', box: 'bg-primary-soft/70 ring-primary/10', icon_: 'text-primary' },
-  tip: { icon: Lightbulb, label: 'Tip', box: 'bg-accent-soft/80 ring-accent/30', icon_: 'text-[#6d7210]' },
+  tip: { icon: Lightbulb, label: 'Tip', box: 'bg-accent-soft/80 ring-accent/30', icon_: 'text-accent-ink' },
   warning: { icon: TriangleAlert, label: 'Warning', box: 'bg-warning-soft ring-warning/15', icon_: 'text-warning' },
   danger: { icon: OctagonAlert, label: 'Important', box: 'bg-danger-soft ring-danger/15', icon_: 'text-danger' },
   success: { icon: CircleCheck, label: 'Success', box: 'bg-success-soft ring-success/15', icon_: 'text-success' },
@@ -113,7 +113,7 @@ function Collapsible({ title, defaultOpen, children }: { title: string; defaultO
   const id = useId();
   return (
     <div className={clsx('rounded-[14px] ring-1 ring-inset transition-colors', open ? 'bg-white ring-neutral-200 shadow-sm' : 'bg-neutral-50/70 ring-neutral-200/80 hover:bg-neutral-50')}>
-      <button type="button" aria-expanded={open} aria-controls={id} onClick={() => setOpen((o) => !o)}
+      <button type="button" aria-expanded={open} aria-controls={open ? id : undefined} onClick={() => setOpen((o) => !o)}
         className="flex w-full items-center gap-2.5 rounded-[14px] px-4 py-3 text-left text-[15px] font-medium text-neutral-800">
         <ChevronRight size={16} className={clsx('shrink-0 text-neutral-400 transition-transform duration-300 ease-out', open && 'rotate-90 text-primary')} aria-hidden />
         {title}
@@ -224,7 +224,7 @@ function CodeBlock({ n }: { n: PmNode }) {
   const text = (n.content ?? []).map((c) => (typeof c?.text === 'string' ? c.text : '')).join('');
   return (
     <div className="relative !mt-5">
-      {lang && lang !== 'text' && <span className="absolute right-3 top-2 text-[11px] font-medium text-neutral-400">{lang}</span>}
+      {lang && lang !== 'text' && <span className="absolute right-3 top-2 text-[11px] font-medium text-ink-muted">{lang}</span>}
       <pre className="overflow-x-auto rounded-[14px] bg-neutral-50 px-4 py-3.5 font-mono text-[13.5px] leading-relaxed text-neutral-800 ring-1 ring-inset ring-neutral-200"><code>{text}</code></pre>
     </div>
   );

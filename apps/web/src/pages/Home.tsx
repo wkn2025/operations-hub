@@ -3,10 +3,11 @@ import { Link } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { CalendarClock, Search } from 'lucide-react';
-import { api, subtree, useArticles, useCategories, useSession, type ReviewDue } from '../api/client';
+import { ARTICLE_CAP, api, subtree, useArticles, useCategories, useSession, type ReviewDue } from '../api/client';
 import { useSearch, isMac } from '../features/search/SearchDialog';
 import { IconTile, Kbd, Skeleton, TEMPLATE_ICON, categoryIcon } from '../components/ui/primitives';
 import { fmtDate } from '../lib/text';
+import { ErrorState } from '../components/ui/ErrorState';
 
 const greeting = () => { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'; };
 
@@ -28,16 +29,21 @@ export function Home() {
       <section className="animate-rise pt-6">
         <h1 className="text-[34px] font-semibold tracking-[-0.025em] text-neutral-900">{greeting()}, {me.name}</h1>
         <p className="mt-2 text-[17px] text-neutral-500">
-          {arts.isPending ? 'Loading the knowledge base…' : `${published.length} published article${published.length === 1 ? '' : 's'} across ${tops.length} categories.`}
+          {arts.isPending ? 'Loading the knowledge base…' : arts.isError ? 'The article list is unavailable right now.' : `${published.length} published article${published.length === 1 ? '' : 's'} across ${tops.length} categories.`}
         </p>
         <button type="button" onClick={() => setOpen(true)}
           className="group mt-7 flex h-[58px] w-full max-w-[640px] items-center gap-3.5 rounded-[18px] bg-white px-5 text-left shadow-md ring-1 ring-neutral-200/80 transition-[box-shadow,transform] duration-300 ease-out hover:-translate-y-px hover:shadow-lg hover:ring-primary/20">
           <Search size={20} className="text-primary" aria-hidden />
-          <span className="flex-1 text-[16px] text-neutral-400">Find a procedure, a client, an error code…</span>
+          <span className="flex-1 text-[16px] text-ink-muted">Find a procedure, a client, an error code…</span>
           <span className="flex gap-1" aria-hidden><Kbd>{isMac ? '⌘' : 'Ctrl'}</Kbd><Kbd>K</Kbd></span>
         </button>
       </section>
 
+      {(cats.isError || arts.isError) ? (
+        <div className="panel mt-14">
+          <ErrorState title="Couldn’t load articles" onRetry={() => { cats.refetch(); arts.refetch(); }} retrying={cats.isFetching || arts.isFetching} />
+        </div>
+      ) : (<>
       <section aria-labelledby="h-cats" className="mt-14 animate-rise [animation-delay:80ms]">
         <h2 id="h-cats" className="text-[17px] font-semibold text-neutral-900">Browse by category</h2>
         <ul className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -57,7 +63,7 @@ export function Home() {
                   </div>
                   <h3 className="mt-4 text-[15.5px] font-semibold leading-snug text-neutral-900 transition-colors group-hover:text-primary">{c.name}</h3>
                   {c.description && <p className="mt-1.5 line-clamp-2 text-[13.5px] leading-relaxed text-neutral-500">{c.description}</p>}
-                  {subs.length > 0 && <p className="mt-auto truncate pt-3 text-xs text-neutral-400">{subs.map((s) => s.name).join(', ')}</p>}
+                  {subs.length > 0 && <p className="mt-auto truncate pt-3 text-xs text-ink-muted">{subs.map((s) => s.name).join(', ')}</p>}
                   <span className="sr-only">{n} {n === 1 ? 'article' : 'articles'}</span>
                 </Link>
               </li>
@@ -82,7 +88,7 @@ export function Home() {
                       <span className="block truncate text-[14.5px] font-medium text-neutral-900 group-hover:text-primary">{a.title}</span>
                       <span className="block truncate text-xs text-neutral-500">{a.categoryPath}</span>
                     </span>
-                    <span className="shrink-0 text-xs text-neutral-400 tabular">{fmtDate(a.updatedAt, { day: 'numeric', month: 'short' })}</span>
+                    <span className="shrink-0 text-xs text-ink-muted tabular">{fmtDate(a.updatedAt, { day: 'numeric', month: 'short' })}</span>
                   </Link>
                 </li>
               );
@@ -95,6 +101,7 @@ export function Home() {
             <h2 id="h-review" className="text-[17px] font-semibold text-neutral-900">Due for review</h2>
             <ul className="panel mt-4 divide-y divide-neutral-100 overflow-hidden">
               {review.isPending && <li className="p-4"><Skeleton className="h-5 w-1/2" /></li>}
+              {review.isError && <li className="p-2"><ErrorState compact title="Couldn’t load the review list" detail="Try again in a moment." onRetry={() => review.refetch()} retrying={review.isFetching} /></li>}
               {review.data?.length === 0 && <li className="p-5 text-sm text-neutral-500">Nothing is due in the next 30 days.</li>}
               {review.data?.map((r) => (
                 <li key={r.id}>
@@ -111,6 +118,8 @@ export function Home() {
           </section>
         )}
       </div>
+      {arts.data?.length === ARTICLE_CAP && <p className="mt-4 text-xs text-ink-muted">Counts and lists use the {ARTICLE_CAP} most recently updated articles.</p>}
+      </>)}
     </div>
   );
 }

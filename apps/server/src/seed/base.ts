@@ -1,5 +1,7 @@
 import type { FastifyInstance } from 'fastify';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
+import { readFile } from 'node:fs/promises';
+import { resolve as resolvePath } from 'node:path';
 import type { PmNode, Role, User } from '@ops/shared';
 import { articles, categories, editorAllowlist, files, users } from '../db/schema';
 import { createArticle, slugify, transition, uniqueSlug, updateArticle } from '../services/articles';
@@ -46,13 +48,23 @@ function ensureCategory(app: App, name: string, parentId: string | null, sortOrd
   return id;
 }
 
+/** Reuse only a file the seed itself stored (same name, uploaded by the seed admin, identical bytes). */
 async function ensureFile(app: App, admin: User, key: string) {
-  const name = `demo-${key}`;
-  const hit = app.db.select().from(files).where(eq(files.name, name)).get();
-  if (hit) return hit.id;
   const f = SEED_FILES[key];
   if (!f) throw new Error(`unknown seed file ${key}`);
-  return (await storeFile(app, admin, name, f.mime, f.data())).id;
+  const name = `demo-${key}`, data = f.data();
+  for (const row of app.db.select().from(files).where(and(eq(files.name, name), eq(files.uploadedBy, admin.id))).all()) {
+    const bytes = await readFile(resolvePath(app.config.dataDir, 'uploads', row.path)).catch(() => null);
+    if (bytes?.equals(data)) return row.id;
+  }
+  return (await storeFile(app, admin, name, f.mime, data)).id;
+}
+
+/** The demo seed creates well-known demo accounts; never let it run against a real deployment by accident. */
+export function seedAllowed(env: Record<string, string | undefined>, argv: string[]) {
+  if (argv.includes('--force-demo')) return;
+  if (env.NODE_ENV === 'production' || env.AUTH_MODE === 'oidc')
+    throw new Error('Seed refused: NODE_ENV=production or AUTH_MODE=oidc. Pass --force-demo to seed demo data anyway.');
 }
 
 /** Idempotent base seed: categories, demo users, editor allowlist, DEMO articles (upsert by slug, published). */

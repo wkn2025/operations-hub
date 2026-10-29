@@ -10,6 +10,7 @@ import { IconTile, Skeleton, TEMPLATE_ICON } from '../../components/ui/primitive
 import { useActiveCategory } from '../../layout/Shell';
 import { headingsOf, type Heading } from '../../lib/text';
 import { NotFound } from '../../pages/NotFound';
+import { ErrorState } from '../../components/ui/ErrorState';
 import { ArticleTemplate } from './templates';
 
 const imageSrcs = (n: PmNode, out = new Set<string>()) => {
@@ -34,7 +35,12 @@ export function ArticlePage() {
   const headings = useMemo(() => headingsOf(a?.content).filter((h) => h.level <= 3), [a?.content]);
 
   if (q.isPending) return <ArticleSkeleton />;
-  if (q.error) return <NotFound what="article" key={(q.error as HttpError).status} />;
+  if (q.error) {
+    const status = q.error instanceof HttpError ? q.error.status : 0;
+    if (status === 404) return <NotFound what="article" />;
+    if (status === 401) return <ArticleSkeleton />; // session expired: Shell is redirecting to login
+    return <ErrorState title="Couldn’t load this article" onRetry={() => q.refetch()} retrying={q.isFetching} />;
+  }
   if (!a) return null;
 
   const inline = imageSrcs(a.content);
@@ -57,7 +63,7 @@ export function ArticlePage() {
                 <li key={f.id}>
                   <a href={f.url} className="group flex items-center gap-3 rounded-[14px] bg-white px-3.5 py-3 shadow-sm ring-1 ring-neutral-200/80 transition-shadow hover:shadow-md">
                     <span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-neutral-50 text-[10px] font-bold uppercase text-neutral-500 ring-1 ring-inset ring-neutral-200">{f.name.split('.').pop()?.slice(0, 4)}</span>
-                    <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium text-neutral-800">{f.name}</span><span className="text-xs text-neutral-400 tabular">{size(f.size)}</span></span>
+                    <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium text-neutral-800">{f.name}</span><span className="text-xs text-ink-muted tabular">{size(f.size)}</span></span>
                     <Download size={16} className="text-neutral-400 transition-colors group-hover:text-primary" aria-hidden />
                   </a>
                 </li>
@@ -144,7 +150,7 @@ function Toc({ headings }: { headings: Heading[] }) {
           </li>
         ))}
       </ul>
-      <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="mt-5 flex items-center gap-1.5 text-xs text-neutral-400 transition-colors hover:text-neutral-700">
+      <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="mt-5 flex items-center gap-1.5 text-xs text-ink-muted transition-colors hover:text-neutral-700">
         <ArrowUp size={13} aria-hidden /> Back to top
       </button>
     </nav>

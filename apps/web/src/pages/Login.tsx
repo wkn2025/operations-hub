@@ -5,6 +5,7 @@ import clsx from 'clsx';
 import { ArrowRight, FlaskConical, ShieldCheck } from 'lucide-react';
 import { api, useSession } from '../api/client';
 import { Logo } from '../layout/Sidebar';
+import { Unreachable } from '../layout/Shell';
 import { initials } from '../lib/text';
 
 const ROLE_OF: Record<string, { role: string; can: string }> = {
@@ -26,6 +27,7 @@ export function Login() {
   const users = useQuery({ queryKey: ['dev-users'], enabled: demo, queryFn: () => api<{ users: { email: string; name: string }[] }>('/api/auth/dev/users').then((r) => r.users) });
 
   if (session.data?.user) return <Navigate to={target} replace />;
+  if (session.isError && !session.data) return <Unreachable onRetry={() => session.refetch()} retrying={session.isFetching} />;
 
   const login = async (email: string) => {
     setBusy(email); setError(null);
@@ -98,7 +100,7 @@ export function Login() {
 
         {demo && (
           <p className="mt-5 flex items-start gap-2.5 px-1 text-[13px] leading-relaxed text-neutral-500">
-            <FlaskConical size={15} className="mt-0.5 shrink-0 text-[#7d8214]" aria-hidden />
+            <FlaskConical size={15} className="mt-0.5 shrink-0 text-accent-ink" aria-hidden />
             Demo sign-in is enabled, so anyone can choose any user. Production uses Microsoft Entra ID and this screen is replaced.
           </p>
         )}

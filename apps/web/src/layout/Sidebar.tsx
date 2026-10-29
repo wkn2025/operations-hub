@@ -25,7 +25,7 @@ export function Sidebar({ categories, activeCategoryId, collapsed: collapsedProp
   const tops = useMemo(() => categories.filter((c) => !c.parentId).sort((a, b) => a.sortOrder - b.sortOrder), [categories]);
   const kids = (id: string) => categories.filter((c) => c.parentId === id).sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
   const routeSlug = /^\/category\/([^/]+)/.exec(pathname)?.[1];
-  const active = categories.find((c) => c.slug === routeSlug)?.id ?? activeCategoryId ?? null;
+  const active = categories.find((c) => c.slug === routeSlug || c.id === routeSlug)?.id ?? activeCategoryId ?? null;
   const activeTop = active ? topOf(categories, active) : null;
 
   const [open, setOpen] = useState<Set<string>>(() => new Set(activeTop ? [activeTop] : []));
@@ -50,7 +50,7 @@ export function Sidebar({ categories, activeCategoryId, collapsed: collapsedProp
         <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 pb-3 pt-1">
           <NavItem to="/" label="Home" icon={<House size={18} strokeWidth={1.8} />} active={pathname === '/'} collapsed={collapsed} />
           <Fade show={!collapsed}>
-            <p className="mb-1 mt-5 px-3 text-xs font-medium text-neutral-400">Categories</p>
+            <p className="mb-1 mt-5 px-3 text-xs font-medium text-ink-muted">Categories</p>
           </Fade>
           {collapsed && <div className="mx-3 my-3 h-px bg-neutral-200/70" />}
           <ul className="space-y-0.5">
@@ -170,7 +170,7 @@ export function Logo({ size = 34 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 34 34" aria-hidden className="shrink-0">
       <rect width="34" height="34" rx="10" fill="var(--color-primary)" />
-      <path d="M10 11.5h9.5M10 17h14M10 22.5h7" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" />
+      <path d="M10 11.5h9.5M10 17h14M10 22.5h7" style={{ stroke: 'var(--color-on-primary)' }} strokeWidth="2.4" strokeLinecap="round" />
       <circle cx="23.5" cy="11.5" r="2.6" fill="var(--color-accent)" />
     </svg>
   );

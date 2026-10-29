@@ -3,11 +3,12 @@ import { Link, useParams } from 'react-router';
 import clsx from 'clsx';
 import { FileQuestion } from 'lucide-react';
 import { TEMPLATE_LABELS } from '@ops/shared';
-import { subtree, useArticles, useCategories, useSession } from '../api/client';
+import { ARTICLE_CAP, subtree, useArticles, useCategories, useSession } from '../api/client';
 import { Breadcrumbs, categoryCrumbs } from '../components/ui/Breadcrumbs';
 import { IconTile, Skeleton, StatusBadge, TEMPLATE_ICON, categoryIcon } from '../components/ui/primitives';
 import { fmtDate } from '../lib/text';
 import { NotFound } from './NotFound';
+import { ErrorState } from '../components/ui/ErrorState';
 
 export function CategoryPage() {
   const { slug = '' } = useParams();
@@ -20,6 +21,7 @@ export function CategoryPage() {
   const subs = useMemo(() => (cat ? all.filter((c) => c.parentId === cat.id).sort((a, b) => a.sortOrder - b.sortOrder) : []), [all, cat]);
 
   if (cats.isPending) return <Skeleton className="mt-8 h-24 w-1/2" />;
+  if (cats.isError) return <ErrorState title="Couldn’t load categories" onRetry={() => cats.refetch()} retrying={cats.isFetching} />;
   if (!cat) return <NotFound what="category" />;
 
   const ids = subtree(all, filter ?? cat.id);
@@ -50,7 +52,7 @@ export function CategoryPage() {
                 className={clsx('inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-colors duration-200',
                   on ? 'bg-primary text-white shadow-sm' : 'bg-white text-neutral-600 ring-1 ring-inset ring-neutral-200 hover:text-neutral-900 hover:ring-neutral-300')}>
                 {s.name}
-                <span className={clsx('tabular text-xs', on ? 'text-white/70' : 'text-neutral-400')}>{countIn(s.id ?? cat.id)}</span>
+                <span className={clsx('tabular text-xs', on ? 'text-white/80' : 'text-ink-muted')}>{countIn(s.id ?? cat.id)}</span>
               </button>
             );
           })}
@@ -59,7 +61,8 @@ export function CategoryPage() {
 
       <div className="panel mt-5 overflow-hidden">
         {arts.isPending && <div className="space-y-3 p-5">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-6 w-3/4" />)}</div>}
-        {!arts.isPending && list.length === 0 && (
+        {arts.isError && <ErrorState title="Couldn’t load articles" onRetry={() => arts.refetch()} retrying={arts.isFetching} />}
+        {arts.isSuccess && list.length === 0 && (
           <div className="flex flex-col items-center px-6 py-14 text-center">
             <IconTile icon={FileQuestion} tone="neutral" size="lg" />
             <p className="mt-4 text-[15px] font-medium text-neutral-800">No articles here yet</p>
@@ -82,13 +85,14 @@ export function CategoryPage() {
                     </span>
                   </span>
                   {a.status !== 'published' && <StatusBadge status={a.status} />}
-                  <span className="hidden shrink-0 text-[13px] text-neutral-400 tabular sm:block">Updated {fmtDate(a.updatedAt, { day: 'numeric', month: 'short' })}</span>
+                  <span className="hidden shrink-0 text-[13px] text-ink-muted tabular sm:block">Updated {fmtDate(a.updatedAt, { day: 'numeric', month: 'short' })}</span>
                 </Link>
               </li>
             );
           })}
         </ul>
       </div>
+      {arts.data?.length === ARTICLE_CAP && <p className="mt-3 text-xs text-ink-muted">Showing articles among the {ARTICLE_CAP} most recently updated in the hub.</p>}
     </div>
   );
 }

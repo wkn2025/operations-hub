@@ -7,6 +7,14 @@
   --color-primary-line: #d5dcef;
   --color-accent: #c7cd3d; /* small accents only: active marker, highlighter, completion */
   --color-accent-soft: #f3f5d2;
+  --color-accent-ink: #5a5e0b; /* text/icons on accent-soft; 6.2:1 on accent-soft */
+  --color-accent-wash: color-mix(in srgb, var(--color-accent) 55%, transparent); /* highlighter stroke */
+  --color-accent-tint: color-mix(in srgb, var(--color-accent) 45%, transparent); /* text selection */
+  --color-accent-stripe: color-mix(in srgb, var(--color-accent-soft) 50%, transparent);
+  --color-on-primary: #ffffff;
+  --color-overlay: color-mix(in srgb, var(--neutral-100) 55%, transparent); /* modal backdrop */
+  --wash-primary: color-mix(in srgb, var(--color-primary) 6%, transparent); /* page background glow */
+  --wash-accent: color-mix(in srgb, var(--color-accent) 7%, transparent);
   --color-background: #ffffff;
   --color-surface: #ffffff;
   --color-surface-muted: #f6f7fa;
@@ -45,6 +53,7 @@
   /* Soft shadows: offset + blur, tinted with the primary */
   --shadow-sm: 0 1px 2px rgb(20 27 51 / 0.05);
   --shadow-md: 0 2px 4px rgb(20 27 51 / 0.03), 0 8px 24px rgb(38 64 143 / 0.07);
+  --shadow-button: 0 1px 2px rgb(20 27 51 / 0.2), inset 0 1px 0 rgb(255 255 255 / 0.12);
   --shadow-lg: 0 4px 10px rgb(20 27 51 / 0.04), 0 18px 48px rgb(38 64 143 / 0.13);
 
   /* Glass */

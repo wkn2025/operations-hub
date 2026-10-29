@@ -3,7 +3,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setup, doc, type Ctx } from './helpers';
-import { seedBase, CATEGORY_TREE } from '../src/seed/base';
+import { seedBase, seedAllowed, CATEGORY_TREE } from '../src/seed/base';
 
 let c: Ctx;
 beforeEach(async () => { c = await setup(mkdtempSync(join(tmpdir(), 'ops-web-'))); });
@@ -18,6 +18,28 @@ describe('article by slug + owner', () => {
     expect(got.body.id).toBe(a.id);
     expect(got.body.owner).toMatchObject({ name: expect.any(String) });
     expect(got.body.owner.email).toBeUndefined();
+  });
+});
+
+describe('seed guard', () => {
+  it('refuses oidc or production unless --force-demo', () => {
+    expect(() => seedAllowed({ AUTH_MODE: 'oidc', NODE_ENV: 'development' }, [])).toThrow(/refus/i);
+    expect(() => seedAllowed({ NODE_ENV: 'production' }, [])).toThrow(/refus/i);
+    expect(() => seedAllowed({ NODE_ENV: 'production', AUTH_MODE: 'oidc' }, ['--force-demo'])).not.toThrow();
+    expect(() => seedAllowed({ AUTH_MODE: 'dev', NODE_ENV: 'development' }, [])).not.toThrow();
+    expect(() => seedAllowed({}, [])).not.toThrow();
+  });
+
+  it('does not reuse a same-named file uploaded by someone else', async () => {
+    const other = c.app.sqlite.prepare("select id from users where email = 'ed@x.test'").get() as { id: string };
+    c.app.sqlite.prepare("insert into files(id,name,mime,size,path,uploaded_by,created_at) values('fake','demo-edi-monitor.svg','image/svg+xml',1,'fake',?,?)").run(other.id, new Date().toISOString());
+    await seedBase(c.app);
+    const src = c.app.sqlite.prepare("select f.id, u.email from article_files x join files f on f.id = x.file_id join users u on u.id = f.uploaded_by").all() as { id: string; email: string }[];
+    expect(src.length).toBeGreaterThan(0);
+    expect(src.every((r) => r.id !== 'fake' && r.email === 'admin@demo.test')).toBe(true);
+    const n = (c.app.sqlite.prepare("select count(*) n from files where name = 'demo-edi-monitor.svg'").get() as { n: number }).n;
+    await seedBase(c.app);
+    expect((c.app.sqlite.prepare("select count(*) n from files where name = 'demo-edi-monitor.svg'").get() as { n: number }).n).toBe(n); // own file reused
   });
 });
 

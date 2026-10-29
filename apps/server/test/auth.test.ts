@@ -79,6 +79,10 @@ describe('dev auth', () => {
     const o = await buildApp({ dbPath: ':memory:', env: oenv, oidcClient: fakeOidc() });
     expect((await o.inject({ method: 'POST', url: '/api/auth/dev/login', payload: { email: 'a@x.test' } })).statusCode).toBe(404);
   });
+  it('dev user list absent in oidc mode', async () => {
+    const o = await buildApp({ dbPath: ':memory:', env: oenv, oidcClient: fakeOidc() });
+    expect((await o.inject({ method: 'GET', url: '/api/auth/dev/users' })).statusCode).toBe(404);
+  });
 });
 
 function fakeOidc(email = 'sso@x.test'): OidcClient {

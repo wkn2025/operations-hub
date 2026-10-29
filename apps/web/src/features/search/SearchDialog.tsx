@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import * as Dialog from '@radix-ui/react-dialog';
 import clsx from 'clsx';
-import { ArrowDown, ArrowUp, BookA, CornerDownLeft, FileText, Folder, Hash, History, Search, X, type LucideIcon } from 'lucide-react';
-import { api, type SearchGroup, type SearchHit } from '../../api/client';
+import { ArrowDown, ArrowUp, BookA, CornerDownLeft, FileText, Folder, Hash, History, RotateCw, Search, X, type LucideIcon } from 'lucide-react';
+import { api, useCategories, type SearchGroup, type SearchHit } from '../../api/client';
 import { parseMarked } from '../../lib/text';
 import { readPref, writePref } from '../../lib/prefs';
 import { Kbd } from '../../components/ui/primitives';
@@ -52,6 +52,7 @@ export function SearchDialog() {
   const [sel, setSel] = useState(0);
   const [recent, setRecent] = useState<string[]>([]);
   const listRef = useRef<HTMLDivElement>(null);
+  const cats = useCategories();
   const baseId = useId();
   const term = useDebounced(q.trim(), 140);
 
@@ -76,7 +77,9 @@ export function SearchDialog() {
     if (item.kind === 'tag') { setQ(item.hit.title); return; }
     remember(q.trim());
     setOpen(false);
-    navigate(item.kind === 'category' ? `/category/${item.hit.id}` : `/article/${item.hit.id}`);
+    // category hits carry an id; route by slug so the sidebar highlights it (Category page also accepts ids)
+    const slug = cats.data?.find((c) => c.id === item.hit.id)?.slug ?? item.hit.id;
+    navigate(item.kind === 'category' ? `/category/${slug}` : `/article/${item.hit.id}`);
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -87,14 +90,15 @@ export function SearchDialog() {
   };
 
   const loading = term.length > 0 && res.isFetching && !res.data;
-  const empty = term.length > 0 && !res.isFetching && res.data && flat.length === 0;
+  const failed = term.length > 0 && res.isError && !res.isFetching;
+  const empty = term.length > 0 && !res.isFetching && !res.isError && res.data && flat.length === 0;
   const optId = (i: number) => `${baseId}-opt-${i}`;
   let idx = -1;
 
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-[rgb(244_246_251/0.55)] backdrop-blur-[6px] data-[state=closed]:animate-overlay-out data-[state=open]:animate-overlay-in" />
+        <Dialog.Overlay className="fixed inset-0 z-50 bg-overlay backdrop-blur-[6px] data-[state=closed]:animate-overlay-out data-[state=open]:animate-overlay-in" />
         <Dialog.Content aria-describedby={undefined}
           className="glass fixed left-1/2 top-[12vh] z-50 flex max-h-[min(640px,76vh)] w-[min(680px,calc(100vw-32px))] -translate-x-1/2 flex-col overflow-hidden rounded-[22px] !bg-white/90 shadow-lg data-[state=closed]:animate-dialog-out data-[state=open]:animate-dialog-in">
           <Dialog.Title className="sr-only">Search the knowledge base</Dialog.Title>
@@ -105,25 +109,35 @@ export function SearchDialog() {
               aria-activedescendant={flat.length ? optId(sel) : undefined} aria-label="Search"
               autoFocus value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={onKeyDown}
               placeholder="Search articles, clients, error codes, acronyms…" spellCheck={false}
-              className="h-[60px] min-w-0 flex-1 bg-transparent text-[17px] text-neutral-900 outline-none placeholder:text-neutral-400 focus-visible:outline-none"
+              className="h-[60px] min-w-0 flex-1 bg-transparent text-[17px] text-neutral-900 outline-none placeholder:text-ink-muted focus-visible:outline-none"
             />
             {q ? (
               <button type="button" onClick={() => setQ('')} aria-label="Clear search" className="rounded-md p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700"><X size={16} /></button>
             ) : <Kbd>Esc</Kbd>}
           </div>
 
-          <div ref={listRef} id={`${baseId}-list`} role="listbox" aria-label="Search results" aria-busy={loading || undefined} className="min-h-0 flex-1 overflow-y-auto px-2.5 py-2.5">
+          <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto px-2.5 py-2.5">
             {!term && <Recent items={recent} onPick={setQ} onClear={() => { writePref(RECENT, []); setRecent([]); }} />}
             {loading && <LoadingRows />}
+            {failed && (
+              <div role="alert" className="m-1 flex items-center gap-3 rounded-[14px] bg-danger-soft/60 px-4 py-3">
+                <p className="min-w-0 flex-1 text-sm text-neutral-800"><span className="font-medium">Search is unavailable right now.</span> Check your connection and try again.</p>
+                <button type="button" onClick={() => res.refetch()} aria-label="Retry search"
+                  className="inline-flex items-center gap-1.5 rounded-[10px] bg-white px-3 py-1.5 text-sm font-medium text-neutral-800 shadow-sm ring-1 ring-neutral-200 hover:bg-neutral-50">
+                  <RotateCw size={13} aria-hidden /> Retry
+                </button>
+              </div>
+            )}
             {empty && (
               <div className="px-4 py-10 text-center">
                 <p className="text-[15px] font-medium text-neutral-800">No matches for “{term}”</p>
-                <p className="mt-1.5 text-sm text-neutral-500">Try a client name, an acronym like GOP, or an error code such as E-112.</p>
+                <p className="mt-1.5 text-sm text-ink-muted">Try a client name, an acronym like GOP, or an error code such as E-112.</p>
               </div>
             )}
+            <div id={`${baseId}-list`} role="listbox" aria-label="Search results" aria-busy={loading || undefined}>
             {groups.map((g) => (
               <div key={g.kind} role="group" aria-labelledby={`${baseId}-${g.kind}`} className="mb-1.5 last:mb-0">
-                <p id={`${baseId}-${g.kind}`} className="px-3 pb-1 pt-2 text-xs font-medium text-neutral-400">{g.label}</p>
+                <p id={`${baseId}-${g.kind}`} className="px-3 pb-1 pt-2 text-xs font-medium text-ink-muted">{g.label}</p>
                 {g.hits.map((h) => {
                   const i = ++idx, on = i === sel;
                   const Icon = g.icon;
@@ -137,7 +151,7 @@ export function SearchDialog() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-baseline gap-2">
                           <span className={clsx('truncate text-[14.5px] font-medium', on ? 'text-primary' : 'text-neutral-900')}>{h.title}</span>
-                          {h.categoryPath && <span className="hidden truncate text-xs text-neutral-400 sm:inline">{h.categoryPath}</span>}
+                          {h.categoryPath && <span className="hidden truncate text-xs text-ink-muted sm:inline">{h.categoryPath}</span>}
                         </div>
                         {h.snippet && <p className="mt-0.5 line-clamp-2 text-[13px] leading-relaxed text-neutral-500"><Snippet s={h.snippet} /></p>}
                       </div>
@@ -147,6 +161,7 @@ export function SearchDialog() {
                 })}
               </div>
             ))}
+            </div>
           </div>
 
           <div className="flex items-center gap-4 border-t border-neutral-200/70 bg-neutral-50/60 px-5 py-2.5 text-xs text-neutral-500">
@@ -177,8 +192,8 @@ function Recent({ items, onPick, onClear }: { items: string[]; onPick: (s: strin
   return (
     <div>
       <div className="flex items-center justify-between px-3 pb-1 pt-2">
-        <p className="text-xs font-medium text-neutral-400">Recent searches</p>
-        <button type="button" onClick={onClear} className="rounded px-1 text-xs text-neutral-400 transition-colors hover:text-neutral-700">Clear</button>
+        <p className="text-xs font-medium text-ink-muted">Recent searches</p>
+        <button type="button" onClick={onClear} className="rounded px-1 text-xs text-ink-muted transition-colors hover:text-neutral-800">Clear</button>
       </div>
       {items.map((r) => (
         <button key={r} type="button" onClick={() => onPick(r)}
