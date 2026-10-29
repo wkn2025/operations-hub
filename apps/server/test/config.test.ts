@@ -19,6 +19,13 @@ describe('loadConfig', () => {
       OIDC_CLIENT_SECRET: 's', OIDC_REDIRECT_URI: 'https://hub.example/api/auth/callback',
     });
     expect(c.oidc?.clientId).toBe('id');
+    expect(c.oidc?.tenantId).toBeUndefined();
+    const t = loadConfig({
+      AUTH_MODE: 'oidc', NODE_ENV: 'production', SESSION_SECRET: 'x'.repeat(40),
+      OIDC_ISSUER: 'https://login.example/tenant/v2.0', OIDC_CLIENT_ID: 'id',
+      OIDC_CLIENT_SECRET: 's', OIDC_REDIRECT_URI: 'https://hub.example/api/auth/callback', OIDC_TENANT_ID: 'tid-1',
+    });
+    expect(t.oidc?.tenantId).toBe('tid-1');
   });
   it('rejects unknown AUTH_MODE', () => {
     expect(() => loadConfig({ AUTH_MODE: 'nope' })).toThrow();

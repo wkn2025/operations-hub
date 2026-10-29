@@ -103,17 +103,45 @@ describe('oidc provider (mocked client)', () => {
     expect(r.headers.location).toMatch(/^https:\/\/idp\.example\/authorize/);
     expect(String([r.headers['set-cookie']].flat()[0])).toMatch(/oidc_tx=/);
   });
-  it('callback with mismatched state is rejected, no session', async () => {
+  it('callback with mismatched state is rejected with a friendly redirect, no session, next kept', async () => {
     const app = await buildApp({ dbPath: ':memory:', env: oenv, oidcClient: fakeOidc() });
-    const r = await app.inject({ url: '/api/auth/login' });
+    const r = await app.inject({ url: '/api/auth/login?next=%2Fadmin%2Fusers' });
     const tx = [r.headers['set-cookie']].flat()[0]!.split(';')[0];
     const cb = await app.inject({ url: '/api/auth/callback?code=1&state=WRONG', headers: { cookie: tx } });
-    expect(cb.statusCode).toBe(400);
-    expect(cb.headers['set-cookie']).toBeUndefined();
+    expect(cb.statusCode).toBe(302);
+    expect(cb.headers.location).toBe('/login?error=state_mismatch&next=%2Fadmin%2Fusers');
+    expect(([cb.headers['set-cookie']].flat().filter(Boolean) as string[]).some((c) => c.startsWith('sid='))).toBe(false);
   });
-  it('callback without tx cookie rejected', async () => {
+  it('callback without (or with a garbled) tx cookie redirects to /login with an error, never 500', async () => {
     const app = await buildApp({ dbPath: ':memory:', env: oenv, oidcClient: fakeOidc() });
-    expect((await app.inject({ url: '/api/auth/callback?code=1&state=S' })).statusCode).toBe(400);
+    const none = await app.inject({ url: '/api/auth/callback?code=1&state=S' });
+    expect(none.statusCode).toBe(302);
+    expect(none.headers.location).toBe('/login?error=missing_transaction');
+    const garbled = app.signCookie('not json{');
+    const bad = await app.inject({ url: '/api/auth/callback?code=1&state=S', headers: { cookie: `oidc_tx=${encodeURIComponent(garbled)}` } });
+    expect(bad.statusCode).toBe(302);
+    expect(bad.headers.location).toBe('/login?error=missing_transaction');
+  });
+  it('failed token exchange redirects to /login?error=login_failed', async () => {
+    const app = await buildApp({ dbPath: ':memory:', env: oenv, oidcClient: { ...fakeOidc(), exchange: async () => { throw new Error('boom'); } } });
+    const r = await app.inject({ url: '/api/auth/login' });
+    const tx = [r.headers['set-cookie']].flat()[0]!.split(';')[0];
+    const state = new URL(r.headers.location as string).searchParams.get('state');
+    const cb = await app.inject({ url: `/api/auth/callback?code=1&state=${state}`, headers: { cookie: tx } });
+    expect(cb.headers.location).toBe('/login?error=login_failed');
+  });
+  it('after login redirects to a same-origin next path only', async () => {
+    const app = await buildApp({ dbPath: ':memory:', env: oenv, oidcClient: fakeOidc('n@x.test') });
+    const go = async (next: string) => {
+      const r = await app.inject({ url: `/api/auth/login?next=${encodeURIComponent(next)}` });
+      const tx = [r.headers['set-cookie']].flat()[0]!.split(';')[0];
+      const state = new URL(r.headers.location as string).searchParams.get('state');
+      return (await app.inject({ url: `/api/auth/callback?code=1&state=${state}`, headers: { cookie: tx } })).headers.location;
+    };
+    expect(await go('/category/edi')).toBe('/category/edi');
+    expect(await go('//evil.example')).toBe('/');
+    expect(await go('/\\evil.example')).toBe('/');
+    expect(await go('https://evil.example')).toBe('/');
   });
   it('happy path creates session via same provider interface', async () => {
     const app = await buildApp({ dbPath: ':memory:', env: oenv, oidcClient: fakeOidc('boss@x.test') });
@@ -136,10 +164,16 @@ describe('emailFromClaims', () => {
     expect(() => emailFromClaims({ preferred_username: 'just-a-name' })).toThrow();
     expect(() => emailFromClaims({ upn: 'nope' })).toThrow();
   });
+  it('with a tenant pin, rejects a token from another (or no) tenant', () => {
+    expect(emailFromClaims({ email: 'a@x.test', tid: 'T1' }, 'T1').email).toBe('a@x.test');
+    expect(() => emailFromClaims({ email: 'a@x.test', tid: 'T2' }, 'T1')).toThrow(/tenant/);
+    expect(() => emailFromClaims({ email: 'a@x.test' }, 'T1')).toThrow(/tenant/);
+    expect(emailFromClaims({ email: 'a@x.test', tid: 'T2' }).email).toBe('a@x.test'); // no pin: unchanged
+  });
 });
 
 describe('oidc deactivated user', () => {
-  it('callback returns 403 (not 401/500) and sets no session for a deactivated user', async () => {
+  it('callback redirects to /login?error=deactivated (not 401/500) and sets no session for a deactivated user', async () => {
     const app = await buildApp({ dbPath: ':memory:', env: oenv, oidcClient: fakeOidc('gone@x.test') });
     const flow = async () => {
       const r = await app.inject({ url: '/api/auth/login' });
@@ -150,7 +184,8 @@ describe('oidc deactivated user', () => {
     expect((await flow()).statusCode).toBe(302);
     app.sqlite.prepare("update users set active = 0 where email='gone@x.test'").run();
     const cb = await flow();
-    expect(cb.statusCode).toBe(403);
+    expect(cb.statusCode).toBe(302);
+    expect(cb.headers.location).toBe('/login?error=deactivated');
     expect(([cb.headers['set-cookie']].flat().filter(Boolean) as string[]).some((c) => c.startsWith('sid='))).toBe(false);
   });
 });

@@ -14,6 +14,14 @@ const ROLE_OF: Record<string, { role: string; can: string }> = {
   'viewer@demo.test': { role: 'Viewer', can: 'Reads published articles' },
 };
 
+/** Reasons the SSO callback sends back as /login?error=... */
+const SSO_ERRORS: Record<string, string> = {
+  deactivated: 'Your account has been deactivated. Ask an administrator to reactivate it.',
+  login_failed: 'Microsoft sign-in did not complete. Please try again.',
+  state_mismatch: 'The sign-in expired or was opened in another tab. Please try again.',
+  missing_transaction: 'The sign-in expired or was opened in another tab. Please try again.',
+};
+
 export function Login() {
   const session = useSession();
   const qc = useQueryClient();
@@ -21,6 +29,7 @@ export function Login() {
   const [params] = useSearchParams();
   const next = params.get('next');
   const target = next && next.startsWith('/') && !next.startsWith('//') ? next : '/';
+  const ssoError = params.get('error');
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const demo = session.data?.authMode === 'dev';
@@ -58,7 +67,8 @@ export function Login() {
           {session.data?.authMode === 'oidc' && (
             <>
               <p className="mt-1.5 text-[15px] text-neutral-500">Use your company Microsoft account.</p>
-              <a href="/api/auth/login" className="mt-6 flex h-11 items-center justify-center gap-2 rounded-[12px] bg-primary text-sm font-medium text-white transition-colors hover:bg-primary-hover">
+              {ssoError && <p role="alert" className="mt-4 rounded-[12px] bg-danger-soft px-3 py-2 text-sm text-danger">{SSO_ERRORS[ssoError] ?? 'Sign-in failed. Please try again.'}</p>}
+              <a href={target === '/' ? '/api/auth/login' : `/api/auth/login?next=${encodeURIComponent(target)}`} className="mt-6 flex h-11 items-center justify-center gap-2 rounded-[12px] bg-primary text-sm font-medium text-white transition-colors hover:bg-primary-hover">
                 <ShieldCheck size={17} aria-hidden /> Sign in with Microsoft
               </a>
             </>

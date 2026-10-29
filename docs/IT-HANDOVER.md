@@ -37,11 +37,14 @@ OIDC_ISSUER=https://login.microsoftonline.com/<tenant-id>/v2.0
 OIDC_CLIENT_ID=<application (client) id>
 OIDC_CLIENT_SECRET=<secret value>
 OIDC_REDIRECT_URI=https://<hub-hostname>/api/auth/callback
+OIDC_TENANT_ID=<tenant-id>            # recommended: rejects tokens from any other tenant
 SESSION_SECRET=<64 random hex characters>
 ADMIN_BOOTSTRAP_EMAILS=<first admin's email>
 ```
 
 7. **Test:** open `https://<hub-hostname>/`, choose "Sign in with Microsoft", sign in with the bootstrap admin. Expected: back on the home page as admin. Then sign in with a normal user: viewer.
+
+If sign-in fails (wrong tenant, unverified email, deactivated account, expired attempt), the user lands back on the sign-in page with a short reason; details are in the server log (`oidc exchange failed`).
 
 Sign-out ends the Operations Hub session only; it does not sign the user out of Microsoft 365.
 
@@ -50,6 +53,8 @@ Sign-out ends the Operations Hub session only; it does not sign the user out of 
 The app identifies a person by email address (roles, the editor allowlist and the bootstrap admin list are all keyed by email). From the ID token it uses, in order: `email`; else `preferred_username`; else `upn`; only if the value contains `@`. A token with `email_verified: false` is rejected.
 
 **IT must confirm** that, in this tenant, the `email` claim (or the UPN, if `email` is empty for some users) is the authoritative, admin-controlled address and cannot be set by users. In Entra, `preferred_username` is not guaranteed to be a verified mailbox. If the UPN and the primary SMTP address differ for staff, decide which one the allowlist and admin lists should use. If a different claim (e.g. the immutable `oid`) is required, that is a code change: tell the developer.
+
+**Current decision (developer ruling, pending IT):** keep keying users by email for the first release, because the allowlist and bootstrap-admin lists are email lists that admins can read and edit. Known risk: if an email/UPN is renamed, the person gets a new account (old role and authored content stay on the old one); if an address is ever reassigned to someone else, the new holder inherits the old account's role. Mitigations now: set `OIDC_TENANT_ID` (only your tenant's tokens are accepted), deactivate leavers in **Admin -> Users**, never reuse mailbox addresses. Upgrade path once IT confirms: store the immutable `oid` (with `tid`) on first sign-in and match on it, keeping email only for display and the allowlist.
 
 ## 3-4. Who gets which role
 

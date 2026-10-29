@@ -16,6 +16,7 @@ One Node.js 22 process (`apps/server`) that serves the API under `/api` and the 
 | `OIDC_ISSUER` | yes (oidc) | `https://login.microsoftonline.com/<tenant-id>/v2.0` for Entra ID. |
 | `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` | yes (oidc) | From the Entra app registration. |
 | `OIDC_REDIRECT_URI` | yes (oidc) | `https://<host>/api/auth/callback`; must match the app registration exactly. |
+| `OIDC_TENANT_ID` | recommended (oidc) | Entra directory (tenant) ID. When set, an ID token whose `tid` claim differs (or is missing) is rejected. |
 | `ADMIN_BOOTSTRAP_EMAILS` | recommended | Comma-separated emails that are always admin (cannot be demoted in the UI). At least one, so someone can administer the system after first sign-in. |
 | `DATA_DIR` | no | Default `./data` relative to `apps/server`. Use an absolute path (the Docker image uses `/data`). |
 | `PORT` | no | Default `3000`. The server listens on `0.0.0.0`. |

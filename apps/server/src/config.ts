@@ -9,7 +9,7 @@ export interface Config {
   nodeEnv: string;
   sessionSecret: string;
   adminBootstrapEmails: string[];
-  oidc?: { issuer: string; clientId: string; clientSecret: string; redirectUri: string };
+  oidc?: { issuer: string; clientId: string; clientSecret: string; redirectUri: string; tenantId?: string };
   /** built web app (apps/web/dist) served by this process; undefined = API only (dev uses Vite) */
   webDist?: string;
 }
@@ -35,9 +35,9 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   let oidc: Config['oidc'];
   if (authMode === 'oidc') {
     const o = z
-      .object({ OIDC_ISSUER: z.string().url(), OIDC_CLIENT_ID: z.string().min(1), OIDC_CLIENT_SECRET: z.string().min(1), OIDC_REDIRECT_URI: z.string().url() })
+      .object({ OIDC_ISSUER: z.string().url(), OIDC_CLIENT_ID: z.string().min(1), OIDC_CLIENT_SECRET: z.string().min(1), OIDC_REDIRECT_URI: z.string().url(), OIDC_TENANT_ID: z.string().min(1).optional() })
       .parse(env);
-    oidc = { issuer: o.OIDC_ISSUER, clientId: o.OIDC_CLIENT_ID, clientSecret: o.OIDC_CLIENT_SECRET, redirectUri: o.OIDC_REDIRECT_URI };
+    oidc = { issuer: o.OIDC_ISSUER, clientId: o.OIDC_CLIENT_ID, clientSecret: o.OIDC_CLIENT_SECRET, redirectUri: o.OIDC_REDIRECT_URI, tenantId: o.OIDC_TENANT_ID };
   }
 
   return {
