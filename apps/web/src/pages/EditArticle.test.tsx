@@ -41,7 +41,7 @@ describe('EditArticle', () => {
     f.mockImplementation(async (input: string, init?: RequestInit) =>
       init?.method === 'PATCH' ? new Response(JSON.stringify({ error: 'conflict', current: { revision: 5 } }), { status: 409, headers: { 'content-type': 'application/json' } }) : base(input, init));
     page('/edit/a1');
-    const title = await screen.findByLabelText('Title');
+    const title = await screen.findByLabelText('Article title');
     fireEvent.change(title, { target: { value: 'Missing GOP v2' } });
     expect(await screen.findByText(/someone else saved/i, {}, { timeout: 4000 })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Reload latest' })).toBeInTheDocument();
