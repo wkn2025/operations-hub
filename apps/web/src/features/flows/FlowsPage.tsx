@@ -17,7 +17,7 @@ export function FlowsPage() {
             <p className="mt-2 max-w-[56ch] text-[17px] text-neutral-500">Answer a few questions and get to the fix. Pick the problem you are looking at.</p>
           </div>
           {editor && (
-            <Link to="/flows/new/edit" className="mt-1.5 inline-flex shrink-0 items-center gap-2 rounded-[12px] bg-primary px-4 py-2 text-sm font-medium text-on-primary shadow-button transition-colors hover:bg-primary-hover">
+            <Link to="/flows/new/edit" className="mt-1.5 inline-flex shrink-0 items-center gap-2 rounded-[12px] bg-primary px-4 py-2 text-sm font-medium text-white shadow-button transition-colors hover:bg-primary-hover">
               <Plus size={16} aria-hidden /> New flow
             </Link>
           )}
@@ -28,7 +28,7 @@ export function FlowsPage() {
       ) : (
         <ul className="mt-10 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {flows.isPending && [0, 1, 2].map((i) => <li key={i}><Skeleton className="h-[190px] rounded-[20px]" /></li>)}
-          {flows.data?.map((f) => <FlowCard key={f.id} flow={f} editor={editor} />)}
+          {[...(flows.data ?? [])].sort((a, b) => a.title.localeCompare(b.title)).map((f) => <FlowCard key={f.id} flow={f} editor={editor} />)}
           {flows.data?.length === 0 && (
             <li className="panel col-span-full p-8 text-center text-[15px] text-neutral-500">
               No guided flows yet.{editor ? ' Create the first one with New flow.' : ' Ask an editor to add one.'}
@@ -44,7 +44,7 @@ function FlowCard({ flow: f, editor }: { flow: FlowSummary; editor: boolean }) {
   return (
     <li className="group relative flex flex-col rounded-[20px] bg-white p-6 shadow-sm ring-1 ring-neutral-200/80 transition-[box-shadow,transform] duration-300 ease-out hover:-translate-y-0.5 hover:shadow-md hover:ring-primary/20">
       <div className="flex items-start justify-between gap-3">
-        <IconTile icon={Route} className="transition-colors duration-300 group-hover:bg-primary group-hover:text-on-primary" />
+        <IconTile icon={Route} className="transition-colors duration-300 group-hover:bg-primary group-hover:text-white" />
         {f.status !== 'published' && <StatusBadge status={f.status} />}
       </div>
       <h2 className="mt-4 text-[18px] font-semibold leading-snug tracking-[-0.01em] text-neutral-900">

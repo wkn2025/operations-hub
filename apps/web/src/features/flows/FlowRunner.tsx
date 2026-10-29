@@ -13,9 +13,9 @@ export interface RunnableFlow { title: string; startId: string; nodes: FlowNode[
 const spring = { type: 'spring', stiffness: 420, damping: 36, mass: 0.9 } as const;
 
 const SEVERITY: Record<FlowSeverity, { icon: LucideIcon; label: string; tile: string; ring: string }> = {
-  info: { icon: Info, label: 'Next step', tile: 'bg-primary-soft text-primary', ring: 'ring-primary/15' },
-  warning: { icon: TriangleAlert, label: 'Needs attention', tile: 'bg-warning-soft text-warning', ring: 'ring-warning/25' },
-  success: { icon: CircleCheck, label: 'All clear', tile: 'bg-success-soft text-success', ring: 'ring-success/25' },
+  info: { icon: Info, label: 'Next step', tile: 'bg-white text-primary', ring: 'bg-primary-soft/60 ring-primary/20' },
+  warning: { icon: TriangleAlert, label: 'Needs attention', tile: 'bg-white text-warning', ring: 'bg-warning-soft/70 ring-warning/30' },
+  success: { icon: CircleCheck, label: 'All clear', tile: 'bg-white text-success', ring: 'bg-success-soft/60 ring-success/30' },
 };
 
 const editable = (t: EventTarget | null) => t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
@@ -81,7 +81,7 @@ export function FlowRunner({ flow, keyboard = true }: { flow: RunnableFlow; keyb
             </li>
           </ol>
         </nav>
-        {state.trail.length > 0 && <Button variant="ghost" onClick={restart} className="shrink-0 !py-1.5"><RotateCcw size={14} aria-hidden /> Start over</Button>}
+        {state.trail.length > 0 && node?.kind === 'question' && <Button variant="ghost" onClick={restart} className="shrink-0 !py-1.5"><RotateCcw size={14} aria-hidden /> Start over</Button>}
       </div>
 
       <div className="relative mt-6" aria-live="polite">
@@ -120,7 +120,7 @@ function Question({ node, onChoose, headingRef }: { node: FlowNode; onChoose: (i
           <li key={i}>
             <motion.button type="button" onClick={() => onChoose(i)} whileHover={{ y: -2 }} whileTap={{ scale: 0.985 }} transition={spring}
               className="group flex min-h-[76px] w-full items-center gap-4 rounded-[18px] bg-white px-5 py-4 text-left shadow-sm ring-1 ring-neutral-200/80 transition-[box-shadow,background-color] duration-300 hover:shadow-md hover:ring-primary/25">
-              <span aria-hidden className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-neutral-100 text-[14px] font-semibold text-neutral-600 tabular transition-colors group-hover:bg-primary group-hover:text-on-primary">{i + 1}</span>
+              <span aria-hidden className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-neutral-100 text-[14px] font-semibold text-neutral-600 tabular transition-colors group-hover:bg-primary group-hover:text-white">{i + 1}</span>
               <span className="text-[16.5px] font-medium leading-snug text-neutral-900">
                 <span className="sr-only">{i + 1}. </span>{o.label}
               </span>
@@ -137,7 +137,7 @@ function Result({ node, headingRef }: { node: FlowNode; headingRef: HeadingRef }
   const s = SEVERITY[sev];
   const Icon = s.icon;
   return (
-    <div data-testid="flow-result" data-severity={sev} className={clsx('rounded-[22px] bg-white p-8 shadow-md ring-1', s.ring)}>
+    <div data-testid="flow-result" data-severity={sev} className={clsx('rounded-[22px] p-8 shadow-md ring-1', s.ring)}>
       <span className={clsx('inline-flex items-center gap-2 rounded-full px-3 py-1 text-[13px] font-medium', s.tile)}><Icon size={15} aria-hidden /> {s.label}</span>
       <h2 ref={headingRef} tabIndex={-1} className="mt-5 text-[28px] font-semibold leading-tight tracking-[-0.02em] text-neutral-900 outline-none">{node.text}</h2>
       {node.detail && <p className="mt-3 max-w-[60ch] text-[16px] leading-relaxed text-neutral-600">{node.detail}</p>}
@@ -169,7 +169,7 @@ function ArticleStep({ node, ref_, headingRef }: { node: FlowNode; ref_?: FlowAr
                 <p className="text-[16px] font-semibold text-neutral-900">{art.data.title}</p>
                 {art.data.fields?.summary && <p className="mt-0.5 text-sm text-neutral-500">{art.data.fields.summary}</p>}
               </div>
-              <Link to={`/article/${art.data.slug}`} className="inline-flex shrink-0 items-center gap-1.5 rounded-[10px] bg-primary px-3 py-1.5 text-sm font-medium text-on-primary shadow-button hover:bg-primary-hover">
+              <Link to={`/article/${art.data.slug}`} className="inline-flex shrink-0 items-center gap-1.5 rounded-[10px] bg-primary px-3 py-1.5 text-sm font-medium text-white shadow-button hover:bg-primary-hover">
                 Open full article <ArrowUpRight size={14} aria-hidden />
               </Link>
             </div>

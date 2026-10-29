@@ -44,7 +44,7 @@ function Forbidden() {
       <IconTile icon={ShieldAlert} size="lg" />
       <h1 className="mt-5 text-[22px] font-semibold tracking-[-0.015em] text-neutral-900">Editing isn’t available to you</h1>
       <p className="mt-2 max-w-md text-[15px] text-neutral-500">Only editors and admins can create or change guided flows. Ask an admin to add your email to the editor list.</p>
-      <Link to="/flows" className="mt-6 rounded-[12px] bg-primary px-4 py-2 text-sm font-medium text-on-primary transition-colors hover:bg-primary-hover">Back to guided flows</Link>
+      <Link to="/flows" className="mt-6 rounded-[12px] bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-hover">Back to guided flows</Link>
     </div>
   );
 }
@@ -275,7 +275,7 @@ function Workspace({ initial }: { initial: FlowView }) {
                   className={clsx('flex flex-1 items-center justify-center gap-1.5 rounded-[12px] py-2 text-[13px] font-medium transition-colors', tab === k ? 'bg-primary-soft text-primary' : 'text-neutral-500 hover:bg-neutral-50 hover:text-neutral-800')}>
                   {label}
                   {k === 'checks' && (errorCount > 0
-                    ? <span aria-label={`${errorCount} problems`} className="rounded-full bg-danger px-1.5 text-[11px] font-semibold text-on-primary tabular">{errorCount}</span>
+                    ? <span aria-label={`${errorCount} problems`} className="rounded-full bg-danger px-1.5 text-[11px] font-semibold text-white tabular">{errorCount}</span>
                     : <CircleCheck size={13} className="text-success" aria-label="No problems" />)}
                 </button>
               ))}
@@ -381,10 +381,10 @@ function NodeCard(c: CardProps) {
               <p className="text-[13px] font-medium text-neutral-700">Answers</p>
               <ul className="mt-2 space-y-2">
                 {opts.map((o, i) => (
-                  <li key={i} className="flex flex-wrap items-center gap-2 rounded-[14px] bg-neutral-50 p-2 ring-1 ring-inset ring-neutral-200/70">
+                  <li key={i} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-[14px] bg-neutral-50 p-2 ring-1 ring-inset ring-neutral-200/70 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_auto]">
                     <input aria-label={`Answer ${i + 1} label`} value={o.label} maxLength={120} placeholder="Answer, for example Yes"
-                      onChange={(e) => setOptions(opts.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} className={clsx(field, 'min-w-[140px] flex-1 !py-2')} />
-                    <select aria-label={`Answer ${i + 1} goes to`} value={o.to} onChange={(e) => c.onTarget(i, e.target.value)} className={clsx(field, 'w-[210px] !py-2', !o.to && 'text-danger')}>
+                      onChange={(e) => setOptions(opts.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} className={clsx(field, '!py-2')} />
+                    <select aria-label={`Answer ${i + 1} goes to`} value={o.to} onChange={(e) => c.onTarget(i, e.target.value)} className={clsx(field, '!py-2 max-sm:col-span-2 max-sm:row-start-2', !o.to && 'text-danger')}>
                       <option value="">Choose where this goes…</option>
                       <optgroup label="Existing steps">
                         {flow.nodes.map((x) => <option key={x.id} value={x.id}>{KIND[x.kind].label}: {(x.text || 'Untitled').slice(0, 42)}</option>)}
@@ -394,7 +394,7 @@ function NodeCard(c: CardProps) {
                       </optgroup>
                     </select>
                     <button type="button" aria-label={`Remove answer ${i + 1}`} onClick={() => setOptions(opts.filter((_, j) => j !== i))} className="flex h-9 w-9 items-center justify-center rounded-[10px] text-neutral-400 hover:bg-danger-soft hover:text-danger"><X size={15} aria-hidden /></button>
-                    {o.to && o.to !== n.id && flow.nodes.some((x) => x.id === o.to) && <button type="button" onClick={() => c.onJump(o.to)} className="text-xs font-medium text-primary hover:underline">Go to step</button>}
+                    {o.to && o.to !== n.id && flow.nodes.some((x) => x.id === o.to) && <button type="button" onClick={() => c.onJump(o.to)} className="col-span-full justify-self-start px-1 text-xs font-medium text-primary hover:underline">Go to that step</button>}
                   </li>
                 ))}
               </ul>
@@ -409,7 +409,7 @@ function NodeCard(c: CardProps) {
               <div role="alertdialog" aria-label="Confirm delete" className="flex flex-wrap items-center gap-2 text-[13px]">
                 <span className="text-neutral-700">{c.incoming ? `${c.incoming} answer${c.incoming === 1 ? '' : 's'} lead here and will be removed. ` : ''}Delete this step?</span>
                 <Button variant="ghost" onClick={c.onCancelDelete} className="!py-1.5">Keep it</Button>
-                <button type="button" onClick={c.onDelete} className="rounded-[10px] bg-danger px-3 py-1.5 text-[13px] font-medium text-on-primary hover:opacity-90">Delete step</button>
+                <button type="button" onClick={c.onDelete} className="rounded-[10px] bg-danger px-3 py-1.5 text-[13px] font-medium text-white hover:opacity-90">Delete step</button>
               </div>
             ) : <button type="button" onClick={c.onAskDelete} className="inline-flex items-center gap-1.5 rounded-[10px] px-2.5 py-1.5 text-[13px] font-medium text-neutral-500 hover:bg-danger-soft hover:text-danger"><Trash2 size={14} aria-hidden /> Delete step</button>}
           </div>
