@@ -265,7 +265,7 @@ export function listArticles(s: Svc, user: User, f: { status?: string; categoryI
   const where = [vis.sql], params: unknown[] = [...vis.params];
   for (const [col, v] of [['status', f.status], ['category_id', f.categoryId], ['type', f.type]] as const) if (v) { where.push(`a.${col} = ?`); params.push(v); }
   const rows = s.sqlite.prepare(
-    `select a.id, a.slug, a.title, a.type, a.status, a.category_id as categoryId, a.owner_id as ownerId, a.revision, a.updated_at as updatedAt, a.published_at as publishedAt, a.review_date as reviewDate
+    `select a.id, a.slug, a.title, a.type, a.status, a.category_id as categoryId, a.owner_id as ownerId, a.revision, a.updated_at as updatedAt, a.published_at as publishedAt, a.review_date as reviewDate, json_extract(a.fields, '$.summary') as summary
      from articles a where ${where.join(' and ')} order by a.updated_at desc limit ? offset ?`,
   ).all(...params, f.limit, f.offset) as ({ categoryId: string | null } & Record<string, unknown>)[];
   return rows.map((r) => ({ ...r, categoryPath: r.categoryId ? categoryPath(cats, r.categoryId) : '' }));
