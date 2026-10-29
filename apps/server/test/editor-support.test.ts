@@ -17,7 +17,7 @@ describe('related articles', () => {
 
     const p = await c.req(c.editor, 'PATCH', `/api/articles/${made.id}`, { baseRevision: made.revision, related: [d.id, made.id] });
     expect(p.status).toBe(200);
-    expect(p.body.related).toEqual([{ id: d.id, title: 'D', slug: d.slug, status: 'draft' }]); // self link dropped
+    expect(p.body.related).toEqual([{ id: d.id, title: 'D', slug: d.slug, status: 'draft', type: 'standard' }]); // self link dropped
 
     await c.req(c.editor, 'PATCH', `/api/articles/${made.id}`, { baseRevision: p.body.revision, related: [a.id, b.id] });
     await c.req(c.editor, 'POST', `/api/articles/${made.id}/publish`);

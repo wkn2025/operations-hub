@@ -5,11 +5,12 @@ import { articleCreateBody, articlePatchBody, type User } from '@ops/shared';
 import { requireRole } from '../auth/policy';
 import { revisions } from '../db/schema';
 import {
-  backlinks, createArticle, listArticles, notFound, parse, readable, restoreRevision, revisionsOf, transition, updateArticle, view, type Transition,
+  articleCounts, backlinks, countArticles, createArticle, listArticles, notFound, parse, readable, restoreRevision, revisionsOf, transition, updateArticle, view, type Transition,
 } from '../services/articles';
 
 const listQuery = z.object({
   status: z.string().optional(), categoryId: z.string().optional(), type: z.string().optional(),
+  within: z.string().optional(), ownerId: z.string().optional(), q: z.string().max(200).optional(), sort: z.enum(['updated', 'title']).optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50), offset: z.coerce.number().int().min(0).default(0),
 });
 
@@ -23,7 +24,11 @@ export function articleRoutes(app: FastifyInstance) {
     return view(app, a, U(req));
   };
 
-  app.get('/api/articles', { preHandler: reader }, async (req) => ({ articles: listArticles(app, U(req), parse(listQuery, req.query)) }));
+  app.get('/api/articles', { preHandler: reader }, async (req) => {
+    const f = parse(listQuery, req.query);
+    return { articles: listArticles(app, U(req), f), total: countArticles(app, U(req), f) };
+  });
+  app.get('/api/articles/counts', { preHandler: reader }, async (req) => ({ counts: articleCounts(app, U(req)) }));
   app.post('/api/articles', { preHandler: writer }, async (req, reply) => {
     const id = createArticle(app, U(req), parse(articleCreateBody, req.body));
     return reply.code(201).send(show(req, id));

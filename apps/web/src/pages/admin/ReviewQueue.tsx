@@ -4,6 +4,7 @@ import clsx from 'clsx';
 import { api, type ReviewDue } from '../../api/client';
 import { ErrorState } from '../../components/ui/ErrorState';
 import { fmtDate } from '../../lib/text';
+import { LoadMore } from '../../components/ui/LoadMore';
 import { InlineError, PageHeader, QueryBlock, Table, smallBtn, td, useAdminAction, useArticlesByStatus } from './common';
 
 export function ReviewQueue() {
@@ -42,6 +43,7 @@ export function ReviewQueue() {
           </Table>
         )}
       </QueryBlock>
+      <LoadMore q={queue} />
 
       <h3 className="mb-3 mt-10 text-[15px] font-semibold text-neutral-900">Due for review</h3>
       <QueryBlock q={due} what="review dates" empty="No published article is due for review in the next 30 days.">

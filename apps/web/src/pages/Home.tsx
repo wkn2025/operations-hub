@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { ArrowRight, CalendarClock, Plus, Route, Search } from 'lucide-react';
-import { ARTICLE_CAP, api, subtree, useArticles, useCategories, useFlows, useSession, type ReviewDue } from '../api/client';
+import { api, countIn, useArticleCounts, useCategories, useFlows, useRecentArticles, useSession, type ReviewDue } from '../api/client';
 import { useSearch, isMac } from '../features/search/SearchDialog';
 import { IconTile, Kbd, Skeleton, TEMPLATE_ICON, categoryIcon } from '../components/ui/primitives';
 import { fmtDate } from '../lib/text';
@@ -14,17 +14,18 @@ const greeting = () => { const h = new Date().getHours(); return h < 12 ? 'Good 
 export function Home() {
   const me = useSession().data!.user!;
   const cats = useCategories();
-  const arts = useArticles();
+  const counts = useArticleCounts();
+  const recentQ = useRecentArticles(12);
   const flows = useFlows();
   const { setOpen } = useSearch();
   const isEditor = me.role !== 'viewer';
   const review = useQuery({ queryKey: ['review-due'], enabled: isEditor, queryFn: () => api<{ articles: ReviewDue[] }>('/api/admin/review-due?days=30').then((r) => r.articles) });
 
-  const published = useMemo(() => (arts.data ?? []).filter((a) => a.status === 'published'), [arts.data]);
+  const publishedTotal = (counts.data ?? []).filter((c) => c.status === 'published').reduce((n, c) => n + c.n, 0);
   // archived categories are hidden here like in the sidebar (viewers never receive them; admins manage them in Admin)
   const tops = useMemo(() => (cats.data ?? []).filter((c) => !c.parentId && !c.archived).sort((a, b) => a.sortOrder - b.sortOrder), [cats.data]);
-  const count = (id: string) => { const ids = subtree(cats.data ?? [], id); return published.filter((a) => a.categoryId && ids.has(a.categoryId)).length; };
-  const recent = (arts.data ?? []).filter((a) => a.status !== 'archived').slice(0, 6);
+  const count = (id: string) => countIn(counts.data, cats.data ?? [], id, 'published');
+  const recent = (recentQ.data ?? []).filter((a) => a.status !== 'archived').slice(0, 6);
 
   return (
     <div>
@@ -38,7 +39,7 @@ export function Home() {
           )}
         </div>
         <p className="mt-2 text-[17px] text-neutral-500">
-          {arts.isPending ? 'Loading the knowledge base…' : arts.isError ? 'The article list is unavailable right now.' : `${published.length} published article${published.length === 1 ? '' : 's'} across ${tops.length} categories.`}
+          {counts.isPending ? 'Loading the knowledge base…' : counts.isError ? 'The article list is unavailable right now.' : `${publishedTotal} published article${publishedTotal === 1 ? '' : 's'} across ${tops.length} categories.`}
         </p>
         <button type="button" onClick={() => setOpen(true)}
           className="group mt-7 flex h-[58px] w-full max-w-[640px] items-center gap-3.5 rounded-[18px] bg-white px-5 text-left shadow-md ring-1 ring-neutral-200/80 transition-[box-shadow,transform] duration-300 ease-out hover:-translate-y-px hover:shadow-lg hover:ring-primary/20">
@@ -48,9 +49,9 @@ export function Home() {
         </button>
       </section>
 
-      {(cats.isError || arts.isError) ? (
+      {(cats.isError || counts.isError || recentQ.isError) ? (
         <div className="panel mt-14">
-          <ErrorState title="Couldn’t load articles" onRetry={() => { cats.refetch(); arts.refetch(); }} retrying={cats.isFetching || arts.isFetching} />
+          <ErrorState title="Couldn’t load articles" onRetry={() => { cats.refetch(); counts.refetch(); recentQ.refetch(); }} retrying={cats.isFetching || counts.isFetching || recentQ.isFetching} />
         </div>
       ) : (<>
       {!!flows.data?.length && (
@@ -108,8 +109,8 @@ export function Home() {
         <section aria-labelledby="h-recent">
           <h2 id="h-recent" className="text-[17px] font-semibold text-neutral-900">Recently updated</h2>
           <ul className="panel mt-4 divide-y divide-neutral-100 overflow-hidden">
-            {arts.isPending && [0, 1, 2].map((i) => <li key={i} className="p-4"><Skeleton className="h-5 w-2/3" /></li>)}
-            {!arts.isPending && recent.length === 0 && <li className="p-5 text-sm text-neutral-500">Nothing has been published yet.</li>}
+            {recentQ.isPending && [0, 1, 2].map((i) => <li key={i} className="p-4"><Skeleton className="h-5 w-2/3" /></li>)}
+            {!recentQ.isPending && recent.length === 0 && <li className="p-5 text-sm text-neutral-500">Nothing has been published yet.</li>}
             {recent.map((a) => {
               const Icon = TEMPLATE_ICON[a.type];
               return (
@@ -150,7 +151,6 @@ export function Home() {
           </section>
         )}
       </div>
-      {arts.data?.length === ARTICLE_CAP && <p className="mt-4 text-xs text-ink-muted">Counts and lists use the {ARTICLE_CAP} most recently updated articles.</p>}
       </>)}
     </div>
   );

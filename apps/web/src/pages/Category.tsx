@@ -3,7 +3,8 @@ import { Link, useParams } from 'react-router';
 import clsx from 'clsx';
 import { FileQuestion, Plus } from 'lucide-react';
 import { TEMPLATE_LABELS } from '@ops/shared';
-import { ARTICLE_CAP, subtree, useArticles, useCategories, useSession } from '../api/client';
+import { countIn, useArticleCounts, useArticlePages, useCategories, useSession } from '../api/client';
+import { LoadMore } from '../components/ui/LoadMore';
 import { Breadcrumbs, categoryCrumbs } from '../components/ui/Breadcrumbs';
 import { IconTile, Skeleton, StatusBadge, TEMPLATE_ICON, categoryIcon } from '../components/ui/primitives';
 import { fmtDate } from '../lib/text';
@@ -13,20 +14,19 @@ import { ErrorState } from '../components/ui/ErrorState';
 export function CategoryPage() {
   const { slug = '' } = useParams();
   const cats = useCategories();
-  const arts = useArticles();
+  const counts = useArticleCounts();
   const role = useSession().data?.user?.role;
   const [filter, setFilter] = useState<string | null>(null);
   const all = cats.data ?? [];
   const cat = all.find((c) => c.slug === slug || c.id === slug);
+  const arts = useArticlePages({ within: filter ?? cat?.id, sort: 'title' }, !!cat);
   const subs = useMemo(() => (cat ? all.filter((c) => c.parentId === cat.id).sort((a, b) => a.sortOrder - b.sortOrder) : []), [all, cat]);
 
   if (cats.isPending) return <Skeleton className="mt-8 h-24 w-1/2" />;
   if (cats.isError) return <ErrorState title="Couldn’t load categories" onRetry={() => cats.refetch()} retrying={cats.isFetching} />;
   if (!cat) return <NotFound what="category" />;
 
-  const ids = subtree(all, filter ?? cat.id);
-  const list = (arts.data ?? []).filter((a) => a.categoryId && ids.has(a.categoryId)).sort((a, b) => a.title.localeCompare(b.title));
-  const countIn = (id: string) => { const s = subtree(all, id); return (arts.data ?? []).filter((a) => a.categoryId && s.has(a.categoryId)).length; };
+  const list = arts.data ?? [];
   const parent = cat.parentId ? all.find((c) => c.id === cat.parentId) : null;
   const top = parent ?? cat;
 
@@ -57,7 +57,7 @@ export function CategoryPage() {
                 className={clsx('inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-colors duration-200',
                   on ? 'bg-primary text-white shadow-sm' : 'bg-white text-neutral-600 ring-1 ring-inset ring-neutral-200 hover:text-neutral-900 hover:ring-neutral-300')}>
                 {s.name}
-                <span className={clsx('tabular text-xs', on ? 'text-white/80' : 'text-ink-muted')}>{countIn(s.id ?? cat.id)}</span>
+                <span className={clsx('tabular text-xs', on ? 'text-white/80' : 'text-ink-muted')}>{counts.data ? countIn(counts.data, all, s.id ?? cat.id) : ''}</span>
               </button>
             );
           })}
@@ -97,7 +97,7 @@ export function CategoryPage() {
           })}
         </ul>
       </div>
-      {arts.data?.length === ARTICLE_CAP && <p className="mt-3 text-xs text-ink-muted">Showing articles among the {ARTICLE_CAP} most recently updated in the hub.</p>}
+      <LoadMore q={arts} />
     </div>
   );
 }

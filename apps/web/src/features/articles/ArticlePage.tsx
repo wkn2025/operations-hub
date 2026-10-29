@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { ArrowUp, CornerDownRight, Download, Paperclip, PenLine } from 'lucide-react';
 import type { PmNode } from '@ops/shared';
-import { api, HttpError, isEditorRole, useArticle, useArticles, useCategories, useSession, type ArticleSummary, type FileRef } from '../../api/client';
+import { api, fetchArticles, HttpError, isEditorRole, useArticle, useCategories, useSession, type ArticleSummary, type FileRef } from '../../api/client';
 import { Breadcrumbs, categoryCrumbs } from '../../components/ui/Breadcrumbs';
 import { IconTile, Skeleton, TEMPLATE_ICON } from '../../components/ui/primitives';
 import { useActiveCategory } from '../../layout/Shell';
@@ -24,7 +24,6 @@ export function ArticlePage() {
   const { slug = '' } = useParams();
   const q = useArticle(slug);
   const cats = useCategories();
-  const list = useArticles();
   const canEdit = isEditorRole(useSession().data?.user?.role);
   const a = q.data;
   useActiveCategory(a?.categoryId);
@@ -33,6 +32,11 @@ export function ArticlePage() {
 
   const files = useQuery({ queryKey: ['files', a?.id], enabled: !!a, queryFn: () => api<{ files: FileRef[] }>(`/api/articles/${a!.id}/files`).then((r) => r.files) });
   const backlinks = useQuery({ queryKey: ['backlinks', a?.id], enabled: !!a, queryFn: () => api<{ backlinks: ArticleSummary[] }>(`/api/articles/${a!.id}/backlinks`).then((r) => r.backlinks) });
+  // fallback "related": other published articles of the same category (only fetched when no explicit picks exist)
+  const sameCategory = useQuery({
+    queryKey: ['articles', 'related', a?.categoryId], enabled: !!a?.categoryId && !a?.related?.length,
+    queryFn: () => fetchArticles({ categoryId: a!.categoryId!, status: 'published', limit: 5 }).then((r) => r.articles),
+  });
   const headings = useMemo(() => headingsOf(a?.content).filter((h) => h.level <= 3), [a?.content]);
 
   if (q.isPending) return <ArticleSkeleton />;
@@ -48,8 +52,8 @@ export function ArticlePage() {
   const attachments = (files.data ?? []).filter((f) => !inline.has(f.url));
   // explicit related picks win; otherwise other published articles in the same category
   const related: Pick<ArticleSummary, 'id' | 'slug' | 'title' | 'type'>[] = a.related?.length
-    ? a.related.map((r) => ({ ...r, type: list.data?.find((x) => x.id === r.id)?.type ?? 'standard' }))
-    : (list.data ?? []).filter((x) => x.id !== a.id && x.categoryId === a.categoryId && x.status === 'published').slice(0, 4);
+    ? a.related.map((r) => ({ ...r, type: r.type ?? 'standard' }))
+    : (sameCategory.data ?? []).filter((x) => x.id !== a.id).slice(0, 4);
   const back = backlinks.data ?? [];
   const catName = a.categoryPath.split(' / ').pop();
 

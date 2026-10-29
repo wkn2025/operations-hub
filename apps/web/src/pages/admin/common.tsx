@@ -1,7 +1,7 @@
 import { useRef, useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Role } from '@ops/shared';
-import { api, type ArticleSummary } from '../../api/client';
+import { api, useArticlePages } from '../../api/client';
 import { ErrorState } from '../../components/ui/ErrorState';
 import { adminError } from './ops';
 
@@ -12,9 +12,8 @@ export interface AdminUser {
 export const useAdminUsers = () =>
   useQuery({ queryKey: ['admin', 'users'], queryFn: () => api<{ users: AdminUser[] }>('/api/admin/users').then((r) => r.users) });
 
-/** Articles of one status (admins see every status); capped like the rest of the app. */
-export const useArticlesByStatus = (status: string) =>
-  useQuery({ queryKey: ['articles', 'status', status], queryFn: () => api<{ articles: ArticleSummary[] }>(`/api/articles?status=${status}&limit=200`).then((r) => r.articles) });
+/** Articles of one status (admins see every status), paged by the server; render <LoadMore q={...} /> under the list. */
+export const useArticlesByStatus = (status: string) => useArticlePages({ status });
 
 /**
  * Runs an admin write, then refreshes everything cached (sidebar, lists, article views) so every screen agrees

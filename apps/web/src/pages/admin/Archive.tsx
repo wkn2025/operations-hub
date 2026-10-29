@@ -1,6 +1,7 @@
 import { RotateCcw } from 'lucide-react';
 import { api } from '../../api/client';
 import { fmtDate } from '../../lib/text';
+import { LoadMore } from '../../components/ui/LoadMore';
 import { InlineError, PageHeader, QueryBlock, Table, smallBtn, td, useAdminAction, useArticlesByStatus } from './common';
 
 export function Archive() {
@@ -28,6 +29,7 @@ export function Archive() {
           </Table>
         )}
       </QueryBlock>
+      <LoadMore q={archived} />
     </section>
   );
 }

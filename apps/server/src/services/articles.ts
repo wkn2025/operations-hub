@@ -145,7 +145,7 @@ export function view(s: Svc, a: ArticleRow, user: User) {
   }
   const related = s.db.select().from(articleLinks).where(and(eq(articleLinks.fromArticleId, a.id), eq(articleLinks.kind, 'related'))).all()
     .map((l) => readable(s, user, l.toArticleId)).filter((x): x is ArticleRow => !!x)
-    .map((x) => ({ id: x.id, title: x.title, slug: x.slug, status: x.status }));
+    .map((x) => ({ id: x.id, title: x.title, slug: x.slug, status: x.status, type: x.type }));
   // The editor UI shows only the actions the server would allow (it never relies on this for security).
   const res = { status: a.status, ownerId: a.ownerId ?? undefined }, opts = { requireApproval: requireApproval(s.sqlite) };
   const permissions = {
@@ -317,14 +317,49 @@ export function backlinks(s: Svc, user: User, id: string) {
     .map((a) => ({ id: a.id, title: a.title, slug: a.slug, status: a.status }));
 }
 
-export function listArticles(s: Svc, user: User, f: { status?: string; categoryId?: string; type?: string; limit: number; offset: number }) {
+export interface ArticleFilter {
+  status?: string; categoryId?: string; type?: string;
+  within?: string; // category id: that category and all its descendants
+  ownerId?: string; // user id, or 'none' for articles without an owner
+  q?: string; // case-insensitive title substring
+  sort?: 'updated' | 'title';
+  limit: number; offset: number;
+}
+
+function articleWhere(s: Svc, user: User, f: ArticleFilter) {
   const cats = allCategories(s);
   const vis = visibility(user, hiddenCategoryIds(cats, user), 'a', { includeArchived: true });
   const where = [vis.sql], params: unknown[] = [...vis.params];
   for (const [col, v] of [['status', f.status], ['category_id', f.categoryId], ['type', f.type]] as const) if (v) { where.push(`a.${col} = ?`); params.push(v); }
+  if (f.within) {
+    const ids = new Set([f.within]);
+    for (let grew = true; grew;) { grew = false; for (const c of cats) if (c.parentId && ids.has(c.parentId) && !ids.has(c.id)) { ids.add(c.id); grew = true; } }
+    where.push(`a.category_id in (${[...ids].map(() => '?').join(',')})`); params.push(...ids);
+  }
+  if (f.ownerId === 'none') where.push('a.owner_id is null');
+  else if (f.ownerId) { where.push('a.owner_id = ?'); params.push(f.ownerId); }
+  if (f.q) { where.push("a.title like ? escape '\\'"); params.push(`%${f.q.replace(/[\\%_]/g, '\\$&')}%`); }
+  return { cats, sql: where.join(' and '), params };
+}
+
+export function listArticles(s: Svc, user: User, f: ArticleFilter) {
+  const { cats, sql, params } = articleWhere(s, user, f);
+  const order = f.sort === 'title' ? 'a.title collate nocase, a.id' : 'a.updated_at desc, a.id';
   const rows = s.sqlite.prepare(
     `select a.id, a.slug, a.title, a.type, a.status, a.category_id as categoryId, a.owner_id as ownerId, a.revision, a.updated_at as updatedAt, a.published_at as publishedAt, a.review_date as reviewDate, json_extract(a.fields, '$.summary') as summary
-     from articles a where ${where.join(' and ')} order by a.updated_at desc limit ? offset ?`,
+     from articles a where ${sql} order by ${order} limit ? offset ?`,
   ).all(...params, f.limit, f.offset) as ({ categoryId: string | null } & Record<string, unknown>)[];
   return rows.map((r) => ({ ...r, categoryPath: r.categoryId ? categoryPath(cats, r.categoryId) : '' }));
+}
+
+/** Number of articles matching the same filter (ignores limit/offset), so clients can page without guessing. */
+export function countArticles(s: Svc, user: User, f: ArticleFilter): number {
+  const { sql, params } = articleWhere(s, user, f);
+  return (s.sqlite.prepare(`select count(*) n from articles a where ${sql}`).get(...params) as { n: number }).n;
+}
+
+/** Visible articles per category and status (home page and category tab counts). */
+export function articleCounts(s: Svc, user: User) {
+  const { sql, params } = articleWhere(s, user, { limit: 0, offset: 0 });
+  return s.sqlite.prepare(`select a.category_id as categoryId, a.status, count(*) n from articles a where ${sql} group by a.category_id, a.status`).all(...params) as { categoryId: string | null; status: string; n: number }[];
 }

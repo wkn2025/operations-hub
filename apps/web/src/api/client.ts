@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import type { ArticleStatus, ArticleType, FlowNode, FlowValidation, PmNode, Role, TemplateFields } from '@ops/shared';
 
 export class HttpError extends Error {
@@ -29,7 +29,7 @@ export interface Article {
   /** explicit related articles (readable ones only); empty -> UI falls back to same-category articles */
   /** published guided flow attached to this article (set from the flow editor) */
   flow?: { id: string; slug: string; title: string } | null;
-  related?: { id: string; title: string; slug: string; status: ArticleStatus }[];
+  related?: { id: string; title: string; slug: string; status: ArticleStatus; type?: ArticleType }[];
   /** what the server would allow this user to do right now (UI hints only; the server still enforces) */
   permissions?: { write: boolean; publish: boolean; submit: boolean; archive: boolean };
 }
@@ -42,9 +42,32 @@ export interface ReviewDue { id: string; slug: string; title: string; reviewDate
 // ---- hooks ----
 export const useSession = () => useQuery({ queryKey: ['me'], queryFn: () => api<Me>('/api/me'), staleTime: 60_000 });
 export const useCategories = () => useQuery({ queryKey: ['categories'], queryFn: () => api<{ categories: Category[] }>('/api/categories').then((r) => r.categories) });
-/** ponytail: one list of up to 200 visible articles feeds counts, category pages and "recent"; paginate when the KB outgrows it. */
-export const ARTICLE_CAP = 200;
-export const useArticles = () => useQuery({ queryKey: ['articles'], queryFn: () => api<{ articles: ArticleSummary[] }>(`/api/articles?limit=${ARTICLE_CAP}`).then((r) => r.articles) });
+// ---- article lists: server-side filters + paging (GET /api/articles returns { articles, total }) ----
+export interface ArticleFilter { status?: string; categoryId?: string; within?: string; ownerId?: string; q?: string; sort?: 'updated' | 'title' }
+export interface ArticleListPage { articles: ArticleSummary[]; total: number }
+export const PAGE_SIZE = 50;
+export const fetchArticles = (f: ArticleFilter & { limit: number; offset?: number }) =>
+  api<ArticleListPage>(`/api/articles?${new URLSearchParams(Object.entries(f).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)]))}`);
+/** Newest updated articles (home "Recently updated", link picker suggestions). */
+export const useRecentArticles = (limit = 12) =>
+  useQuery({ queryKey: ['articles', 'recent', limit], queryFn: () => fetchArticles({ limit }).then((r) => r.articles) });
+/** All articles matching a filter, PAGE_SIZE at a time; `data` is the loaded rows, `total` the full count, `fetchNextPage` loads more. */
+export function useArticlePages(f: ArticleFilter, enabled = true) {
+  const q = useInfiniteQuery({
+    queryKey: ['articles', 'pages', f], enabled, initialPageParam: 0,
+    queryFn: ({ pageParam }) => fetchArticles({ ...f, limit: PAGE_SIZE, offset: pageParam }),
+    getNextPageParam: (last, pages) => { const n = pages.reduce((s, p) => s + p.articles.length, 0); return n < last.total && last.articles.length ? n : undefined; },
+  });
+  return { ...q, data: q.data?.pages.flatMap((p) => p.articles), total: q.data?.pages[0]?.total ?? 0 };
+}
+export interface ArticleCount { categoryId: string | null; status: ArticleStatus; n: number }
+export const useArticleCounts = () =>
+  useQuery({ queryKey: ['articles', 'counts'], queryFn: () => api<{ counts: ArticleCount[] }>('/api/articles/counts').then((r) => r.counts) });
+/** Articles in the subtree of `id` (optionally of one status) from useArticleCounts data. */
+export const countIn = (counts: ArticleCount[] | undefined, cats: Category[], id: string, status?: ArticleStatus) => {
+  const ids = subtree(cats, id);
+  return (counts ?? []).filter((c) => c.categoryId && ids.has(c.categoryId) && (!status || c.status === status)).reduce((n, c) => n + c.n, 0);
+};
 export const isEditorRole = (role: Role | undefined) => role === 'editor' || role === 'admin';
 export const useArticle = (idOrSlug: string) =>
   useQuery({ queryKey: ['article', idOrSlug], queryFn: () => api<Article>(`/api/articles/${encodeURIComponent(idOrSlug)}`), retry: false });

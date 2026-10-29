@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
 import type { ArticleStatus } from '@ops/shared';
-import { ARTICLE_CAP, useArticles, useCategories, subtree } from '../../api/client';
+import { useArticlePages, useCategories } from '../../api/client';
+import { LoadMore } from '../../components/ui/LoadMore';
 import { StatusBadge } from '../../components/ui/primitives';
 import { fmtDate } from '../../lib/text';
 import { Download } from 'lucide-react';
@@ -10,20 +11,15 @@ import { PageHeader, QueryBlock, Table, field, smallBtn, td, useAdminUsers } fro
 const STATUSES: [ArticleStatus, string][] = [['draft', 'Draft'], ['in_review', 'In review'], ['published', 'Published'], ['archived', 'Archived']];
 
 export function Articles() {
-  const articles = useArticles(); // admins see every status
   const cats = useCategories().data ?? [];
   const users = useAdminUsers().data ?? [];
   const [status, setStatus] = useState('');
   const [category, setCategory] = useState('');
   const [owner, setOwner] = useState('');
-  const inCat = category ? subtree(cats, category) : null;
+  // filtering and paging happen on the server, so no article is ever left out of the list
+  const articles = useArticlePages({ status, within: category, ownerId: owner }); // admins see every status
   const name = (id: string | null | undefined) => users.find((u) => u.id === id)?.name ?? (id ? 'Unknown' : 'No owner');
-  const owners = [...new Set((articles.data ?? []).map((a) => a.ownerId ?? ''))];
-
-  const filtered = articles.isSuccess ? {
-    ...articles,
-    data: articles.data.filter((a) => (!status || a.status === status) && (!inCat || (a.categoryId && inCat.has(a.categoryId))) && (!owner || (a.ownerId ?? '') === owner)),
-  } : articles;
+  const owners = [...users.filter((u) => u.role !== 'viewer').map((u) => u.id), 'none'];
 
   return (
     <section>
@@ -45,13 +41,12 @@ export function Articles() {
           <label className="sr-only" htmlFor="f-owner">Owner</label>
           <select id="f-owner" className={field} value={owner} onChange={(e) => setOwner(e.target.value)}>
             <option value="">All owners</option>
-            {owners.map((o) => <option key={o} value={o}>{name(o || null)}</option>)}
+            {owners.map((o) => <option key={o} value={o}>{name(o === 'none' ? null : o)}</option>)}
           </select>
         </div>
       </PageHeader>
-      <QueryBlock q={filtered} what="articles" empty="No articles match these filters.">
+      <QueryBlock q={articles} what="articles" empty="No articles match these filters.">
         {(rows) => (<>
-          <p className="mb-2 text-[13px] text-ink-muted" role="status">{rows.length} article{rows.length === 1 ? '' : 's'}{articles.data?.length === ARTICLE_CAP && ` (showing the ${ARTICLE_CAP} most recently updated)`}</p>
           <Table label="Articles" head={['Title', 'Status', 'Category', 'Owner', 'Updated', 'Review by']}>
             {rows.map((a) => (
               <tr key={a.id}>
@@ -67,6 +62,7 @@ export function Articles() {
               </tr>
             ))}
           </Table>
+          <LoadMore q={articles} />
         </>)}
       </QueryBlock>
     </section>

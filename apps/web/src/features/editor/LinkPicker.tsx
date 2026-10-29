@@ -3,7 +3,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { CornerDownLeft, FileText, Search } from 'lucide-react';
-import { api, useArticles, type SearchGroup } from '../../api/client';
+import { api, useRecentArticles, type SearchGroup } from '../../api/client';
 import { Kbd } from '../../components/ui/primitives';
 
 export interface Picked { id: string; title: string }
@@ -23,7 +23,7 @@ export function LinkPicker({ open, onOpenChange, onPick, exclude = [], title = '
     queryKey: ['link-search', debounced], enabled: open && !!debounced,
     queryFn: () => api<{ groups: SearchGroup[] }>(`/api/search?q=${encodeURIComponent(debounced)}&limit=12`).then((r) => r.groups),
   });
-  const recent = useArticles();
+  const recent = useRecentArticles(20);
   const items = useMemo(() => {
     const raw = debounced
       ? (search.data ?? []).filter((g) => g.kind === 'article' || g.kind === 'glossary').flatMap((g) => g.hits.map((h) => ({ id: h.id, title: h.title, path: h.categoryPath })))
