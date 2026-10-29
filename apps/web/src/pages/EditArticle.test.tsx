@@ -57,6 +57,32 @@ describe('EditArticle', () => {
     expect(screen.getByRole('button', { name: 'Copy my version' })).toBeInTheDocument();
   });
 
+  it('background saves send autosave:true, Ctrl+S sends a checkpoint; a refused save says so and is not retried', async () => {
+    const bodies: { autosave?: boolean }[] = [];
+    let refuse = false;
+    mockFetch({ '/api/me': me('editor'), ...common, '/api/articles/a1': article });
+    const f = globalThis.fetch as unknown as { mockImplementation: Function; getMockImplementation: () => Function };
+    const base = f.getMockImplementation();
+    f.mockImplementation(async (input: string, init?: RequestInit) => {
+      if (init?.method !== 'PATCH') return base(input, init);
+      bodies.push(JSON.parse(String(init.body)));
+      return refuse ? new Response(JSON.stringify({ error: 'invalid' }), { status: 400, headers: { 'content-type': 'application/json' } })
+        : new Response(JSON.stringify({ ...article, revision: 3 + bodies.length }), { status: 200, headers: { 'content-type': 'application/json' } });
+    });
+    page('/edit/a1');
+    fireEvent.change(await screen.findByLabelText('Article title'), { target: { value: 'Missing GOP 2' } });
+    await waitFor(() => expect(bodies).toHaveLength(1), { timeout: 4000 });
+    expect(bodies[0]!.autosave).toBe(true);
+    fireEvent.keyDown(window, { key: 's', ctrlKey: true });
+    await waitFor(() => expect(bodies).toHaveLength(2));
+    expect(bodies[1]!.autosave).toBe(false);
+    refuse = true;
+    fireEvent.change(screen.getByLabelText('Article title'), { target: { value: 'Missing GOP 3' } });
+    expect(await screen.findByText(/server refused this change/i, {}, { timeout: 4000 })).toBeInTheDocument();
+    await new Promise((r) => setTimeout(r, 2500));
+    expect(bodies).toHaveLength(3); // no automatic retry
+  }, 15000);
+
   it('shows only actions the server allows', async () => {
     mockFetch({ '/api/me': me('editor'), ...common, '/api/articles/a1': { ...article, permissions: { write: true, publish: false, submit: true, archive: true } } });
     page('/edit/a1');

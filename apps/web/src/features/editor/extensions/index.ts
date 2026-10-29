@@ -27,7 +27,7 @@ export function editorExtensions(o: { placeholder?: string; onUploadError?: Imag
     Underline,
     Highlight,
     // autolink off: typed text like "Done.My" was turned into a link; pasted URLs still become links
-    Link.configure({ openOnClick: false, autolink: false, validate: (href) => !!safeHref(href), HTMLAttributes: { rel: 'noopener noreferrer', target: null } }),
+    Link.configure({ openOnClick: false, autolink: false, validate: (href) => !!safeHref(href), isAllowedUri: (url, ctx) => !!safeHref(url) && ctx.defaultValidate(url), HTMLAttributes: { rel: 'noopener noreferrer', target: null } }),
     Image.configure({ inline: false, allowBase64: false }),
     Placeholder.configure({
       placeholder: ({ node }) => (node.type.name === 'heading' ? 'Heading' : o.placeholder ?? 'Write, or type / for blocks'),

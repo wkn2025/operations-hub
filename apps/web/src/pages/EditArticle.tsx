@@ -83,6 +83,7 @@ function EditSession({ id, onCreated }: { id: string; onCreated: (id: string) =>
 }
 
 function Workspace({ initialDraft, initialArticle, onCreated }: { initialDraft: Draft; initialArticle: Article | null; onCreated: (id: string) => void }) {
+  const me = useSession().data?.user;
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [article, setArticle] = useState<Article | null>(initialArticle);
@@ -101,7 +102,7 @@ function Workspace({ initialDraft, initialArticle, onCreated }: { initialDraft: 
     qc.setQueryData(['article', a.id], a);
   };
 
-  const autosave = useAutosave<Draft>(async (d, base) => {
+  const autosave = useAutosave<Draft>(async (d, base, o) => {
     let a: Article;
     if (!idRef.current) {
       const body = payload(d);
@@ -110,7 +111,8 @@ function Workspace({ initialDraft, initialArticle, onCreated }: { initialDraft: 
       onCreated(a.id);
       navigate(`/edit/${a.id}`, { replace: true });
     } else {
-      a = await api<Article>(`/api/articles/${idRef.current}`, { method: 'PATCH', json: { ...payload(d), baseRevision: base } });
+      // autosave:true lets the server merge background saves into one revision; Ctrl+S (explicit) cuts a checkpoint
+      a = await api<Article>(`/api/articles/${idRef.current}`, { method: 'PATCH', keepalive: o.keepalive, json: { ...payload(d), baseRevision: base, autosave: !o.explicit } });
     }
     remember(a);
     setLastSaved(new Date());
@@ -130,7 +132,7 @@ function Workspace({ initialDraft, initialArticle, onCreated }: { initialDraft: 
 
   // Ctrl/Cmd+S saves now
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); void autosave.flush(); } };
+    const onKey = (e: KeyboardEvent) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); void autosave.flush({ explicit: true }); } };
     window.addEventListener('keydown', onKey);
     return () => { window.removeEventListener('keydown', onKey); void qc.invalidateQueries({ queryKey: ['articles'] }); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -187,7 +189,7 @@ function Workspace({ initialDraft, initialArticle, onCreated }: { initialDraft: 
     <div>
       <DocBar
         back={article?.status === 'published' ? `/article/${article.slug}` : '/'}
-        status={status} save={autosave.status} dirty={autosave.dirty} isNew={!article} uploading={uploading} lastSaved={lastSaved}
+        status={status} save={autosave.status} rejected={autosave.errorKind === 'rejected'} dirty={autosave.dirty} isNew={!article} uploading={uploading} lastSaved={lastSaved}
         onRetry={() => void autosave.flush()} preview={preview} onPreview={() => setPreview((v) => !v)}
         onHistory={() => setTab('history')} historyDisabled={!article}
         actions={article && p ? (
@@ -262,7 +264,8 @@ function Workspace({ initialDraft, initialArticle, onCreated }: { initialDraft: 
             </div>
             <div role="tabpanel" className="min-h-0 flex-1 overflow-y-auto">
               {tab === 'details' || !article
-                ? <MetaPanel draft={draft} onChange={setDraft} articleId={article?.id} slug={article?.slug} published={!!article?.publishedAt} disabled={!canWrite} />
+                ? <MetaPanel draft={draft} onChange={setDraft} articleId={article?.id} slug={article?.slug} published={!!article?.publishedAt} disabled={!canWrite}
+                    canChangeOwner={!article || me?.role === 'admin' || article.owner?.id === me?.id} />
                 : <VersionPanel articleId={article.id} current={{ title: draft.title, content: draft.content }} currentRevision={autosave.revision}
                     canRestore={canWrite} beforeRestore={async () => { await autosave.flush(); }} onRestored={(a) => { adopt(a); setNotice({ tone: 'info', text: `Restored. Saved as revision ${a.revision}.` }); }} />}
             </div>
@@ -297,8 +300,8 @@ const SAVE: Record<SaveStatus | 'dirty' | 'new', { label: string; dot: string }>
   error: { label: 'Couldn’t save. Retrying…', dot: 'bg-danger animate-pulse' },
 };
 
-function DocBar({ back, status, save, dirty, isNew, uploading, lastSaved, onRetry, preview, onPreview, onHistory, historyDisabled, actions }: {
-  back: string; status: Article['status']; save: SaveStatus; dirty: boolean; isNew: boolean; uploading: boolean; lastSaved: Date | null; onRetry: () => void;
+function DocBar({ back, status, save, rejected, dirty, isNew, uploading, lastSaved, onRetry, preview, onPreview, onHistory, historyDisabled, actions }: {
+  back: string; status: Article['status']; save: SaveStatus; rejected: boolean; dirty: boolean; isNew: boolean; uploading: boolean; lastSaved: Date | null; onRetry: () => void;
   preview: boolean; onPreview: () => void; onHistory: () => void; historyDisabled: boolean; actions: React.ReactNode;
 }) {
   const key = save === 'conflict' || save === 'error' || save === 'saving' ? save : isNew && !dirty ? 'new' : dirty ? 'dirty' : save;
@@ -311,7 +314,7 @@ function DocBar({ back, status, save, dirty, isNew, uploading, lastSaved, onRetr
         <StatusBadge status={status} />
         <span aria-live="polite" className="ml-2 flex items-center gap-2 text-[13px] text-neutral-500" data-save-state={key}>
           <span className={clsx('h-2 w-2 rounded-full transition-colors duration-300', s.dot)} aria-hidden />
-          {uploading ? 'Uploading image…' : s.label}
+          {uploading ? 'Uploading image…' : rejected ? 'Not saved: the server refused this change' : s.label}
           {key === 'saved' && lastSaved && <span className="text-ink-muted tabular">{lastSaved.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>}
           {key === 'saved' && <Check size={13} className="text-accent-ink" aria-hidden />}
           {save === 'error' && <button type="button" onClick={onRetry} className="font-medium text-primary hover:underline">Retry now</button>}

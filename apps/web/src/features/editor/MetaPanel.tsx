@@ -82,8 +82,8 @@ function Section({ title, children, icon }: { title: string; children: ReactNode
   );
 }
 
-export function MetaPanel({ draft, onChange, articleId, slug, published, disabled }: {
-  draft: Draft; onChange: (d: Draft) => void; articleId?: string; slug?: string; published?: boolean; disabled?: boolean;
+export function MetaPanel({ draft, onChange, articleId, slug, published, disabled, canChangeOwner = true }: {
+  draft: Draft; onChange: (d: Draft) => void; articleId?: string; slug?: string; published?: boolean; disabled?: boolean; canChangeOwner?: boolean;
 }) {
   const errors = validateMeta(draft);
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => onChange({ ...draft, [k]: v });
@@ -117,8 +117,8 @@ export function MetaPanel({ draft, onChange, articleId, slug, published, disable
             {catOpts.map((c) => <option key={c.id} value={c.id}>{'   '.repeat(c.depth) + c.label}</option>)}
           </select>
         </Field>
-        <Field label="Owner" id={ids.owner} hint="Responsible for keeping this article accurate">
-          <select id={ids.owner} className={inputCls} value={draft.ownerId ?? ''} disabled={disabled || !owners.data} onChange={(e) => set('ownerId', e.target.value || null)}>
+        <Field label="Owner" id={ids.owner} hint={canChangeOwner ? 'Responsible for keeping this article accurate' : 'Only the owner or an admin can hand this article over'}>
+          <select id={ids.owner} className={inputCls} value={draft.ownerId ?? ''} disabled={disabled || !owners.data || !canChangeOwner} onChange={(e) => set('ownerId', e.target.value || null)}>
             {!draft.ownerId && <option value="">Not set</option>}
             {(owners.data ?? []).map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
           </select>

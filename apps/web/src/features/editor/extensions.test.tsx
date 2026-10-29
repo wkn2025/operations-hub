@@ -99,7 +99,7 @@ describe('image upload', () => {
     expect(init.method).toBe('POST');
     expect((init.body as FormData).get('file')).toBeInstanceOf(File);
     const img = (e.getJSON().content as PmNode[]).flatMap((n) => [n, ...(n.content ?? [])]).find((n) => n.type === 'image')!;
-    expect(img.attrs).toMatchObject({ src: '/api/files/f9', alt: 'shot' });
+    expect(img.attrs).toMatchObject({ src: '/api/files/f9', alt: '' }); // empty until the author describes it (the editor flags it)
     expect(onError).not.toHaveBeenCalled();
   });
 
@@ -161,5 +161,40 @@ describe('steps', () => {
     const steps = (e.getJSON().content as PmNode[]).find((n) => n.type === 'steps')!;
     expect(JSON.stringify(steps.content![0])).toContain('first');
     expect(JSON.stringify(steps.content![1])).not.toContain('first');
+  });
+});
+
+describe('paste with text content', () => {
+  it('HTML + PNG on the clipboard keeps the text and uploads nothing', () => {
+    const fetchFn = mockFetch({ '/api/files': { id: 'f1', url: '/api/files/f1' } });
+    const e = make({ type: 'doc', content: [p(t('x'))] });
+    const file = new File([new Uint8Array([1])], 'image.png', { type: 'image/png' });
+    const plugin = e.state.plugins.find((pl) => (pl as unknown as { key: string }).key.startsWith('imageUpload'))!;
+    const ev = { clipboardData: { files: [file], types: ['text/html', 'text/plain', 'Files'], getData: () => '' }, preventDefault() {} } as unknown as ClipboardEvent;
+    const handled = plugin.props.handlePaste!.call(plugin, e.view, ev, null as any);
+    expect(handled).toBe(false); // ProseMirror pastes the text as usual
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+});
+
+describe('link sanitising', () => {
+  const bad = 'javascript:alert(1)';
+  it('a stored javascript: href never becomes a live link in the editor or the renderer', () => {
+    const json = { type: 'doc', content: [p(t('click', [{ type: 'link', attrs: { href: bad } }]))] };
+    const e = make(json);
+    expect(e.view.dom.querySelector('a[href^="javascript"]')).toBeNull();
+    const { container } = render(<ArticleRenderer doc={e.getJSON() as PmNode} />, { wrapper: Router });
+    expect(container.querySelector('a[href^="javascript"]')).toBeNull();
+    expect(container.textContent).toContain('click');
+  });
+
+  it('pasted <a href="javascript:"> is sanitised', () => {
+    const e = make({ type: 'doc', content: [p()] });
+    e.commands.focus('end');
+    e.view.pasteHTML(`<p><a href="${bad}">evil</a> and <a href="https://ok.test">fine</a></p>`, new Event('paste') as ClipboardEvent);
+    const json = JSON.stringify(e.getJSON());
+    expect(json).toContain('evil');
+    expect(json).not.toContain('javascript');
+    expect(json).toContain('https://ok.test');
   });
 });

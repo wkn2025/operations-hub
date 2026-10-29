@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { BubbleMenu, EditorContent, useEditor, type Editor } from '@tiptap/react';
 import { NodeSelection } from '@tiptap/pm/state';
 import clsx from 'clsx';
 import {
   Bold, Code, Columns3, FileText, Heading2, Heading3, Highlighter, ImagePlus, Italic, Link2, ListChecks, Rows3, Strikethrough, Table2, Trash2,
-  Underline as UnderlineIcon, Unlink, Waypoints, Info, FoldVertical, X, Check,
+  Underline as UnderlineIcon, Unlink, Waypoints, Info, FoldVertical, X, Check, Keyboard, TriangleAlert,
 } from 'lucide-react';
 import type { PmNode } from '@ops/shared';
 import { editorExtensions } from './extensions';
@@ -49,6 +49,29 @@ export function ArticleEditor({ editor }: { editor: Editor }) {
   const pickImage = () => fileRef.current?.click();
   const pickArticle = () => setPicker(true);
 
+  // Keyboard routes: Ctrl/Cmd+Shift+K = link to article (Ctrl+K stays global search); Alt+F10 = focus the visible formatting toolbar.
+  useEffect(() => {
+    const dom = editor.view.dom;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.isComposing) return;
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'k') { e.preventDefault(); e.stopPropagation(); setPicker(true); }
+      else if (e.altKey && e.key === 'F10') {
+        e.preventDefault();
+        // the bubble that is currently shown (hidden bubbles stay in the DOM with visibility: hidden); it appears
+        // ~80 ms after a selection change, so try once more if a fast Alt+F10 beats it
+        const focusBar = () => {
+          const bar = Array.from(document.querySelectorAll<HTMLElement>('[data-tippy-root] [data-bubble-toolbar]')).find((t) => getComputedStyle(t).visibility !== 'hidden');
+          const first = bar?.querySelector<HTMLElement>('button:not(:disabled), input');
+          first?.focus();
+          return !!first;
+        };
+        if (!focusBar()) setTimeout(focusBar, 200);
+      }
+    };
+    dom.addEventListener('keydown', onKey);
+    return () => dom.removeEventListener('keydown', onKey);
+  }, [editor]);
+
   return (
     <div className="relative">
       {editor.isEditable && <InsertStrip editor={editor} onImage={pickImage} onArticle={pickArticle} />}
@@ -56,6 +79,7 @@ export function ArticleEditor({ editor }: { editor: Editor }) {
       {editor.isEditable && (<>
         <FormatBubble editor={editor} onArticle={pickArticle} />
         <TableBubble editor={editor} />
+        <ImageBubble editor={editor} />
         <SlashMenu editor={editor} ctx={{ pickImage, pickArticle }} />
       </>)}
       <input ref={fileRef} type="file" accept={IMAGE_TYPES.join(',')} multiple className="sr-only" tabIndex={-1} aria-label="Upload image"
@@ -82,12 +106,65 @@ function Tool({ label, onClick, active, children, disabled }: { label: string; o
 }
 const Sep = () => <span aria-hidden className="mx-1 h-5 w-px bg-neutral-200" />;
 
+/** role=toolbar with one tab stop and arrow-key roving (WAI-ARIA toolbar pattern). Escape hands focus back. */
+export function RovingToolbar({ label, onEscape, children, className }: { label: string; onEscape?: () => void; children: ReactNode; className?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const items = () => Array.from(ref.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input') ?? []);
+  useLayoutEffect(() => {
+    const it = items();
+    if (!it.some((b) => b.tabIndex === 0 && b === document.activeElement)) it.forEach((b, i) => { b.tabIndex = i === 0 ? 0 : -1; });
+  });
+  const onKeyDown = (e: ReactKeyboardEvent) => {
+    if (e.key === 'Escape') { e.preventDefault(); onEscape?.(); return; }
+    if ((e.target as HTMLElement).tagName === 'INPUT' && e.key !== 'Tab') return; // text editing keys stay in the field
+    const it = items(), i = it.indexOf(document.activeElement as HTMLElement), n = it.length;
+    const next = { ArrowRight: (i + 1) % n, ArrowLeft: (i - 1 + n) % n, Home: 0, End: n - 1 }[e.key];
+    if (next === undefined || !n) return;
+    e.preventDefault();
+    it.forEach((b, j) => { b.tabIndex = j === next ? 0 : -1; });
+    it[next]!.focus();
+  };
+  return <div ref={ref} role="toolbar" aria-label={label} data-bubble-toolbar="" onKeyDown={onKeyDown} className={className}>{children}</div>;
+}
+
+/** Alt text editor for the selected image; flags a missing description. */
+export function ImageAltForm({ alt, onChange }: { alt: string; onChange: (v: string) => void }) {
+  const id = useId();
+  const missing = !alt.trim();
+  return (
+    <div className="w-[320px] p-1.5">
+      <label htmlFor={id} className="mb-1 block px-1 text-xs font-medium text-neutral-700">Image description</label>
+      <input id={id} value={alt} onChange={(e) => onChange(e.target.value)} placeholder="What does the screenshot show?" maxLength={300}
+        className="h-8 w-full rounded-[9px] bg-white px-2.5 text-[13px] outline-none ring-1 ring-inset ring-neutral-200 focus:ring-primary/50" />
+      {missing && (
+        <p className="mt-1.5 flex items-center gap-1.5 px-1 text-xs text-warning">
+          <TriangleAlert size={12} aria-hidden /> No description yet. Screen-reader users won’t know what this shows.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function ImageBubble({ editor }: { editor: Editor }) {
+  useTick(editor);
+  const sel = editor.state.selection;
+  const alt = sel instanceof NodeSelection && sel.node.type.name === 'image' ? String(sel.node.attrs.alt ?? '') : '';
+  return (
+    <BubbleMenu editor={editor} pluginKey="imageBubble" updateDelay={0} tippyOptions={{ placement: 'bottom', maxWidth: 'none', duration: [180, 120], appendTo: 'parent' }}
+      shouldShow={({ editor: e, state }) => e.isEditable && state.selection instanceof NodeSelection && state.selection.node.type.name === 'image'}>
+      <RovingToolbar label="Image" onEscape={() => editor.commands.focus()} className="ed-bubble glass rounded-[14px]">
+        <ImageAltForm alt={alt} onChange={(v) => editor.chain().updateAttributes('image', { alt: v }).run()} />
+      </RovingToolbar>
+    </BubbleMenu>
+  );
+}
+
 /** Quiet row of the most used blocks, above the text. The slash menu has the rest. */
 function InsertStrip({ editor, onImage, onArticle }: { editor: Editor; onImage: () => void; onArticle: () => void }) {
   useTick(editor);
   const c = () => editor.chain().focus();
   return (
-    <div role="toolbar" aria-label="Insert" className="mb-6 flex flex-wrap items-center gap-0.5 rounded-[14px] bg-neutral-50/80 p-1 ring-1 ring-inset ring-neutral-200/70">
+    <RovingToolbar label="Insert" onEscape={() => editor.commands.focus()} className="relative mb-6 flex flex-wrap items-center gap-0.5 rounded-[14px] bg-neutral-50/80 p-1 ring-1 ring-inset ring-neutral-200/70">
       <Tool label="Heading" active={editor.isActive('heading', { level: 2 })} onClick={() => c().toggleHeading({ level: 2 }).run()}><Heading2 size={17} /></Tool>
       <Tool label="Subheading" active={editor.isActive('heading', { level: 3 })} onClick={() => c().toggleHeading({ level: 3 }).run()}><Heading3 size={17} /></Tool>
       <Sep />
@@ -98,12 +175,36 @@ function InsertStrip({ editor, onImage, onArticle }: { editor: Editor; onImage: 
       <Tool label="Table" disabled={editor.isActive('table')} onClick={() => c().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}><Table2 size={17} /></Tool>
       <Sep />
       <Tool label="Insert image" onClick={onImage}><ImagePlus size={17} /></Tool>
-      <Tool label="Link to article" onClick={onArticle}><FileText size={17} /></Tool>
-      <span className="ml-auto hidden pr-2 text-xs text-ink-muted sm:block">Type <kbd className="rounded bg-white px-1 font-sans ring-1 ring-neutral-200">/</kbd> for more</span>
-    </div>
+      <Tool label="Link to article (Ctrl+Shift+K)" onClick={onArticle}><FileText size={17} /></Tool>
+      <Shortcuts />
+    </RovingToolbar>
   );
 }
 
+const SHORTCUTS: [string, string][] = [
+  ['/', 'Insert a block'], ['Ctrl+Shift+K', 'Link to an article'], ['Alt+F10', 'Go to the formatting toolbar (with text selected)'],
+  ['Esc', 'Back to the text'], ['Ctrl+B / I / U', 'Bold, italic, underline'], ['Ctrl+S', 'Save a checkpoint revision'],
+];
+function Shortcuts() {
+  return (
+    <details className="group ml-auto">
+      <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-[9px] px-2 py-1.5 text-xs text-ink-muted hover:bg-white hover:text-neutral-700 [&::-webkit-details-marker]:hidden">
+        <Keyboard size={14} aria-hidden /> Shortcuts
+      </summary>
+      <dl className="glass absolute right-0 top-full z-30 mt-2 w-[330px] space-y-1.5 rounded-[14px] p-3 text-[12.5px]">
+        {SHORTCUTS.map(([k, v]) => (
+          <div key={k} className="flex items-baseline gap-3">
+            <dt className="w-[104px] shrink-0"><kbd className="rounded-[6px] bg-white px-1.5 py-0.5 font-sans text-[11px] font-medium text-neutral-600 ring-1 ring-neutral-200">{k}</kbd></dt>
+            <dd className="text-neutral-700">{v}</dd>
+          </div>
+        ))}
+      </dl>
+    </details>
+  );
+}
+
+// Bubbles keep tippy's appendTo: 'parent'. Appending to document.body moves them outside the React root and their
+// React event handlers stop firing (caught by the image-description test). Keyboard access is Alt+F10.
 function FormatBubble({ editor, onArticle }: { editor: Editor; onArticle: () => void }) {
   useTick(editor);
   const [linkMode, setLinkMode] = useState(false);
@@ -118,12 +219,12 @@ function FormatBubble({ editor, onArticle }: { editor: Editor; onArticle: () => 
   };
   return (
     <BubbleMenu editor={editor} pluginKey="formatBubble" updateDelay={80}
-      tippyOptions={{ duration: [180, 120], maxWidth: 'none', appendTo: () => document.body, onHidden: () => setLinkMode(false) }}
+      tippyOptions={{ duration: [180, 120], maxWidth: 'none', appendTo: 'parent', onHidden: () => setLinkMode(false) }}
       shouldShow={({ editor: e, state }) => {
         const s = state.selection;
         return e.isEditable && !s.empty && !(s instanceof NodeSelection) && !e.isActive('codeBlock');
       }}>
-      <div className="ed-bubble glass flex items-center gap-0.5 rounded-[14px] p-1">
+      <RovingToolbar label="Formatting" onEscape={() => { setLinkMode(false); editor.commands.focus(); }} className="ed-bubble glass flex items-center gap-0.5 rounded-[14px] p-1">
         {linkMode ? (
           <form className="flex items-center gap-1" onSubmit={(e) => { e.preventDefault(); applyLink(); }}>
             <input autoFocus value={href} onChange={(e) => setHref(e.target.value)} placeholder="Paste a web address" aria-label="Web address"
@@ -146,9 +247,9 @@ function FormatBubble({ editor, onArticle }: { editor: Editor; onArticle: () => 
           {editor.isActive('link')
             ? <Tool label="Remove web link" onClick={() => c().extendMarkRange('link').unsetLink().run()}><Unlink size={16} /></Tool>
             : <Tool label="Web link" onClick={() => { setHref(String(editor.getAttributes('link').href ?? '')); setLinkMode(true); }}><Link2 size={16} /></Tool>}
-          <Tool label="Link to article" onClick={onArticle}><FileText size={16} /></Tool>
+          <Tool label="Link to article (Ctrl+Shift+K)" onClick={onArticle}><FileText size={16} /></Tool>
         </>)}
-      </div>
+      </RovingToolbar>
     </BubbleMenu>
   );
 }
@@ -156,9 +257,9 @@ function FormatBubble({ editor, onArticle }: { editor: Editor; onArticle: () => 
 function TableBubble({ editor }: { editor: Editor }) {
   const c = () => editor.chain().focus();
   return (
-    <BubbleMenu editor={editor} pluginKey="tableBubble" updateDelay={80} tippyOptions={{ placement: 'top-start', maxWidth: 'none', duration: [180, 120], appendTo: () => document.body }}
+    <BubbleMenu editor={editor} pluginKey="tableBubble" updateDelay={80} tippyOptions={{ placement: 'top-start', maxWidth: 'none', duration: [180, 120], appendTo: 'parent' }}
       shouldShow={({ editor: e, state }) => e.isEditable && state.selection.empty && e.isActive('table')}>
-      <div className="ed-bubble glass flex items-center gap-0.5 rounded-[14px] p-1 text-[12.5px]">
+      <RovingToolbar label="Table" onEscape={() => editor.commands.focus()} className="ed-bubble glass flex items-center gap-0.5 rounded-[14px] p-1 text-[12.5px]">
         <Tool label="Add row below" onClick={() => c().addRowAfter().run()}><Rows3 size={15} /><span className="ml-1">+ Row</span></Tool>
         <Tool label="Add column right" onClick={() => c().addColumnAfter().run()}><Columns3 size={15} /><span className="ml-1">+ Column</span></Tool>
         <Sep />
@@ -167,7 +268,7 @@ function TableBubble({ editor }: { editor: Editor }) {
         <Tool label="Toggle header row" onClick={() => c().toggleHeaderRow().run()}><span>Header</span></Tool>
         <Sep />
         <Tool label="Delete table" onClick={() => c().deleteTable().run()}><Trash2 size={15} className="text-danger" /></Tool>
-      </div>
+      </RovingToolbar>
     </BubbleMenu>
   );
 }
@@ -176,6 +277,7 @@ function TableBubble({ editor }: { editor: Editor }) {
 function SlashMenu({ editor, ctx }: { editor: Editor; ctx: { pickImage: () => void; pickArticle: () => void } }) {
   useTick(editor);
   const [active, setActive] = useState(0);
+  const listId = useId();
   const dismissed = useRef<number | null>(null);
   const s = editor.isFocused ? slashState(editor.state) : null;
   const items = s ? filterSlashItems(s.query) : [];
@@ -190,7 +292,7 @@ function SlashMenu({ editor, ctx }: { editor: Editor; ctx: { pickImage: () => vo
     const dom = editor.view.dom;
     const onKey = (e: KeyboardEvent) => {
       const st = state.current;
-      if (!st.open) return;
+      if (!st.open || e.isComposing) return;
       const n = st.items.length;
       if (e.key === 'ArrowDown') setActive((a) => (a + 1) % n);
       else if (e.key === 'ArrowUp') setActive((a) => (a - 1 + n) % n);
@@ -205,6 +307,18 @@ function SlashMenu({ editor, ctx }: { editor: Editor; ctx: { pickImage: () => vo
 
   const listRef = useRef<HTMLUListElement>(null);
   useEffect(() => { listRef.current?.querySelector('[aria-selected=true]')?.scrollIntoView({ block: 'nearest' }); }, [active]);
+  // While the menu is open the editor acts as a combobox controlling the listbox (screen readers announce the active option).
+  useLayoutEffect(() => {
+    const dom = editor.view.dom;
+    if (open) {
+      dom.setAttribute('role', 'combobox'); dom.setAttribute('aria-expanded', 'true'); dom.setAttribute('aria-haspopup', 'listbox');
+      dom.setAttribute('aria-autocomplete', 'list'); dom.setAttribute('aria-controls', listId);
+      dom.setAttribute('aria-activedescendant', `${listId}-${Math.min(active, items.length - 1)}`);
+    } else {
+      dom.setAttribute('role', 'textbox');
+      for (const a of ['aria-expanded', 'aria-haspopup', 'aria-autocomplete', 'aria-controls', 'aria-activedescendant']) dom.removeAttribute(a);
+    }
+  });
   if (!open) return null;
   let pos = { left: 0, top: 0 };
   try { const r = editor.view.coordsAtPos(s!.range.from); pos = { left: r.left, top: r.bottom + 8 }; } catch { /* jsdom has no layout */ }
@@ -214,11 +328,11 @@ function SlashMenu({ editor, ctx }: { editor: Editor; ctx: { pickImage: () => vo
     <div className="glass fixed z-40 w-[300px] overflow-hidden rounded-[16px] animate-menu-in"
       style={{ left: Math.min(pos.left, window.innerWidth - 316), ...(flip ? { bottom: window.innerHeight - pos.top + 32 } : { top: pos.top }) }}>
       <p className="px-3.5 pb-1 pt-2.5 text-xs font-medium text-ink-muted">{s!.query ? `Blocks matching “${s!.query}”` : 'Insert a block'}</p>
-      <ul ref={listRef} role="listbox" aria-label="Insert block" className="max-h-[300px] overflow-y-auto p-1.5">
+       <ul ref={listRef} id={listId} role="listbox" aria-label="Insert block" className="max-h-[300px] overflow-y-auto p-1.5">
         {items.map((it, i) => {
           const Icon = it.icon;
           return (
-            <li key={it.id} role="option" aria-selected={i === active} onMouseEnter={() => setActive(i)} onMouseDown={(e) => { e.preventDefault(); run(it); }}
+            <li key={it.id} id={`${listId}-${i}`} role="option" aria-selected={i === active} onMouseEnter={() => setActive(i)} onMouseDown={(e) => { e.preventDefault(); run(it); }}
               className={clsx('flex cursor-pointer items-center gap-3 rounded-[11px] px-2 py-1.5 transition-colors', i === active ? 'bg-primary-soft' : '')}>
               <span className={clsx('flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] ring-1 ring-inset transition-colors',
                 i === active ? 'bg-white text-primary ring-primary/15' : 'bg-white text-neutral-500 ring-neutral-200')}>

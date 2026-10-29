@@ -22,7 +22,7 @@ describe('useAutosave', () => {
     expect(result.current.dirty).toBe(true);
     await tick(1);
     expect(save).toHaveBeenCalledTimes(1);
-    expect(save).toHaveBeenCalledWith('abc', 1);
+    expect(save).toHaveBeenCalledWith('abc', 1, expect.anything());
     expect(result.current.status).toBe('saved');
     expect(result.current.dirty).toBe(false);
   });
@@ -49,7 +49,7 @@ describe('useAutosave', () => {
     await act(async () => { resolve({ revision: 2 }); });
     expect(result.current.dirty).toBe(true); // 'two' not saved yet
     await tick(100);
-    expect(save).toHaveBeenLastCalledWith('two', 2);
+    expect(save).toHaveBeenLastCalledWith('two', 2, expect.anything());
     expect(result.current.status).toBe('saved');
   });
 
@@ -80,7 +80,7 @@ describe('useAutosave', () => {
     expect(save).toHaveBeenCalledTimes(2); // 2nd retry after 4s
     await tick(1);
     expect(save).toHaveBeenCalledTimes(3);
-    expect(save).toHaveBeenLastCalledWith('x', 1);
+    expect(save).toHaveBeenLastCalledWith('x', 1, expect.anything());
     expect(result.current.status).toBe('saved');
     expect(result.current.dirty).toBe(false);
   });
@@ -90,7 +90,7 @@ describe('useAutosave', () => {
     const { result } = renderHook(() => useAutosave(save, 1500, 1));
     act(() => result.current.change('now'));
     await act(async () => { await result.current.flush(); });
-    expect(save).toHaveBeenCalledWith('now', 1);
+    expect(save).toHaveBeenCalledWith('now', 1, expect.anything());
     expect(result.current.status).toBe('saved');
   });
 
@@ -102,7 +102,7 @@ describe('useAutosave', () => {
     act(() => result.current.change('x'));
     expect(ev()).toBe(true);
     unmount();
-    expect(save).toHaveBeenCalledWith('x', 1);
+    expect(save).toHaveBeenCalledWith('x', 1, expect.anything());
   });
 
   it('reset adopts a new revision and clears conflict', async () => {
@@ -115,6 +115,49 @@ describe('useAutosave', () => {
     expect(result.current.status).toBe('idle');
     expect(result.current.dirty).toBe(false);
     act(() => result.current.change('y')); await tick(100);
-    expect(save).toHaveBeenLastCalledWith('y', 7);
+    expect(save).toHaveBeenLastCalledWith('y', 7, expect.anything());
+  });
+});
+
+describe('useAutosave: permanent errors, explicit saves, keepalive', () => {
+  it('4xx (other than 408/429) is terminal: no automatic retry, edits kept, manual retry works', async () => {
+    const save = vi.fn().mockRejectedValueOnce(new HttpError(400, { error: 'invalid' })).mockResolvedValue({ revision: 2 });
+    const { result } = renderHook(() => useAutosave(save, 100, 1));
+    act(() => result.current.change('x')); await tick(100);
+    expect(result.current.status).toBe('error');
+    expect(result.current.errorKind).toBe('rejected');
+    await tick(120_000);
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(result.current.dirty).toBe(true);
+    await act(async () => { await result.current.flush(); });
+    expect(save).toHaveBeenCalledTimes(2);
+    expect(result.current.status).toBe('saved');
+  });
+
+  it.each([408, 429, 500])('%i is retried with backoff', async (code) => {
+    const save = vi.fn().mockRejectedValueOnce(new HttpError(code, null)).mockResolvedValue({ revision: 2 });
+    const { result } = renderHook(() => useAutosave(save, 100, 1));
+    act(() => result.current.change('x')); await tick(100);
+    expect(result.current.errorKind).toBe('retrying');
+    await tick(2000);
+    expect(save).toHaveBeenCalledTimes(2);
+  });
+
+  it('debounced saves are autosaves; flush({explicit:true}) marks a checkpoint and saves even when clean', async () => {
+    const save = vi.fn(async () => ({ revision: 2 }));
+    const { result } = renderHook(() => useAutosave(save, 100, 1));
+    act(() => result.current.change('x')); await tick(100);
+    expect(save).toHaveBeenLastCalledWith('x', 1, { explicit: false, keepalive: false });
+    await act(async () => { await result.current.flush({ explicit: true }); });
+    expect(save).toHaveBeenCalledTimes(2);
+    expect(save).toHaveBeenLastCalledWith('x', 2, { explicit: true, keepalive: false });
+  });
+
+  it('the beforeunload flush uses keepalive', async () => {
+    const save = vi.fn(async () => ({ revision: 2 }));
+    const { result } = renderHook(() => useAutosave(save, 1500, 1));
+    act(() => result.current.change('x'));
+    window.dispatchEvent(new Event('beforeunload', { cancelable: true }));
+    expect(save).toHaveBeenCalledWith('x', 1, { explicit: false, keepalive: true });
   });
 });

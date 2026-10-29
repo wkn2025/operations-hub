@@ -71,6 +71,8 @@
   .ed-content p.is-empty::before, .ed-content h2.is-empty::before, .ed-content h3.is-empty::before {
     content: attr(data-placeholder); float: left; height: 0; pointer-events: none; color: var(--neutral-400);
   }
+  /* image without a description: flagged until the author adds alt text (image bubble) */
+  .ed-content img[alt=""] { outline: 2px dashed color-mix(in srgb, var(--color-warning) 55%, transparent); outline-offset: 3px; }
   .ed-content .ProseMirror-selectednode { outline: 2px solid var(--color-primary); outline-offset: 3px; border-radius: 10px; }
   .ed-content img { display: block; max-width: 100%; height: auto; border-radius: 16px; box-shadow: var(--shadow-md); border: 1px solid var(--neutral-200); margin-top: 1.75em; }
   .ed-content pre { font-family: var(--font-mono); font-size: 13.5px; line-height: 1.6; background: var(--neutral-50); border: 1px solid var(--neutral-200); border-radius: 14px; padding: 14px 16px; overflow-x: auto; }

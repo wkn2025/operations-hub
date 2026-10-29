@@ -21,9 +21,7 @@ declare module '@tiptap/core' {
   }
 }
 
-const altOf = (name: string) => name.replace(/\.[a-z0-9]+$/i, '').replace(/[-_]+/g, ' ').trim();
-
-/** Upload images to /api/files, then insert `image` {src:'/api/files/<id>', alt}. Nothing is inserted if the server rejects the file. */
+/** Upload images to /api/files, then insert `image` {src:'/api/files/<id>', alt:''}; the editor flags the missing description. Nothing is inserted if the server rejects the file. */
 async function uploadAndInsert(editor: Editor, files: File[], pos: number, o: ImageUploadOptions) {
   o.onBusy(true);
   try {
@@ -33,7 +31,7 @@ async function uploadAndInsert(editor: Editor, files: File[], pos: number, o: Im
         if (editor.isDestroyed) return;
         // ponytail: insert at the original position clamped to the doc; edits elsewhere during upload may shift it slightly
         const at = Math.min(pos, editor.state.doc.content.size);
-        editor.chain().insertContentAt(at, { type: 'image', attrs: { src: `/api/files/${f.id}`, alt: altOf(file.name) } }).run();
+        editor.chain().insertContentAt(at, { type: 'image', attrs: { src: `/api/files/${f.id}`, alt: '' } }).run();
       } catch (e) { o.onError(e, file); }
     }
   } finally { o.onBusy(false); }
@@ -59,7 +57,9 @@ export const ImageUpload = Extension.create<ImageUploadOptions>({
       props: {
         handlePaste(view, event) {
           const files = Array.from(event.clipboardData?.files ?? []);
-          if (!files.length) return false;
+          // Copying from Word/browsers puts text AND an image rendering on the clipboard: keep the text.
+          const types = Array.from(event.clipboardData?.types ?? []);
+          if (!files.length || types.includes('text/html') || types.includes('text/plain')) return false;
           event.preventDefault();
           const imgs = images(files);
           if (imgs.length) void uploadAndInsert(editor, imgs, view.state.selection.from, o);

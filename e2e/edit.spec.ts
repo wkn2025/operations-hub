@@ -35,7 +35,11 @@ test('editor creates an article from a template with an image and an internal li
   // image upload via the hidden file input behind the toolbar button
   await page.locator('input[aria-label="Upload image"]').setInputFiles({ name: 'claim-screen.png', mimeType: 'image/png', buffer: PNG });
   await expect(body.locator('img[src^="/api/files/"]')).toHaveCount(1);
-  await expect(body.locator('img')).toHaveAttribute('alt', 'claim screen');
+  await expect(body.locator('img')).toHaveAttribute('alt', ''); // flagged as missing until described
+  await body.locator('img').click();
+  await expect(page.getByText(/No description yet/)).toBeVisible();
+  await page.getByLabel('Image description').fill('Claim screen in Globo');
+  await expect(body.locator('img')).toHaveAttribute('alt', 'Claim screen in Globo');
 
   // template field
   await page.getByLabel('Purpose').fill('Prove that editing persists.');
@@ -47,6 +51,7 @@ test('editor creates an article from a template with an image and an internal li
   await expect(after).toContainText('Written by the end-to-end test.');
   await expect(after.locator('img[src^="/api/files/"]')).toHaveCount(1);
   await expect(after.locator('[data-internal-link]')).toHaveText(/Northwind Travel Insurance/);
+  await expect(after.locator('img')).toHaveAttribute('alt', 'Claim screen in Globo');
   await expect(page.getByLabel('Purpose')).toHaveValue('Prove that editing persists.');
 
   // the uploaded image is actually served
@@ -55,12 +60,17 @@ test('editor creates an article from a template with an image and an internal li
   expect(img.status()).toBe(200);
   expect(img.headers()['content-type']).toBe('image/png');
 
-  // edit again
+  // two explicit checkpoints (Ctrl+S) with an edit in between
   await after.click();
   await page.keyboard.press('Control+End');
   await page.keyboard.press('Enter');
-  await page.keyboard.type('Second edit.');
+  await page.keyboard.type('Checkpoint A.');
+  await page.keyboard.press('Control+S');
   await saved(page);
+  await page.keyboard.type(' Checkpoint B.');
+  await page.keyboard.press('Control+S');
+  await saved(page);
+  await expect(after).toContainText('Checkpoint A. Checkpoint B.');
 
   // preview renders the work-instruction template
   await page.getByRole('button', { name: 'Preview' }).click();
@@ -68,12 +78,23 @@ test('editor creates an article from a template with an image and an internal li
   await expect(page.locator('[data-template=work_instruction]').getByRole('link', { name: /Northwind Travel Insurance/ })).toBeVisible();
   await page.getByRole('button', { name: 'Preview' }).click();
 
-  // version history
+  // version history: >= 2 revisions; open the checkpoint before B read-only, then restore it
   await page.getByRole('button', { name: 'History' }).click();
-  await expect(page.getByRole('button', { name: /View revision 1$/ })).toBeVisible();
-  await page.getByRole('button', { name: /View revision 1$/ }).click();
-  await expect(page.getByRole('dialog').getByRole('heading', { name: 'Revision 1' })).toBeVisible();
-  await page.keyboard.press('Escape');
+  const items = page.getByRole('button', { name: /^View revision \d+$/ });
+  await expect(items.nth(1)).toBeVisible();
+  expect(await items.count()).toBeGreaterThanOrEqual(2);
+  await items.nth(1).click(); // newest first: [B checkpoint, A checkpoint, ...]
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toContainText('Checkpoint A.');
+  await expect(dialog).not.toContainText('Checkpoint B.');
+  await expect(dialog.locator('[contenteditable=true]')).toHaveCount(0); // read-only rendering
+  await dialog.getByRole('button', { name: 'Restore this version' }).click();
+  await dialog.getByRole('button', { name: /^Restore revision \d+$/ }).click();
+  await expect(page.getByRole('status')).toContainText(/Restored/);
+  await expect(after).toContainText('Checkpoint A.');
+  await expect(after).not.toContainText('Checkpoint B.');
+  await page.reload();
+  await expect(page.getByRole('textbox', { name: 'Article text' })).not.toContainText('Checkpoint B.');
 
   // the article page shows the saved draft to editors
   await page.goto('/');
@@ -85,4 +106,25 @@ test('viewers cannot open the editor', async ({ page }) => {
   await loginAs(page, 'viewer@demo.test');
   await page.goto('/edit/new');
   await expect(page.getByText(/only editors and admins/i)).toBeVisible();
+});
+
+test('keyboard: Alt+F10 reaches the formatting toolbar, arrows rove, Escape returns to the text', async ({ page }) => {
+  await loginAs(page, 'editor@demo.test');
+  await page.goto('/edit/new?type=standard');
+  await page.getByLabel('Article title').fill('Keyboard check');
+  const body = page.getByRole('textbox', { name: 'Article text' });
+  await body.click();
+  await page.keyboard.type('format me');
+  await page.keyboard.press('Shift+Home');
+  await page.keyboard.press('Alt+F10');
+  const bar = page.getByRole('toolbar', { name: 'Formatting' });
+  await expect(bar.getByRole('button', { name: 'Bold' })).toBeFocused();
+  await page.keyboard.press('ArrowRight');
+  await expect(bar.getByRole('button', { name: 'Italic' })).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(body.locator('em')).toHaveText('format me');
+  await page.keyboard.press('Escape');
+  await expect(body).toBeFocused();
+  await page.keyboard.press('Control+Shift+K');
+  await expect(page.getByRole('combobox', { name: 'Link to an article' })).toBeVisible();
 });
