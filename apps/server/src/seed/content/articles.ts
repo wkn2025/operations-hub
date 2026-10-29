@@ -1,8 +1,14 @@
 import type { ArticleType, PmNode, TemplateFields } from '@ops/shared';
 import { a, b, callout, code, collapsible, demo, h, hl, i, ol, p, pre, ref, shot, steps, table, tasks, ul } from './pm';
+import { EDI_ARTICLES } from './articles-edi';
+import { CLIENT_ARTICLES } from './articles-clients';
+import { CLAIMS_ARTICLES } from './articles-claims';
+import { NETWORK_FINANCE_ARTICLES } from './articles-network-finance';
+import { SYSTEMS_ARTICLES } from './articles-systems';
+import { GLOSSARY_ARTICLES } from './articles-glossary';
 
 /**
- * Seed article definitions. Extension point for Task 9: append more entries (or more files) to SEED_ARTICLES.
+ * Seed article definitions. Extension point: add entries to a domain file (articles-*.ts) or a new file listed in SEED_ARTICLES.
  * Key = title (slug is derived from it). `category` is "Top / Sub". Internal links use ref(title).
  */
 export interface SeedArticle {
@@ -21,7 +27,7 @@ const invoiceWi = 'Register an incoming provider invoice';
 const gop = 'GOP (Guarantee of Payment)';
 const ack999 = '999 Implementation Acknowledgement';
 
-export const SEED_ARTICLES: SeedArticle[] = [
+const CORE_ARTICLES: SeedArticle[] = [
   {
     title: ediTech,
     type: 'technical',
@@ -237,4 +243,9 @@ export const SEED_ARTICLES: SeedArticle[] = [
       demo(),
     ],
   },
+];
+
+export const SEED_ARTICLES: SeedArticle[] = [
+  ...CORE_ARTICLES, ...EDI_ARTICLES, ...CLIENT_ARTICLES, ...CLAIMS_ARTICLES,
+  ...NETWORK_FINANCE_ARTICLES, ...SYSTEMS_ARTICLES, ...GLOSSARY_ARTICLES,
 ];

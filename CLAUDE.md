@@ -73,4 +73,4 @@ Premium Apple-like white UI: primary `#26408F`, accent `#C7CD3D` sparingly, back
 
 ## Known open items (details in HANDOFF.md)
 
-Web `npm test` exit-1 from jsdom `getClientRects` (fix in progress via `apps/web/src/test/setup.ts`); `npm audit` highs; secure-cookie flag should also follow `AUTH_MODE=oidc`; seed has only 9 of ≥30 articles. Check HANDOFF.md for current status — this list may be stale.
+Web `npm test` exit-1 from jsdom `getClientRects` (fix in progress via `apps/web/src/test/setup.ts`); `npm audit` highs; secure-cookie flag should also follow `AUTH_MODE=oidc`. Check HANDOFF.md for current status — this list may be stale.

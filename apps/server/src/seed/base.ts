@@ -11,6 +11,10 @@ import { storeFile } from '../services/files';
 import { DEMO_USERS } from '../auth/dev';
 import { SEED_ARTICLES } from './content/articles';
 import { ediMonitorSvg } from './screenshots/edi-monitor.svg';
+import { globoCaseSvg } from './screenshots/globo-case.svg';
+import { ecnetPaymentRunSvg } from './screenshots/ecnet-payment-run.svg';
+import { macroHealthPortalSvg } from './screenshots/macrohealth-portal.svg';
+import { claimLifecycleSvg } from './screenshots/claim-lifecycle.svg';
 
 /** The nine top-level categories (exact names from the plan) with their demo subcategories. */
 export const CATEGORY_TREE: { name: string; description: string; children: string[] }[] = [
@@ -27,6 +31,10 @@ export const CATEGORY_TREE: { name: string; description: string; children: strin
 
 const SEED_FILES: Record<string, { mime: string; data: () => Buffer }> = {
   'edi-monitor.svg': { mime: 'image/svg+xml', data: () => Buffer.from(ediMonitorSvg, 'utf8') },
+  'globo-case.svg': { mime: 'image/svg+xml', data: () => Buffer.from(globoCaseSvg, 'utf8') },
+  'ecnet-payment-run.svg': { mime: 'image/svg+xml', data: () => Buffer.from(ecnetPaymentRunSvg, 'utf8') },
+  'macrohealth-portal.svg': { mime: 'image/svg+xml', data: () => Buffer.from(macroHealthPortalSvg, 'utf8') },
+  'claim-lifecycle.svg': { mime: 'image/svg+xml', data: () => Buffer.from(claimLifecycleSvg, 'utf8') },
 };
 
 type App = FastifyInstance;
@@ -112,6 +120,9 @@ export async function seedBase(app: App) {
   }
   seedFlows(app, byRole.admin);
 }
+
+/** Plan name for the full demo seed (Task 9); same function. */
+export const seedDemo = seedBase;
 
 /** Idempotent: flows are matched by slug; article nodes name a seeded article by slug. */
 function seedFlows(app: App, admin: User) {
