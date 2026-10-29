@@ -1,0 +1,1 @@
+ALTER TABLE `revisions` ADD `coalescable` integer DEFAULT false NOT NULL;

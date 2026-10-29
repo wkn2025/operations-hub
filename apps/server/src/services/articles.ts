@@ -196,14 +196,18 @@ export function createArticle(s: Svc, user: User, b: { title: string; type?: Art
 
 export function updateArticle(s: Svc, user: User, id: string, b: {
   baseRevision: number; title?: string; type?: ArticleRow['type']; categoryId?: string | null; content?: unknown;
-  fields?: Record<string, unknown>; tags?: string[]; reviewDate?: string | null; note?: string; related?: string[]; ownerId?: string;
+  fields?: Record<string, unknown>; tags?: string[]; reviewDate?: string | null; note?: string; related?: string[]; ownerId?: string; autosave?: boolean;
 }) {
   return s.sqlite.transaction(() => {
     const cur = readable(s, user, id);
     if (!cur) throw notFound();
     if (!can(user, 'article:write', { status: cur.status, ownerId: cur.ownerId ?? undefined }, { requireApproval: requireApproval(s.sqlite) })) throw new ApiError(403, { error: 'forbidden' });
     if (b.categoryId !== undefined && b.categoryId !== cur.categoryId) checkCategory(s, b.categoryId);
-    if (b.ownerId !== undefined && b.ownerId !== cur.ownerId) checkOwner(s, b.ownerId);
+    const ownerChange = b.ownerId !== undefined && b.ownerId !== cur.ownerId;
+    if (ownerChange) {
+      if (user.role !== 'admin' && cur.ownerId !== user.id) throw new ApiError(403, { error: 'forbidden', message: 'only the owner or an admin can reassign an article' });
+      checkOwner(s, b.ownerId!);
+    }
     if (cur.revision !== b.baseRevision) throw new ApiError(409, { error: 'conflict', current: { revision: cur.revision, updatedAt: cur.updatedAt } });
     const now = new Date().toISOString(), title = b.title ?? cur.title;
     const content = b.content !== undefined ? JSON.stringify(b.content) : cur.content;
@@ -216,7 +220,19 @@ export function updateArticle(s: Svc, user: User, id: string, b: {
       slug: !cur.publishedAt && title !== cur.title ? uniqueSlug(s.sqlite, 'articles', title, id) : cur.slug, // stable once published
       ownerId: b.ownerId ?? cur.ownerId, revision: rev, updatedAt: now,
     }).where(eq(articles.id, id)).run();
-    s.db.insert(revisions).values({ articleId: id, rev, title, content, fields, authorId: user.id, createdAt: now, note: b.note ?? null }).run();
+    // Autosave coalescing: articles.revision is the concurrency counter (always +1, baseRevision semantics unchanged).
+    // The author's open autosave revision is renumbered to `rev` and overwritten, so revision numbers can have gaps.
+    const open = b.autosave && (cur.status === 'draft' || cur.status === 'in_review')
+      ? s.db.select().from(revisions).where(and(eq(revisions.articleId, id), eq(revisions.rev, cur.revision))).get() : undefined;
+    if (open && open.coalescable && open.authorId === user.id && open.note === null && b.note === undefined && Date.now() - Date.parse(open.createdAt) < COALESCE_MS) {
+      s.db.update(revisions).set({ rev, title, content, fields }).where(eq(revisions.id, open.id)).run();
+    } else {
+      s.db.insert(revisions).values({ articleId: id, rev, title, content, fields, authorId: user.id, createdAt: now, note: b.note ?? null, coalescable: !!b.autosave }).run();
+    }
+    if (ownerChange) {
+      const name = (uid: string | null) => (uid ? s.db.select({ n: users.name }).from(users).where(eq(users.id, uid)).get()?.n : null) ?? 'nobody';
+      audit(s.db, { actorId: user.id, action: 'article.owner_change', entity: 'article', entityId: id, summary: `Owner of "${title}" changed from ${name(cur.ownerId)} to ${name(b.ownerId!)}` });
+    }
     if (b.tags) setTags(s.sqlite, id, b.tags);
     if (b.related) setRelated(s, id, b.related);
     if (b.content !== undefined) { syncLinks(s, id, b.content); syncFiles(s, id, b.content); }
@@ -225,6 +241,9 @@ export function updateArticle(s: Svc, user: User, id: string, b: {
     return id;
   })();
 }
+
+/** Autosaves by the same author within this window update one revision instead of adding rows. */
+export const COALESCE_MS = 10 * 60_000;
 
 const TRANSITIONS = {
   submit: { from: ['draft'], to: 'in_review' },
@@ -244,6 +263,9 @@ export function transition(s: Svc, user: User, id: string, action: Transition) {
     if (!(t.from as readonly string[]).includes(cur.status)) throw new ApiError(409, { error: 'invalid_transition', status: cur.status });
     const now = new Date().toISOString();
     s.db.update(articles).set({ status: t.to, updatedAt: now, publishedAt: action === 'publish' ? (cur.publishedAt ?? now) : cur.publishedAt }).where(eq(articles.id, id)).run();
+    // seal the latest revision: it is the state at this transition, later autosaves start a new one
+    const label = { submit: 'submitted for review', publish: 'published', archive: 'archived', restore: 'restored to draft' }[action];
+    s.sqlite.prepare('update revisions set coalescable = 0, note = coalesce(note, ?) where article_id = ? and rev = ?').run(label, id, cur.revision);
     indexArticle(s.sqlite, id);
     audit(s.db, { actorId: user.id, action: `article.${action}`, entity: 'article', entityId: id, summary: `${action}: "${cur.title}" ${cur.status} -> ${t.to}` });
     return id;

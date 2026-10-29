@@ -74,7 +74,7 @@ describe('tags and owners lists', () => {
     expect(ok.body.owner.id).toBe(ed2.id);
     const viewerId = (c.app.sqlite.prepare("select id from users where email='v@x.test'").get() as { id: string }).id;
     for (const bad of [viewerId, 'missing']) {
-      const r = await c.req(c.editor, 'PATCH', `/api/articles/${a.id}`, { baseRevision: ok.body.revision, ownerId: bad });
+      const r = await c.req(c.admin, 'PATCH', `/api/articles/${a.id}`, { baseRevision: ok.body.revision, ownerId: bad }); // admin: only validity is under test
       expect(r.status).toBe(400);
     }
   });

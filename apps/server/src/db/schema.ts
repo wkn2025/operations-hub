@@ -60,6 +60,8 @@ export const revisions = sqliteTable('revisions', {
   authorId: text('author_id').references(() => users.id),
   createdAt: ts('created_at'),
   note: text('note'),
+  // open autosave revision: later autosaves by the same author within 10 min update this row (see updateArticle)
+  coalescable: integer('coalescable', { mode: 'boolean' }).notNull().default(false),
 }, (t) => [unique('revisions_article_rev').on(t.articleId, t.rev)]);
 
 export const tags = sqliteTable('tags', {

@@ -29,6 +29,13 @@
       "when": 1793253587030,
       "tag": "0003_article_files_source",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1793271368109,
+      "tag": "0004_revisions_coalescable",
+      "breakpoints": true
     }
   ]
 }
