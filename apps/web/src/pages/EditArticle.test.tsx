@@ -83,6 +83,51 @@ describe('EditArticle', () => {
     expect(bodies).toHaveLength(3); // no automatic retry
   }, 15000);
 
+  // PATCH interceptor: records bodies, answers with `respond(body, n)`
+  const intercept = (respond: (b: any, n: number) => Response) => {
+    const bodies: any[] = [];
+    const f = globalThis.fetch as unknown as { mockImplementation: Function; getMockImplementation: () => Function };
+    const base = f.getMockImplementation();
+    f.mockImplementation(async (input: string, init?: RequestInit) => {
+      if (init?.method !== 'PATCH') return base(input, init);
+      const b = JSON.parse(String(init.body)); bodies.push(b);
+      return respond(b, bodies.length);
+    });
+    return bodies;
+  };
+  const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+
+  it('an over-limit field shows a field message; the save keeps the stored value for it and still saves the rest', async () => {
+    const wi = { ...article, type: 'work_instruction', fields: { purpose: 'stored purpose' } };
+    mockFetch({ '/api/me': me('editor'), ...common, '/api/articles/a1': wi });
+    const bodies = intercept((b, n) => json({ ...wi, title: b.title, revision: 3 + n }));
+    page('/edit/a1');
+    const purpose = await screen.findByLabelText('Purpose');
+    expect(purpose).toHaveAttribute('maxLength', '2000');
+    fireEvent.change(purpose, { target: { value: 'x'.repeat(2001) } });
+    fireEvent.change(screen.getByLabelText('Article title'), { target: { value: 'Body still saves' } });
+    expect(screen.getByText(/keep it under 2,000 characters/i)).toBeInTheDocument();
+    expect(screen.getByText('2,001 / 2,000')).toBeInTheDocument();
+    await waitFor(() => expect(bodies.length).toBeGreaterThan(0), { timeout: 4000 });
+    expect(bodies.at(-1).title).toBe('Body still saves');
+    expect(bodies.at(-1).fields.purpose).toBe('stored purpose');
+  });
+
+  it('a 400 naming a field: retries without that field, warns which one, body edits are saved', async () => {
+    mockFetch({ '/api/me': me('editor'), ...common, '/api/articles/a1': { ...article, fields: { scope: 'old scope' } } });
+    const bodies = intercept((b, n) => n === 1
+      ? json({ error: 'invalid', issues: [{ path: 'fields.summary', message: 'Keep it under 2,000 characters' }] }, 400)
+      : json({ ...article, title: b.title, fields: b.fields, revision: 3 + n }));
+    page('/edit/a1');
+    fireEvent.change(await screen.findByLabelText('Summary'), { target: { value: 'server says no' } });
+    fireEvent.change(screen.getByLabelText('Article title'), { target: { value: 'Saved anyway' } });
+    await waitFor(() => expect(bodies).toHaveLength(2), { timeout: 4000 });
+    expect(bodies[1].title).toBe('Saved anyway');
+    expect(bodies[1].fields.summary).toBeUndefined(); // stored value (none) kept
+    expect(bodies[1].fields.scope).toBe('old scope');
+    expect(await screen.findByText(/Summary wasn’t saved: Keep it under 2,000 characters/)).toBeInTheDocument();
+  });
+
   it('shows only actions the server allows', async () => {
     mockFetch({ '/api/me': me('editor'), ...common, '/api/articles/a1': { ...article, permissions: { write: true, publish: false, submit: true, archive: true } } });
     page('/edit/a1');

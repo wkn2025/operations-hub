@@ -22,7 +22,7 @@ export function SearchProvider({ children }: { children: ReactNode }) {
   const openWith = useCallback((q: string) => { setInitial(q); setOpenRaw(true); }, []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key.toLowerCase() === 'k' && (e.metaKey || e.ctrlKey) && !e.altKey) { e.preventDefault(); setInitial(''); setOpenRaw((o) => !o); }
+      if (e.key.toLowerCase() === 'k' && (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey) { e.preventDefault(); setInitial(''); setOpenRaw((o) => !o); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);

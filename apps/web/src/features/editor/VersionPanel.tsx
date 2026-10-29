@@ -10,7 +10,8 @@ import { Button } from '../../components/ui/primitives';
 import { ErrorState } from '../../components/ui/ErrorState';
 import { fmtDate, textOf } from '../../lib/text';
 
-interface RevisionRow { id: number; rev: number; title: string; authorId: string | null; createdAt: string; note: string | null }
+/** coalescable = the author's open autosave revision: later autosaves (same author, <10 min) overwrite it in place */
+interface RevisionRow { id: number; rev: number; title: string; authorId: string | null; createdAt: string; note: string | null; coalescable?: boolean }
 interface RevisionFull { rev: number; title: string; content: PmNode; fields: Record<string, unknown> }
 type Snap = { title: string; content: PmNode };
 
@@ -32,7 +33,7 @@ export function VersionPanel({ articleId, current, currentRevision, beforeRestor
   articleId: string; current: Snap; currentRevision: number; beforeRestore: () => Promise<void>; onRestored: (a: Article) => void; canRestore: boolean;
 }) {
   const list = useQuery({
-    queryKey: ['revisions', articleId, currentRevision],
+    queryKey: ['revisions', articleId, currentRevision], // refetch after every save (the counter, not a row number)
     queryFn: () => api<{ revisions: RevisionRow[] }>(`/api/articles/${articleId}/revisions`).then((r) => r.revisions),
   });
   const [viewing, setViewing] = useState<number | null>(null);
@@ -40,31 +41,32 @@ export function VersionPanel({ articleId, current, currentRevision, beforeRestor
   if (list.isError) return <div className="p-5"><ErrorState compact title="Couldn’t load the history" onRetry={() => list.refetch()} retrying={list.isFetching} /></div>;
   return (
     <div className="px-3 py-3">
-      <p className="px-2 pb-2 text-xs text-ink-muted">Every save creates a revision. Restoring one saves it as a new revision, so nothing is lost.</p>
+      <p className="px-2 pb-2 text-xs text-ink-muted">Autosaves are collected into one draft revision per 10 minutes; Ctrl+S, publishing and review steps keep a fixed checkpoint. Restoring one saves it as a new revision, so nothing is lost.</p>
       <ol className="relative">
-        {(list.data ?? []).map((r, i) => (
+        {(list.data ?? []).map((r, i) => { const isLatest = i === 0; return (
           <li key={r.rev} className="relative">
             <button type="button" aria-label={`View revision ${r.rev}`} onClick={() => setViewing(r.rev)}
               className="group flex w-full items-start gap-3 rounded-[12px] px-2 py-2.5 text-left transition-colors hover:bg-neutral-50">
               <span className="relative flex w-3 shrink-0 justify-center pt-1.5">
-                <span className={clsx('h-2 w-2 rounded-full ring-4 ring-white', r.rev === currentRevision ? 'bg-accent' : 'bg-neutral-300 group-hover:bg-primary')} aria-hidden />
+                <span className={clsx('h-2 w-2 rounded-full ring-4 ring-white', isLatest ? 'bg-accent' : 'bg-neutral-300 group-hover:bg-primary')} aria-hidden />
                 {i < (list.data?.length ?? 0) - 1 && <span aria-hidden className="absolute top-4 h-[calc(100%+4px)] w-px bg-neutral-200" />}
               </span>
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-2 text-[13.5px] font-medium text-neutral-900">
                   <span>Revision {r.rev}</span>
-                  {r.rev === currentRevision && <span className="rounded-full bg-accent-soft px-1.5 py-px text-[10.5px] font-semibold text-accent-ink">Current</span>}
+                  {isLatest && <span className="rounded-full bg-accent-soft px-1.5 py-px text-[10.5px] font-semibold text-accent-ink">Current</span>}
                 </span>
                 <span className="block text-xs text-ink-muted tabular">{when(r.createdAt)}</span>
+                {r.coalescable && <span className="mt-0.5 block text-xs text-neutral-600">Autosaved draft (still updating)</span>}
                 {r.note && <span className="mt-0.5 block truncate text-xs text-neutral-600">{r.note}</span>}
               </span>
             </button>
           </li>
-        ))}
+        ); })}
         {list.isPending && <li className="px-2 py-3 text-sm text-ink-muted">Loading history…</li>}
       </ol>
       {viewing !== null && (
-        <RevisionDialog articleId={articleId} rev={viewing} current={current} isCurrent={viewing === currentRevision} canRestore={canRestore}
+        <RevisionDialog articleId={articleId} rev={viewing} current={current} isCurrent={viewing === list.data?.[0]?.rev} canRestore={canRestore}
           onClose={() => setViewing(null)}
           onRestore={async () => {
             await beforeRestore();

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SearchDialog, SearchProvider } from './SearchDialog';
 import { renderApp, mockFetch } from '../../test/utils';
@@ -31,6 +31,15 @@ describe('SearchDialog', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     await userEvent.keyboard('{Meta>}k{/Meta}');
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
+  });
+
+  it('ignores Ctrl/Cmd+Shift+K and Ctrl/Cmd+Alt+K (editor shortcuts)', async () => {
+    setup();
+    for (const init of [{ key: 'K', ctrlKey: true, shiftKey: true }, { key: 'K', metaKey: true, shiftKey: true }, { key: 'k', ctrlKey: true, altKey: true }]) {
+      fireEvent.keyDown(window, init); // one press each: a toggle would hide a second one
+      await new Promise((r) => setTimeout(r, 30));
+      expect(screen.queryByRole('dialog'), JSON.stringify(init)).toBeNull();
+    }
   });
 
   it('queries the API, groups results and highlights <mark> safely', async () => {

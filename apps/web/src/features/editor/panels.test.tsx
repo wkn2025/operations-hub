@@ -101,6 +101,19 @@ describe('VersionPanel', () => {
     expect(fetchFn.mock.calls.some(([u, i]) => u === '/api/articles/a/revisions/2/restore' && (i as RequestInit)?.method === 'POST')).toBe(true);
   });
 
+  it('marks the newest row as current and an open autosave row as "Autosaved draft" even when the counter is ahead', async () => {
+    mockFetch({ '/api/articles/a/revisions': { revisions: [
+      { id: 9, articleId: 'a', rev: 4, title: 'T', authorId: 'u', createdAt: '2026-10-29T10:00:00Z', note: null, coalescable: true },
+      { id: 8, articleId: 'a', rev: 3, title: 'T', authorId: 'u', createdAt: '2026-10-29T09:00:00Z', note: null, coalescable: false },
+    ] } });
+    renderApp(<VersionPanel articleId="a" current={{ title: 'T', content: { type: 'doc', content: [] } }} currentRevision={11} beforeRestore={async () => {}} onRestored={() => {}} canRestore />);
+    const newest = (await screen.findByRole('button', { name: 'View revision 4' }));
+    expect(newest).toHaveTextContent('Autosaved draft');
+    expect(newest).toHaveTextContent('Current');
+    expect(screen.getByRole('button', { name: 'View revision 3' })).not.toHaveTextContent('Current');
+    expect(screen.queryByText(/every save creates a revision/i)).toBeNull();
+  });
+
   it('diffSummary counts words and changed blocks', () => {
     const para = (s: string) => ({ type: 'paragraph', content: [{ type: 'text', text: s }] });
     const d = diffSummary({ title: 'A', content: { type: 'doc', content: [para('one two'), para('same')] } }, { title: 'B', content: { type: 'doc', content: [para('one two three four'), para('same')] } });

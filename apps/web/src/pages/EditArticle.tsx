@@ -4,14 +4,14 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Menu from '@radix-ui/react-dropdown-menu';
 import clsx from 'clsx';
 import { Archive, ArchiveRestore, ArrowLeft, Check, Copy, Eye, History, MoreHorizontal, PenLine, RefreshCw, Send, ShieldAlert, SlidersHorizontal, TriangleAlert, Upload } from 'lucide-react';
-import type { ArticleType } from '@ops/shared';
+import type { ArticleType, TemplateFields } from '@ops/shared';
 import { api, HttpError, isEditorRole, useCategories, useSession, type Article } from '../api/client';
 import { Button, IconTile, StatusBadge } from '../components/ui/primitives';
 import { ErrorState } from '../components/ui/ErrorState';
 import { NotFound } from './NotFound';
 import { ArticleTemplate } from '../features/articles/templates';
 import { ArticleEditor, useArticleEditor } from '../features/editor/ArticleEditor';
-import { MetaPanel, uploadMessage, validateMeta, type Draft } from '../features/editor/MetaPanel';
+import { FIELD_LABELS, MetaPanel, uploadMessage, validateMeta, type Draft } from '../features/editor/MetaPanel';
 import { VersionPanel } from '../features/editor/VersionPanel';
 import { STARTER, TemplatePicker } from '../features/editor/TemplatePicker';
 import { useAutosave, type SaveStatus } from '../features/editor/useAutosave';
@@ -21,15 +21,48 @@ const fromArticle = (a: Article): Draft => ({
   related: (a.related ?? []).map((r) => ({ id: r.id, title: r.title })), ownerId: a.owner?.id ?? null,
 });
 
-/** Save body for the API. Fields failing validation are left out so the rest still saves (the server keeps the old value). */
-function payload(d: Draft) {
+type Body = Record<string, unknown> & { fields: TemplateFields };
+
+/** `fields` with the given keys put back to their last saved value (or removed if never saved). */
+const keepSaved = (fields: TemplateFields, keys: string[], saved: TemplateFields): TemplateFields => {
+  const out: Record<string, unknown> = { ...fields };
+  for (const k of keys) { if (k in saved) out[k] = (saved as Record<string, unknown>)[k]; else delete out[k]; }
+  return out as TemplateFields;
+};
+
+/**
+ * Save body for the API. Never lets one invalid field block the body: an invalid template field keeps its last saved
+ * value (the inline error stays until fixed); an invalid title/tags is left out (the server keeps the old value).
+ */
+function payload(d: Draft, saved: TemplateFields): Body {
   const e = validateMeta(d);
+  const badFields = Object.keys(e).filter((k) => k !== 'title' && k !== 'tags');
   return {
     ...(e.title ? {} : { title: d.title.trim() }), type: d.type, categoryId: d.categoryId, content: d.content,
-    ...(e.validTo || e.keyLimits ? {} : { fields: d.fields }), ...(e.tags ? {} : { tags: d.tags }),
+    fields: keepSaved(d.fields, badFields, saved), ...(e.tags ? {} : { tags: d.tags }),
     reviewDate: d.reviewDate, related: d.related.map((r) => r.id), ...(d.ownerId ? { ownerId: d.ownerId } : {}),
   };
 }
+
+type Issue = { path: string; message: string };
+/** Server 400 naming fields: the same body without them, or null when the problem is the content itself. */
+function withoutIssues(body: Body, issues: Issue[], saved: TemplateFields): Body | null {
+  const out: Body = { ...body };
+  const fieldKeys: string[] = [];
+  for (const i of issues) {
+    const [top, key] = i.path.split('.');
+    if (top === 'fields' && key) fieldKeys.push(key);
+    else if (top === 'fields') out.fields = saved;
+    else if (top && top !== 'content' && top !== 'baseRevision' && top in out) delete out[top];
+    else return null;
+  }
+  out.fields = keepSaved(out.fields, fieldKeys, saved);
+  return out;
+}
+const issueText = (issues: Issue[]) => issues.map((i) => {
+  const [top, key] = i.path.split('.');
+  return `${FIELD_LABELS[top === 'fields' && key ? key : top ?? ''] ?? i.path} wasn’t saved: ${i.message}`;
+}).join('. ');
 
 /** /edit/:id (id or "new"). Editors and admins only; the server enforces the same on every request. */
 export function EditArticle() {
@@ -102,18 +135,28 @@ function Workspace({ initialDraft, initialArticle, onCreated }: { initialDraft: 
     qc.setQueryData(['article', a.id], a);
   };
 
+  const savedFields = useRef<TemplateFields>(initialArticle?.fields ?? {});
   const autosave = useAutosave<Draft>(async (d, base, o) => {
+    const send = (body: Body) => idRef.current
+      // autosave:true lets the server merge background saves into one revision; Ctrl+S (explicit) cuts a checkpoint
+      ? api<Article>(`/api/articles/${idRef.current}`, { method: 'PATCH', keepalive: o.keepalive, json: { ...body, baseRevision: base, autosave: !o.explicit } })
+      : api<Article>('/api/articles', { method: 'POST', json: { ...body, title: (body.title as string) || 'Untitled draft', ownerId: undefined } });
+    const body = payload(d, savedFields.current);
     let a: Article;
+    try { a = await send(body); }
+    catch (e) {
+      const issues = e instanceof HttpError && e.status === 400 ? ((e.body as { issues?: Issue[] } | null)?.issues ?? []) : [];
+      const retry = issues.length ? withoutIssues(body, issues, savedFields.current) : null;
+      if (issues.length) setNotice({ tone: 'error', text: `${issueText(issues)}.${retry ? ' Your other changes were saved.' : ''}` });
+      if (!retry) throw e;
+      a = await send(retry); // one bad field never blocks the body
+    }
     if (!idRef.current) {
-      const body = payload(d);
-      a = await api<Article>('/api/articles', { method: 'POST', json: { ...body, title: body.title || 'Untitled draft', ownerId: undefined } });
       idRef.current = a.id;
       onCreated(a.id);
       navigate(`/edit/${a.id}`, { replace: true });
-    } else {
-      // autosave:true lets the server merge background saves into one revision; Ctrl+S (explicit) cuts a checkpoint
-      a = await api<Article>(`/api/articles/${idRef.current}`, { method: 'PATCH', keepalive: o.keepalive, json: { ...payload(d), baseRevision: base, autosave: !o.explicit } });
     }
+    savedFields.current = a.fields ?? {};
     remember(a);
     setLastSaved(new Date());
     return { revision: a.revision };
@@ -140,6 +183,7 @@ function Workspace({ initialDraft, initialArticle, onCreated }: { initialDraft: 
   const adopt = (a: Article) => {
     const d = fromArticle(a);
     draftRef.current = d; setDraftState(d);
+    savedFields.current = a.fields ?? {};
     editor.commands.setContent(a.content as object, false);
     remember(a);
     autosave.reset(a.revision);

@@ -2,7 +2,7 @@ import { useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { Hash, Lock, Paperclip, Plus, Trash2, Upload, X } from 'lucide-react';
-import { ARTICLE_TYPES, TEMPLATE_LABELS, type ArticleType, type PmNode, type TemplateFields } from '@ops/shared';
+import { ARTICLE_TYPES, LIST_ITEM_MAX, TEMPLATE_FIELD_MAX, TEMPLATE_LABELS, type ArticleType, type PmNode, type TemplateFields } from '@ops/shared';
 import { api, HttpError, useCategories, type Category, type FileRef } from '../../api/client';
 import { LinkPicker } from './LinkPicker';
 import { uploadFile } from './extensions/ImageUpload';
@@ -11,7 +11,19 @@ export interface Draft {
   title: string; type: ArticleType; categoryId: string | null; content: PmNode; fields: TemplateFields;
   tags: string[]; reviewDate: string | null; related: { id: string; title: string }[]; ownerId: string | null;
 }
-export type MetaErrors = Partial<Record<'title' | 'tags' | 'validTo' | 'keyLimits', string>>;
+/** Keys: 'title' | 'tags' | 'validTo' | 'keyLimits' | any TEMPLATE_FIELD_MAX field name. */
+export type MetaErrors = Partial<Record<string, string>>;
+type MaxField = keyof typeof TEMPLATE_FIELD_MAX;
+
+/** Labels of template fields, for messages ("Purpose wasn’t saved: …"). */
+export const FIELD_LABELS: Record<string, string> = {
+  summary: 'Summary', purpose: 'Purpose', scope: 'Scope', audience: 'Who uses this', verification: 'How to verify',
+  client: 'Client name', contractRef: 'Contract reference', validFrom: 'Valid from', validTo: 'Valid to', region: 'Territory', keyLimits: 'Key limits',
+  systems: 'Systems', version: 'Version', symptom: 'Symptom', cause: 'Likely cause', fix: 'Quick fix', flowId: 'Guided flow',
+  term: 'Term', acronym: 'Acronym', definition: 'Definition', aliases: 'Also known as', relatedTerms: 'Related terms',
+  title: 'Title', tags: 'Tags', reviewDate: 'Review by', related: 'Related articles', categoryId: 'Category', ownerId: 'Owner', type: 'Template',
+};
+const tooLong = (max: number) => `Keep it under ${max.toLocaleString('en-GB')} characters`;
 
 /** Client-side checks mirroring the server schema; invalid parts are left out of the save so other edits still persist. */
 export function validateMeta(d: Draft): MetaErrors {
@@ -20,10 +32,15 @@ export function validateMeta(d: Draft): MetaErrors {
   else if (d.title.trim().length > 200) e.title = 'Keep the title under 200 characters.';
   if (d.tags.length > 30) e.tags = 'Use at most 30 tags.';
   else if (d.tags.some((t) => t.length > 40)) e.tags = 'Tags can be at most 40 characters.';
+  for (const [k, max] of Object.entries(TEMPLATE_FIELD_MAX)) {
+    const v = d.fields[k as MaxField];
+    if (typeof v === 'string' && v.length > max) e[k] = tooLong(max);
+  }
   if (d.type === 'client_terms') {
     const f = d.fields;
     if (f.validFrom && f.validTo && f.validTo < f.validFrom) e.validTo = 'The end date must be after the start date.';
     if (f.keyLimits?.some((k) => !k.label.trim())) e.keyLimits = 'Every key limit needs a label.';
+    else if (f.keyLimits?.some((k) => k.label.length > LIST_ITEM_MAX || k.value.length > LIST_ITEM_MAX)) e.keyLimits = tooLong(LIST_ITEM_MAX);
   }
   return e;
 }
@@ -53,15 +70,21 @@ function Field({ label, error, hint, children, id }: { label: string; error?: st
   );
 }
 
-function Text({ label, value, onChange, multiline, type = 'text', error, hint, placeholder, disabled }: {
+function Text({ label, value, onChange, multiline, type = 'text', error, hint, placeholder, disabled, max }: {
   label: string; value: string | undefined; onChange: (v: string) => void; multiline?: boolean; type?: string; error?: string; hint?: ReactNode; placeholder?: string; disabled?: boolean;
+  /** shared server limit (TEMPLATE_FIELD_MAX): maxLength + a counter from 80% */
+  max?: number;
 }) {
   const id = useId();
+  const len = (value ?? '').length;
+  const counter = max && len >= max * 0.8
+    ? <span className={clsx('float-right tabular', len > max ? 'font-medium text-danger' : 'text-ink-muted')}>{len.toLocaleString('en-GB')} / {max.toLocaleString('en-GB')}</span> : null;
   return (
     <Field label={label} error={error} hint={hint} id={id}>
       {multiline
-        ? <textarea id={id} rows={3} value={value ?? ''} disabled={disabled} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} className={clsx(inputCls, 'resize-y leading-relaxed')} aria-invalid={!!error} />
-        : <input id={id} type={type} value={value ?? ''} disabled={disabled} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} className={inputCls} aria-invalid={!!error} />}
+        ? <textarea id={id} rows={3} value={value ?? ''} disabled={disabled} placeholder={placeholder} maxLength={max} onChange={(e) => onChange(e.target.value)} className={clsx(inputCls, 'resize-y leading-relaxed')} aria-invalid={!!error} />
+        : <input id={id} type={type} value={value ?? ''} disabled={disabled} placeholder={placeholder} maxLength={max} onChange={(e) => onChange(e.target.value)} className={inputCls} aria-invalid={!!error} />}
+      {counter && <p className="mt-1 text-xs">{counter}&nbsp;</p>}
     </Field>
   );
 }
@@ -157,7 +180,7 @@ export function MetaPanel({ draft, onChange, articleId, slug, published, disable
       </Section>
 
       <Section title={`${TEMPLATE_LABELS[draft.type]} fields`}>
-        <Text label="Summary" multiline value={f.summary} disabled={disabled} onChange={(v) => setF({ summary: v })} placeholder="One sentence shown under the title" />
+        <Text label="Summary" multiline value={f.summary} max={TEMPLATE_FIELD_MAX.summary} error={errors.summary} disabled={disabled} onChange={(v) => setF({ summary: v })} placeholder="One sentence shown under the title" />
         <TemplateFieldsForm draft={draft} setF={setF} errors={errors} disabled={disabled} />
       </Section>
 
@@ -193,36 +216,36 @@ function TemplateFieldsForm({ draft, setF, errors, disabled }: { draft: Draft; s
   const f = draft.fields, d = disabled;
   switch (draft.type) {
     case 'work_instruction': return (<>
-      <Text label="Purpose" multiline value={f.purpose} disabled={d} onChange={(v) => setF({ purpose: v })} placeholder="What this procedure achieves" />
-      <Text label="Scope" multiline value={f.scope} disabled={d} onChange={(v) => setF({ scope: v })} placeholder="What is in and out" />
-      <Text label="Who uses this" value={f.audience} disabled={d} onChange={(v) => setF({ audience: v })} placeholder="e.g. Claims handlers" />
-      <Text label="How to verify" multiline value={f.verification} disabled={d} onChange={(v) => setF({ verification: v })} />
+      <Text label="Purpose" multiline value={f.purpose} max={TEMPLATE_FIELD_MAX.purpose} error={errors.purpose} disabled={d} onChange={(v) => setF({ purpose: v })} placeholder="What this procedure achieves" />
+      <Text label="Scope" multiline value={f.scope} max={TEMPLATE_FIELD_MAX.scope} error={errors.scope} disabled={d} onChange={(v) => setF({ scope: v })} placeholder="What is in and out" />
+      <Text label="Who uses this" value={f.audience} max={TEMPLATE_FIELD_MAX.audience} error={errors.audience} disabled={d} onChange={(v) => setF({ audience: v })} placeholder="e.g. Claims handlers" />
+      <Text label="How to verify" multiline value={f.verification} max={TEMPLATE_FIELD_MAX.verification} error={errors.verification} disabled={d} onChange={(v) => setF({ verification: v })} />
     </>);
     case 'client_terms': return (<>
-      <Text label="Client name" value={f.client} disabled={d} onChange={(v) => setF({ client: v })} placeholder="Fictional client (DEMO)" />
-      <Text label="Contract reference" value={f.contractRef} disabled={d} onChange={(v) => setF({ contractRef: v })} />
+      <Text label="Client name" value={f.client} max={TEMPLATE_FIELD_MAX.client} error={errors.client} disabled={d} onChange={(v) => setF({ client: v })} placeholder="Fictional client (DEMO)" />
+      <Text label="Contract reference" value={f.contractRef} max={TEMPLATE_FIELD_MAX.contractRef} error={errors.contractRef} disabled={d} onChange={(v) => setF({ contractRef: v })} />
       <div className="grid grid-cols-2 gap-3">
         <Text label="Valid from" type="date" value={f.validFrom} disabled={d} onChange={(v) => setF({ validFrom: v || undefined })} />
         <Text label="Valid to" type="date" value={f.validTo} disabled={d} onChange={(v) => setF({ validTo: v || undefined })} error={errors.validTo} />
       </div>
-      <Text label="Territory" value={f.region} disabled={d} onChange={(v) => setF({ region: v })} />
+      <Text label="Territory" value={f.region} max={TEMPLATE_FIELD_MAX.region} error={errors.region} disabled={d} onChange={(v) => setF({ region: v })} />
       <KeyLimits value={f.keyLimits ?? []} onChange={(v) => setF({ keyLimits: v })} error={errors.keyLimits} disabled={d} />
       <p className="text-xs text-ink-muted">Put the coverage table and exclusions in the text, or type <kbd className="font-sans">/table</kbd>.</p>
     </>);
     case 'technical': return (<>
       <ListText label="Systems" value={f.systems} disabled={d} onChange={(v) => setF({ systems: v })} placeholder="Globo, ECNet" />
-      <Text label="Version" value={f.version} disabled={d} onChange={(v) => setF({ version: v })} />
+      <Text label="Version" value={f.version} max={TEMPLATE_FIELD_MAX.version} error={errors.version} disabled={d} onChange={(v) => setF({ version: v })} />
     </>);
     case 'troubleshooting': return (<>
-      <Text label="Symptom" multiline value={f.symptom} disabled={d} onChange={(v) => setF({ symptom: v })} placeholder="What the user sees" />
-      <Text label="Likely cause" multiline value={f.cause} disabled={d} onChange={(v) => setF({ cause: v })} />
-      <Text label="Quick fix" multiline value={f.fix} disabled={d} onChange={(v) => setF({ fix: v })} />
-      <Text label="Guided flow" value={f.flowId} disabled={d} onChange={(v) => setF({ flowId: v || undefined })} placeholder="Flow ID" hint="Links a step-by-step troubleshooting flow. Flows can be built once the flow editor is available." />
+      <Text label="Symptom" multiline value={f.symptom} max={TEMPLATE_FIELD_MAX.symptom} error={errors.symptom} disabled={d} onChange={(v) => setF({ symptom: v })} placeholder="What the user sees" />
+      <Text label="Likely cause" multiline value={f.cause} max={TEMPLATE_FIELD_MAX.cause} error={errors.cause} disabled={d} onChange={(v) => setF({ cause: v })} />
+      <Text label="Quick fix" multiline value={f.fix} max={TEMPLATE_FIELD_MAX.fix} error={errors.fix} disabled={d} onChange={(v) => setF({ fix: v })} />
+      <Text label="Guided flow" value={f.flowId} max={TEMPLATE_FIELD_MAX.flowId} error={errors.flowId} disabled={d} onChange={(v) => setF({ flowId: v || undefined })} placeholder="Flow ID" hint="Links a step-by-step troubleshooting flow. Flows can be built once the flow editor is available." />
     </>);
     case 'glossary': return (<>
-      <Text label="Term" value={f.term} disabled={d} onChange={(v) => setF({ term: v })} />
-      <Text label="Acronym" value={f.acronym} disabled={d} onChange={(v) => setF({ acronym: v })} placeholder="e.g. GOP" />
-      <Text label="Definition" multiline value={f.definition} disabled={d} onChange={(v) => setF({ definition: v })} />
+      <Text label="Term" value={f.term} max={TEMPLATE_FIELD_MAX.term} error={errors.term} disabled={d} onChange={(v) => setF({ term: v })} />
+      <Text label="Acronym" value={f.acronym} max={TEMPLATE_FIELD_MAX.acronym} error={errors.acronym} disabled={d} onChange={(v) => setF({ acronym: v })} placeholder="e.g. GOP" />
+      <Text label="Definition" multiline value={f.definition} max={TEMPLATE_FIELD_MAX.definition} error={errors.definition} disabled={d} onChange={(v) => setF({ definition: v })} />
       <ListText label="Also known as" value={f.aliases} disabled={d} onChange={(v) => setF({ aliases: v })} />
       <ListText label="Related terms" value={f.relatedTerms} disabled={d} onChange={(v) => setF({ relatedTerms: v })} />
     </>);
