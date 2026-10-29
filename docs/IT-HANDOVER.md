@@ -84,4 +84,4 @@ Roles are decided inside the app, not from Entra groups:
 
 ## 9. Data classification
 
-The hub is meant for operational procedures, client terms and system documentation. All seeded content is fictional (`DEMO`). Before go-live, delete the demo content (start from an empty `DATA_DIR`, do **not** run `npm run seed` in production; it refuses unless forced) and confirm with the data-protection officer that no patient or claim-level personal data will be stored, or classify the system accordingly.
+The hub is meant for operational procedures, client terms and system documentation. All seeded content is fictional (`DEMO`). Before go-live, delete the demo content (start from an empty `DATA_DIR`, do **not** run `npm run seed` in production; it refuses unless forced). Then run `npm run seed -- --categories-only` once to create the nine empty top-level categories (no demo content; see `DEPLOYMENT.md` "First start: categories") and confirm with the data-protection officer that no patient or claim-level personal data will be stored, or classify the system accordingly.

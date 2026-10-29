@@ -72,9 +72,14 @@ async function ensureFile(app: App, admin: User, key: string) {
 
 /** The demo seed creates well-known demo accounts; never let it run against a real deployment by accident. */
 export function seedAllowed(env: Record<string, string | undefined>, argv: string[]) {
-  if (argv.includes('--force-demo')) return;
+  if (argv.includes('--force-demo') || argv.includes('--categories-only')) return;
   if (env.NODE_ENV === 'production' || env.AUTH_MODE === 'oidc')
     throw new Error('Seed refused: NODE_ENV=production or AUTH_MODE=oidc. Pass --force-demo to seed demo data anyway.');
+}
+
+/** Production-safe: only the nine top-level categories (no demo users, articles or subcategories). Idempotent. */
+export function seedCategories(app: App) {
+  app.sqlite.transaction(() => CATEGORY_TREE.forEach((t, i) => ensureCategory(app, t.name, null, i, t.description)))();
 }
 
 /** Idempotent base seed: categories, demo users, editor allowlist, DEMO articles (upsert by slug, published). */

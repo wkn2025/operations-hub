@@ -3,7 +3,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setup, doc, type Ctx } from './helpers';
-import { seedBase, seedAllowed, CATEGORY_TREE } from '../src/seed/base';
+import { seedBase, seedAllowed, seedCategories, CATEGORY_TREE } from '../src/seed/base';
 
 let c: Ctx;
 beforeEach(async () => { c = await setup(mkdtempSync(join(tmpdir(), 'ops-web-'))); });
@@ -28,6 +28,17 @@ describe('seed guard', () => {
     expect(() => seedAllowed({ NODE_ENV: 'production', AUTH_MODE: 'oidc' }, ['--force-demo'])).not.toThrow();
     expect(() => seedAllowed({ AUTH_MODE: 'dev', NODE_ENV: 'development' }, [])).not.toThrow();
     expect(() => seedAllowed({}, [])).not.toThrow();
+    expect(() => seedAllowed({ NODE_ENV: 'production', AUTH_MODE: 'oidc' }, ['--categories-only'])).not.toThrow();
+  });
+
+  it('--categories-only path: the nine top-level categories, idempotent, no demo users or articles', () => {
+    seedCategories(c.app);
+    seedCategories(c.app);
+    const cats = c.app.sqlite.prepare('select name, parent_id, description from categories').all() as { name: string; parent_id: string | null; description: string | null }[];
+    expect(cats.map((x) => x.name).sort()).toEqual(CATEGORY_TREE.map((t) => t.name).sort());
+    expect(cats.every((x) => !x.parent_id && x.description)).toBe(true);
+    expect(c.app.sqlite.prepare("select count(*) n from users where email like '%@demo.test'").get()).toEqual({ n: 0 });
+    expect(c.app.sqlite.prepare('select count(*) n from articles').get()).toEqual({ n: 0 });
   });
 
   it('does not reuse a same-named file uploaded by someone else', async () => {
