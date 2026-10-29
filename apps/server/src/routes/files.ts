@@ -18,13 +18,13 @@ export function fileRoutes(app: FastifyInstance) {
 
   app.get<{ Params: { id: string } }>('/api/files/:id', { preHandler: reader }, async (req, reply) => {
     const { f, data, inline } = await openFile(app, U(req), req.params.id);
-    const fname = encodeURIComponent(f.name);
+    const fname = encodeURIComponent(f.name).replace(/'/g, '%27');
     return reply
       .header('Content-Type', f.mime)
       .header('Content-Disposition', `${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${fname}`)
       .header('X-Content-Type-Options', 'nosniff')
       .header('Content-Security-Policy', "default-src 'none'; sandbox")
-      .header('Cache-Control', 'private, max-age=3600')
+      .header('Cache-Control', 'private, no-cache')
       .send(data);
   });
 

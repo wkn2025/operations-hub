@@ -111,10 +111,11 @@ function syncLinks(s: Svc, id: string, content: unknown) {
   }
 }
 
-/** Embedded images (/api/files/<id>) become article_files rows. Add-only: detach removes (ponytail: no auto-removal when an image leaves the content). */
+/** Embedded images (/api/files/<id>) mirror the content: this article's 'embedded' rows are rebuilt on every save; 'attached' rows are untouched. */
 function syncFiles(s: Svc, id: string, content: unknown) {
+  s.db.delete(articleFiles).where(and(eq(articleFiles.articleId, id), eq(articleFiles.source, 'embedded'))).run();
   for (const f of extractFileIds(content)) {
-    if (s.db.select({ id: files.id }).from(files).where(eq(files.id, f)).get()) s.db.insert(articleFiles).values({ articleId: id, fileId: f }).onConflictDoNothing().run();
+    if (s.db.select({ id: files.id }).from(files).where(eq(files.id, f)).get()) s.db.insert(articleFiles).values({ articleId: id, fileId: f, source: 'embedded' }).onConflictDoNothing().run();
   }
 }
 

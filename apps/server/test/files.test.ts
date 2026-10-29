@@ -104,6 +104,46 @@ describe('serving', () => {
     await c.req(c.editor, 'POST', `/api/articles/${b.id}/archive`);
     expect((await get(c.viewer, f2.url)).statusCode).toBe(404);
   });
+  it('embedded rows track content: removed image -> viewer 404 and admin delete works; restore re-syncs', async () => {
+    const f = (await upload(c.editor, 'p.png', PNG)).json();
+    const img = { type: 'doc', content: [{ type: 'image', attrs: { src: f.url } }] };
+    const a = await mk(img);
+    await c.req(c.editor, 'POST', `/api/articles/${a.id}/publish`);
+    expect((await get(c.viewer, f.url)).statusCode).toBe(200);
+    expect((await c.req(c.editor, 'DELETE', `/api/articles/${a.id}/files/${f.id}`)).status).toBe(409); // embedded-only
+    const p = await c.req(c.editor, 'PATCH', `/api/articles/${a.id}`, { baseRevision: 1, content: doc('no image') });
+    expect(p.status).toBe(200);
+    expect((await get(c.viewer, f.url)).statusCode).toBe(404);
+    expect((await c.req(c.admin, 'GET', '/api/admin/files')).body.files.find((x: any) => x.id === f.id).references).toBe(0);
+    await c.req(c.editor, 'POST', `/api/articles/${a.id}/revisions/1/restore`);
+    expect((await get(c.viewer, f.url)).statusCode).toBe(200);
+    await c.req(c.editor, 'PATCH', `/api/articles/${a.id}`, { baseRevision: 3, content: doc('again') });
+    expect((await c.req(c.admin, 'DELETE', `/api/admin/files/${f.id}`)).status).toBe(200);
+  });
+  it('explicit attachment survives content edits; embedding an attached file keeps it attached', async () => {
+    const f = (await upload(c.editor, 'p.png', PNG)).json();
+    const a = await mk(doc('x'));
+    await c.req(c.editor, 'POST', `/api/articles/${a.id}/files/${f.id}`);
+    await c.req(c.editor, 'PATCH', `/api/articles/${a.id}`, { baseRevision: 1, content: { type: 'doc', content: [{ type: 'image', attrs: { src: f.url } }] } });
+    await c.req(c.editor, 'PATCH', `/api/articles/${a.id}`, { baseRevision: 2, content: doc('gone') });
+    expect((await c.req(c.editor, 'GET', `/api/articles/${a.id}/files`)).body.files).toHaveLength(1);
+  });
+  it('requireApproval blocks editor PATCH of published before any file sync', async () => {
+    const f = (await upload(c.editor, 'p.png', PNG)).json();
+    const a = await mk(doc('x'));
+    await c.req(c.editor, 'POST', `/api/articles/${a.id}/publish`);
+    c.app.sqlite.prepare("insert into settings(key,value) values('requireApproval','true')").run();
+    const r = await c.req(c.editor, 'PATCH', `/api/articles/${a.id}`, { baseRevision: 1, content: { type: 'doc', content: [{ type: 'image', attrs: { src: f.url } }] } });
+    expect(r.status).toBe(403);
+    expect(c.app.sqlite.prepare('select count(*) n from article_files').get()).toEqual({ n: 0 });
+  });
+  it('rejects empty upload; quote escaped in filename*; no-cache', async () => {
+    expect((await upload(c.editor, 'e.txt', Buffer.alloc(0))).statusCode).toBe(400);
+    const f = (await upload(c.editor, "it's.pdf", PDF)).json();
+    const g = await get(c.editor, f.url);
+    expect(g.headers['content-disposition']).toContain('it%27s.pdf');
+    expect(g.headers['cache-control']).toBe('private, no-cache');
+  });
   it('embedded image saved via PATCH is synced', async () => {
     const f = (await upload(c.editor, 'p.png', PNG)).json();
     const a = await mk(doc('x'));

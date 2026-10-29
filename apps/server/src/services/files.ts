@@ -57,12 +57,14 @@ const diskPath = (s: FileSvc, id: string) => {
 export async function saveUpload(s: FileSvc, user: User, rawName: string, data: Buffer) {
   if (!can(user, 'file:upload', {})) throw new ApiError(403, { error: 'forbidden' });
   const name = cleanName(rawName), ext = name.includes('.') ? name.split('.').pop()!.toLowerCase() : '';
+  if (!data.length) throw new ApiError(400, { error: 'invalid', message: 'empty file' });
   const sniffed = sniff(data);
   const want = EXT_MIME[ext];
   // text/csv share the text sniff; every other type must match its extension exactly
   const ok = sniffed && want && (sniffed === want || (sniffed === 'text/plain' && want === 'text/csv'));
   if (!ok) throw new ApiError(415, { error: 'unsupported_type', message: 'file type not allowed or does not match its content' });
   const id = crypto.randomUUID(), now = new Date().toISOString();
+  // ponytail: a crash between the write and the insert leaves an orphan blob; no startup sweep (add one if orphans matter)
   await mkdir(root(s), { recursive: true });
   await writeFile(diskPath(s, id), data, { flag: 'wx' });
   try {
@@ -100,8 +102,12 @@ export function attach(s: Svc, user: User, articleId: string, fileId: string, on
   s.sqlite.transaction(() => {
     const a = writableArticle(s, user, articleId);
     if (!s.db.select({ id: files.id }).from(files).where(eq(files.id, fileId)).get()) throw notFound();
-    if (on) s.db.insert(articleFiles).values({ articleId, fileId }).onConflictDoNothing().run();
-    else s.db.delete(articleFiles).where(and(eq(articleFiles.articleId, articleId), eq(articleFiles.fileId, fileId))).run();
+    const cur = s.db.select().from(articleFiles).where(and(eq(articleFiles.articleId, articleId), eq(articleFiles.fileId, fileId))).get();
+    if (on) {
+      if (!cur) s.db.insert(articleFiles).values({ articleId, fileId, source: 'attached' }).run();
+      else if (cur.source === 'embedded') s.db.update(articleFiles).set({ source: 'attached' }).where(and(eq(articleFiles.articleId, articleId), eq(articleFiles.fileId, fileId))).run();
+    } else if (cur?.source === 'embedded') throw new ApiError(409, { error: 'embedded', message: 'file is embedded in the content; remove it there' });
+    else if (cur) s.db.delete(articleFiles).where(and(eq(articleFiles.articleId, articleId), eq(articleFiles.fileId, fileId))).run();
     audit(s.db, { actorId: user.id, action: on ? 'file.attach' : 'file.detach', entity: 'article', entityId: articleId, summary: `${on ? 'Attached' : 'Detached'} file ${fileId} on "${a.title}"` });
   })();
 }

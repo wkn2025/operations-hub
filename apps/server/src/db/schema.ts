@@ -92,6 +92,7 @@ export const files = sqliteTable('files', {
 export const articleFiles = sqliteTable('article_files', {
   articleId: text('article_id').notNull().references(() => articles.id, { onDelete: 'cascade' }),
   fileId: text('file_id').notNull().references(() => files.id),
+  source: text('source').notNull().default('attached'), // 'attached' (explicit) or 'embedded' (image in content; re-synced on save)
 }, (t) => [primaryKey({ columns: [t.articleId, t.fileId] })]);
 export const attachments = articleFiles;
 

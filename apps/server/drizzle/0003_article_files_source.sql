@@ -1,0 +1,1 @@
+ALTER TABLE `article_files` ADD `source` text DEFAULT 'attached' NOT NULL;
