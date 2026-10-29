@@ -25,7 +25,7 @@ export function parse<S extends ZodTypeAny>(schema: S, data: unknown): z.infer<S
 export const slugify = (s: string) =>
   s.normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80) || 'item';
 
-export function uniqueSlug(sqlite: Database, table: 'articles' | 'categories', title: string, excludeId?: string): string {
+export function uniqueSlug(sqlite: Database, table: 'articles' | 'categories' | 'flows', title: string, excludeId?: string): string {
   const base = slugify(title);
   const stmt = sqlite.prepare(`select 1 from ${table} where slug = ? and id != ?`);
   for (let i = 1; ; i++) {
@@ -152,10 +152,12 @@ export function view(s: Svc, a: ArticleRow, user: User) {
     write: can(user, 'article:write', res, opts), publish: can(user, 'article:publish', res, opts),
     submit: can(user, 'article:submit', res, opts), archive: can(user, 'article:archive', res, opts),
   };
+  // the published guided flow attached to this article (published flows are readable by everyone)
+  const flow = (s.sqlite.prepare("select id, slug, title from flows where article_id = ? and status = 'published' order by updated_at desc limit 1").get(a.id) as { id: string; slug: string; title: string } | undefined) ?? null;
   const owner = a.ownerId ? s.db.select({ id: users.id, name: users.name }).from(users).where(eq(users.id, a.ownerId)).get() ?? null : null;
   return {
     ...rest, owner, content: JSON.parse(a.content), fields: JSON.parse(a.fields),
-    tags: tagsOf(s.sqlite, a.id), categoryPath: a.categoryId ? categoryPath(cats, a.categoryId) : '', linkTargets, related, permissions,
+    tags: tagsOf(s.sqlite, a.id), categoryPath: a.categoryId ? categoryPath(cats, a.categoryId) : '', linkTargets, related, permissions, flow,
   };
 }
 

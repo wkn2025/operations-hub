@@ -35,4 +35,14 @@ describe('can()', () => {
     expect(can(admin, 'article:read', { status: 'archived' })).toBe(true);
     expect(can(admin, 'admin')).toBe(true);
   });
+  it('flow actions mirror the article rules', () => {
+    expect(can(viewer, 'flow:read', { status: 'published' })).toBe(true);
+    expect(can(viewer, 'flow:read', { status: 'draft' })).toBe(false);
+    expect(can(viewer, 'flow:write', { status: 'draft' })).toBe(false);
+    expect(can(editor, 'flow:write', { status: 'draft' })).toBe(true);
+    expect(can(editor, 'flow:write', { status: 'published' }, { requireApproval: true })).toBe(false);
+    expect(can(editor, 'flow:publish', {}, { requireApproval: true })).toBe(false);
+    expect(can(editor, 'flow:archive', { status: 'published' }, { requireApproval: true })).toBe(false);
+    expect(can(admin, 'flow:publish', {}, { requireApproval: true })).toBe(true);
+  });
 });

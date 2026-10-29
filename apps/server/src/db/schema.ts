@@ -106,6 +106,10 @@ export const flows = sqliteTable('flows', {
   nodes: text('nodes').notNull().default('[]'), // JSON FlowNode[]
   startId: text('start_id'),
   status: text('status').$type<ArticleStatus>().notNull().default('draft'),
+  revision: integer('revision').notNull().default(1), // concurrency counter, like articles.revision
+  createdBy: text('created_by').references(() => users.id),
+  createdAt: text('created_at'),
+  publishedAt: text('published_at'),
   updatedAt: ts('updated_at'),
 });
 

@@ -3,7 +3,9 @@ import { and, eq } from 'drizzle-orm';
 import { readFile } from 'node:fs/promises';
 import { resolve as resolvePath } from 'node:path';
 import type { PmNode, Role, User } from '@ops/shared';
-import { articles, categories, editorAllowlist, files, users } from '../db/schema';
+import { articles, categories, editorAllowlist, files, flows, users } from '../db/schema';
+import { createFlow, transitionFlow, updateFlow } from '../services/flows';
+import { SEED_FLOWS } from './content/flows';
 import { createArticle, slugify, transition, uniqueSlug, updateArticle } from '../services/articles';
 import { storeFile } from '../services/files';
 import { DEMO_USERS } from '../auth/dev';
@@ -107,6 +109,26 @@ export async function seedBase(app: App) {
     }
     if (cur.status !== 'published') transition(app, byRole.admin, id, cur.status === 'archived' ? 'restore' : 'publish');
     if (cur.status === 'archived') transition(app, byRole.admin, id, 'publish');
+  }
+  seedFlows(app, byRole.admin);
+}
+
+/** Idempotent: flows are matched by slug; article nodes name a seeded article by slug. */
+function seedFlows(app: App, admin: User) {
+  const articleId = (slug: string) => {
+    const a = app.db.select().from(articles).where(eq(articles.slug, slug)).get();
+    if (!a) throw new Error(`seed flow links to unknown article "${slug}"`);
+    return a.id;
+  };
+  for (const d of SEED_FLOWS) {
+    const nodes = d.nodes.map(({ articleSlug, ...n }) => (articleSlug ? { ...n, articleId: articleId(articleSlug) } : n));
+    const link = d.articleSlug ? articleId(d.articleSlug) : null;
+    const row = app.db.select().from(flows).where(eq(flows.slug, slugify(d.title))).get();
+    const id = row?.id ?? createFlow(app, admin, { title: d.title, nodes, startId: d.startId, articleId: link });
+    const cur = app.db.select().from(flows).where(eq(flows.id, id)).get()!;
+    if (cur.nodes !== JSON.stringify(nodes) || cur.startId !== d.startId || cur.articleId !== link) updateFlow(app, admin, id, { baseRevision: cur.revision, nodes, startId: d.startId, articleId: link });
+    if (cur.status !== 'published') transitionFlow(app, admin, id, cur.status === 'archived' ? 'restore' : 'publish');
+    if (cur.status === 'archived') transitionFlow(app, admin, id, 'publish');
   }
 }
 

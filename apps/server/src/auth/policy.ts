@@ -7,6 +7,8 @@ export interface PolicyOpts { requireApproval?: boolean }
 /** Single authorization decision point. Anonymous (null) can do nothing: the app requires login. */
 export function can(user: User | null, action: Action, resource: Resource = {}, opts: PolicyOpts = {}): boolean {
   if (!user) return false;
+  // flows follow exactly the article rules (status model, requireApproval)
+  if (action.startsWith('flow:')) action = action.replace('flow:', 'article:') as Action;
   const role = user.role;
   if (role === 'admin') return true;
   const isEditor = role === 'editor';

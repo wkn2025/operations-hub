@@ -20,7 +20,7 @@ export function indexArticle(sqlite: Database, articleId: string) {
 }
 
 export interface Hit { id: string; title: string; snippet: string; categoryPath: string }
-export interface Group { kind: 'article' | 'category' | 'tag' | 'glossary'; hits: Hit[] }
+export interface Group { kind: 'article' | 'flow' | 'category' | 'tag' | 'glossary'; hits: Hit[] }
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
@@ -53,6 +53,19 @@ export function searchAll(s: Svc, user: User, q: string, limit = 20): Group[] {
   const art = rows.filter((r) => r.type !== 'glossary').map(toHit);
   const glo = rows.filter((r) => r.type === 'glossary').map(toHit);
   if (art.length) groups.push({ kind: 'article', hits: art });
+
+  // flows: viewers published only, editors everything but archived, admins all (hit id = slug, the URL key)
+  const flowVis = user.role === 'viewer' ? "f.status = 'published'" : user.role === 'editor' ? "f.status != 'archived'" : '1=1';
+  const flowRows = sqlite.prepare(
+    `select f.slug, f.title, snippet(flow_fts, -1, char(1), char(2), '…', 14) as snip from flow_fts join flows f on f.id = flow_fts.flow_id
+     where flow_fts match ? and ${flowVis} order by bm25(flow_fts, 10, 1) limit ?`,
+  ).all(match, limit) as { slug: string; title: string; snip: string }[];
+  if (flowRows.length) {
+    groups.push({ kind: 'flow', hits: flowRows.map((r) => ({
+      id: r.slug, title: r.title, categoryPath: 'Guided flow',
+      snippet: esc(r.snip).replace(/\u0001/g, '<mark>').replace(/\u0002/g, '</mark>'),
+    })) });
+  }
 
   const hid = new Set(hidden);
   const like = tokens.map((t) => `%${t}%`);

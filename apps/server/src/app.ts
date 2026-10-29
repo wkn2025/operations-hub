@@ -18,6 +18,7 @@ import { reviewRoutes } from './routes/review';
 import { auditRoutes } from './routes/audit';
 import multipart from '@fastify/multipart';
 import { fileRoutes } from './routes/files';
+import { flowRoutes } from './routes/flows';
 import { ApiError } from './services/articles';
 
 declare module 'fastify' {
@@ -61,6 +62,7 @@ export async function buildApp(opts: BuildOpts = {}): Promise<FastifyInstance> {
   articleRoutes(app);
   searchRoutes(app);
   fileRoutes(app);
+  flowRoutes(app);
   for (const r of [userRoutes, allowlistRoutes, settingsRoutes, reviewRoutes, auditRoutes]) r(app);
 
   return app;
