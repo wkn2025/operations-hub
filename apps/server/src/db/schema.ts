@@ -9,6 +9,8 @@ export const users = sqliteTable('users', {
   email: text('email').notNull().unique(), // stored lowercase
   name: text('name').notNull(),
   role: text('role').$type<Role>().notNull().default('viewer'),
+  active: integer('active', { mode: 'boolean' }).notNull().default(true), // deactivated -> 401 everywhere
+  roleSetByAdmin: integer('role_set_by_admin', { mode: 'boolean' }).notNull().default(false), // explicit admin choice beats allowlist
   createdAt: ts('created_at'),
   lastLoginAt: text('last_login_at'),
 });

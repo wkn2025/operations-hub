@@ -1,8 +1,9 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { eq } from 'drizzle-orm';
-import { ROLES, type Role, type User } from '@ops/shared';
+import type { Role, User } from '@ops/shared';
 import type { Db } from '../db/client';
 import { editorAllowlist, users } from '../db/schema';
+import { ApiError } from '../services/articles';
 
 export const SESSION_COOKIE = 'sid';
 const SESSION_MAX_AGE_S = 12 * 60 * 60;
@@ -19,8 +20,6 @@ export interface SessionProvider {
   registerRoutes(app: FastifyInstance, session: SessionApi): void;
 }
 
-const rank = (r: Role) => ROLES.length - ROLES.indexOf(r); // admin 3 > editor 2 > viewer 1
-
 /** bootstrap env -> admin; allowlist -> editor; everyone else -> viewer. */
 export function resolveRole(db: Db, adminEmails: string[], email: string): Role {
   email = email.toLowerCase();
@@ -36,8 +35,9 @@ export function createSessionApi(app: FastifyInstance): SessionApi {
       const now = new Date().toISOString();
       const resolved = resolveRole(app.db, app.config.adminBootstrapEmails, email);
       const existing = app.db.select().from(users).where(eq(users.email, email)).get();
-      // Never demote on login (admin actions own demotion); do promote via allowlist/bootstrap.
-      const role = existing && rank(existing.role) > rank(resolved) ? existing.role : resolved;
+      if (existing && !existing.active) throw new ApiError(403, { error: 'deactivated' });
+      // Bootstrap admins always admin; otherwise an explicit admin-set role wins; otherwise allowlist/viewer (so removal demotes).
+      const role = app.config.adminBootstrapEmails.includes(email) ? 'admin' : existing?.roleSetByAdmin ? existing.role : resolved;
       let user: User;
       if (existing) {
         app.db.update(users).set({ role, lastLoginAt: now }).where(eq(users.id, existing.id)).run();
@@ -70,6 +70,6 @@ export function loadUser(app: FastifyInstance) {
     const dot = value.lastIndexOf('.');
     if (dot < 0 || !(Number(value.slice(dot + 1)) > Date.now())) return; // expired or malformed
     const row = app.db.select().from(users).where(eq(users.id, value.slice(0, dot))).get();
-    if (row) req.user = { id: row.id, email: row.email, name: row.name, role: row.role };
+    if (row?.active) req.user = { id: row.id, email: row.email, name: row.name, role: row.role };
   };
 }

@@ -11,6 +11,11 @@ import { authRoutes } from './routes/auth';
 import { categoryRoutes } from './routes/categories';
 import { articleRoutes } from './routes/articles';
 import { searchRoutes } from './routes/search';
+import { userRoutes } from './routes/users';
+import { allowlistRoutes } from './routes/allowlist';
+import { settingsRoutes } from './routes/settings';
+import { reviewRoutes } from './routes/review';
+import { auditRoutes } from './routes/audit';
 import { ApiError } from './services/articles';
 
 declare module 'fastify' {
@@ -52,6 +57,7 @@ export async function buildApp(opts: BuildOpts = {}): Promise<FastifyInstance> {
   categoryRoutes(app);
   articleRoutes(app);
   searchRoutes(app);
+  for (const r of [userRoutes, allowlistRoutes, settingsRoutes, reviewRoutes, auditRoutes]) r(app);
 
   return app;
 }
