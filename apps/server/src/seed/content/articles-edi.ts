@@ -109,7 +109,7 @@ export const EDI_ARTICLES: SeedArticle[] = [
   {
     title: '999 rejected a whole batch (IK5*R)',
     type: 'troubleshooting',
-    category: 'Troubleshooting Center / EDI issues',
+    category: 'EDI & Automation / EDI issues',
     owner: 'editor',
     tags: ['edi', '999', 'rejected', 'batch'],
     reviewDate: '2026-12-01',
@@ -137,7 +137,7 @@ export const EDI_ARTICLES: SeedArticle[] = [
   {
     title: 'MacroHealth file not picked up',
     type: 'troubleshooting',
-    category: 'Troubleshooting Center / EDI issues',
+    category: 'EDI & Automation / EDI issues',
     owner: 'editor',
     tags: ['edi', 'macrohealth', 'sftp', 'polling'],
     reviewDate: '2026-12-15',

@@ -7,6 +7,10 @@ import { setup, type Ctx } from './helpers';
 import { seedDemo, CATEGORY_TREE } from '../src/seed/base';
 import { SEED_ARTICLES } from '../src/seed/content/articles';
 
+const REIMB = 'Reimbursement: from document intake to proof of payment';
+const RETIRED = ['Approve a claim for payment', 'Process a member reimbursement', 'Send a medical records request',
+  'Invoice denial reasons and how to explain them', 'Handling medical records requests'];
+
 let c: Ctx;
 let revsAfterFirst = 0;
 beforeAll(async () => {
@@ -31,7 +35,7 @@ describe('seedDemo (Task 9)', () => {
     expect(dupFiles).toEqual([]);
   });
 
-  it('publishes at least 30 articles, at least 2 in each of the 9 top-level categories (incl. subcategories)', () => {
+  it('publishes at least 30 articles, at least 2 in each of the 8 top-level categories (incl. subcategories)', () => {
     const arts = published();
     expect(arts.length).toBeGreaterThanOrEqual(30);
     const cats = all<{ id: string; name: string; parent_id: string | null }>('select id, name, parent_id from categories');
@@ -92,9 +96,11 @@ describe('seedDemo (Task 9)', () => {
       ['277CA', 'Acknowledgements: 999 and 277CA handling'],
       ['IK5', '999 rejected a whole batch (IK5*R)'],
       ['missing GOP', 'Request a missing GOP'],
-      ['member reimbursement', 'Process a member reimbursement'],
-      ['denial reasons', 'Invoice denial reasons and how to explain them'],
-      ['medical records request', 'Send a medical records request'],
+      ['member reimbursement', REIMB],
+      ['denial reasons', REIMB],
+      ['medical records request', REIMB],
+      ['proof of payment', REIMB],
+      ['pre-payment QA checklist', 'Claim file pre-payment QA checklist'],
       ['Bluefin', 'Bluefin Corporate Health: full terms and conditions'],
       ['Wayfarer', 'Wayfarer Family Travel Plan: policy terms and conditions'],
       ['returned bank', 'Payment returned by the bank'],
@@ -115,6 +121,122 @@ describe('seedDemo (Task 9)', () => {
   it('seed titles are unique and every client is fictional-labelled', () => {
     expect(new Set(SEED_ARTICLES.map((a) => a.title)).size).toBe(SEED_ARTICLES.length);
     for (const a of SEED_ARTICLES.filter((x) => x.type === 'client_terms')) expect(a.fields?.client, a.title).toMatch(/fictional/i);
+  });
+});
+
+describe('category restructure', () => {
+  it('has the 8 top-level categories with the moved subcategories', () => {
+    const tree = Object.fromEntries(CATEGORY_TREE.map((t) => [t.name, t.children]));
+    expect(Object.keys(tree)).toEqual(['EDI & Automation', 'Clients & Terms and Conditions', 'Work Instructions', 'Quality Assurance',
+      'Provider Networks & Partners', 'Finance & Payment Processing', 'Internal Systems', 'Glossary & Acronyms']);
+    expect(tree['EDI & Automation']).toContain('EDI issues');
+    expect(tree['Finance & Payment Processing']).toContain('Payment issues');
+    expect(tree['Work Instructions']).toEqual(['Case handling', 'Invoice processing', 'Reimbursements']);
+    expect(tree['Quality Assurance']).toEqual(['Quality checks', 'Audit & sampling']);
+  });
+
+  it('merges the claims articles into one DEMO work instruction covering intake to proof of payment', () => {
+    for (const t of RETIRED) expect(SEED_ARTICLES.find((a) => a.title === t), t).toBeUndefined();
+    const a = SEED_ARTICLES.find((x) => x.title === REIMB)!;
+    expect(a).toBeDefined();
+    expect(a.type).toBe('work_instruction');
+    expect(a.category).toBe('Work Instructions / Reimbursements');
+    const text = JSON.stringify(a.content);
+    for (const re of [/complete/i, /medical records/i, /approval limits/i, /D01/, /D07/, /payment run/i, /proof of payment/i, /retention/i])
+      expect(text, String(re)).toMatch(re);
+    expect(SEED_ARTICLES.filter((x) => x.category === 'Work Instructions / Reimbursements')).toHaveLength(1);
+  });
+
+  it('files the troubleshooting articles under EDI & Automation and Finance, and QA articles under Quality Assurance', () => {
+    const cat = (t: string) => SEED_ARTICLES.find((a) => a.title === t)?.category;
+    for (const t of ['EDI claim failed to import', '999 rejected a whole batch (IK5*R)', 'MacroHealth file not picked up']) expect(cat(t), t).toBe('EDI & Automation / EDI issues');
+    expect(cat('Provider disputes an invoice denial')).toBe('Finance & Payment Processing / Payment issues');
+    expect(SEED_ARTICLES.filter((a) => a.category.startsWith('Quality Assurance / ')).length).toBeGreaterThanOrEqual(2);
+    expect(SEED_ARTICLES.some((a) => /Troubleshooting Center|Claims & Reimbursements/.test(a.category))).toBe(false);
+  });
+});
+
+describe('seed upgrades a database seeded with the old 9-category tree', () => {
+  const LEGACY: [string, string[]][] = [
+    ['EDI & Automation', ['Inbound claims (837)', 'Acknowledgements (999/277)', 'Automation scripts']],
+    ['Clients & Terms and Conditions', ['Travel insurance clients', 'Corporate clients', 'Coverage summaries']],
+    ['Work Instructions', ['Case handling', 'Invoice processing', 'Quality checks']],
+    ['Claims & Reimbursements', ['Claim intake', 'Reimbursements', 'Medical records']],
+    ['Provider Networks & Partners', ['Hospital network', 'Assistance partners']],
+    ['Finance & Payment Processing', ['Payment runs', 'Currency & fees', 'Reconciliation']],
+    ['Internal Systems', ['Globo', 'ECNet', 'Access & permissions']],
+    ['Troubleshooting Center', ['EDI issues', 'Payment issues']],
+    ['Glossary & Acronyms', ['EDI terms', 'Medical terms']],
+  ];
+  let u: Ctx;
+  const ids = new Map<string, string>();
+  type Cat = { id: string; name: string; parent_id: string | null; archived: number };
+  const cats = () => u.app.sqlite.prepare('select id, name, parent_id, archived from categories').all() as Cat[];
+  const art = (slug: string) => u.app.sqlite.prepare('select id, status, category_id from articles where slug = ?').get(slug) as { id: string; status: string; category_id: string } | undefined;
+  const legacyArticles: [string, string][] = [
+    ['EDI claim failed to import', 'Troubleshooting Center / EDI issues'],
+    ['Approve a claim for payment', 'Claims & Reimbursements / Claim intake'],
+    ['Handling medical records requests', 'Claims & Reimbursements / Medical records'],
+    ['Process a member reimbursement', 'Claims & Reimbursements / Reimbursements'],
+    ['Bluefin Corporate Health: coverage summary', 'Clients & Terms and Conditions / Coverage summaries'],
+    ['Team QA notes (user content)', 'Work Instructions / Quality checks'],
+  ];
+  let snapshot = '';
+  const state = () => JSON.stringify([cats().sort((a, b) => a.id.localeCompare(b.id)),
+    u.app.sqlite.prepare('select id, status, category_id, revision from articles order by id').all(),
+    (u.app.sqlite.prepare('select count(*) n from revisions').get() as { n: number }).n]);
+
+  beforeAll(async () => {
+    u = await setup(mkdtempSync(join(tmpdir(), 'ops-seed-up-')));
+    for (const [i, [top, children]] of LEGACY.entries()) {
+      const t = await u.req(u.admin, 'POST', '/api/categories', { name: top, description: 'old', sortOrder: i });
+      ids.set(top, t.body.id);
+      for (const [j, ch] of children.entries()) ids.set(`${top} / ${ch}`, (await u.req(u.admin, 'POST', '/api/categories', { name: ch, parentId: t.body.id, sortOrder: j })).body.id);
+    }
+    for (const [title, cat] of legacyArticles) {
+      const a = await u.req(u.admin, 'POST', '/api/articles', { title, categoryId: ids.get(cat), content: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'old' }] }] } });
+      expect(a.status, title).toBe(201);
+      expect((await u.req(u.admin, 'POST', `/api/articles/${a.body.id}/publish`)).status).toBe(200);
+    }
+    await seedDemo(u.app);
+    snapshot = state();
+    await seedDemo(u.app);
+  });
+
+  it('moves the legacy subcategories in place: same ids, new parents, articles follow', () => {
+    const byId = new Map(cats().map((x) => [x.id, x]));
+    const parentName = (id: string) => byId.get(byId.get(id)!.parent_id!)!.name;
+    expect(parentName(ids.get('Troubleshooting Center / EDI issues')!)).toBe('EDI & Automation');
+    expect(parentName(ids.get('Troubleshooting Center / Payment issues')!)).toBe('Finance & Payment Processing');
+    expect(parentName(ids.get('Claims & Reimbursements / Reimbursements')!)).toBe('Work Instructions');
+    expect(parentName(ids.get('Work Instructions / Quality checks')!)).toBe('Quality Assurance');
+    expect(art('edi-claim-failed-to-import')).toMatchObject({ status: 'published', category_id: ids.get('Troubleshooting Center / EDI issues') });
+    expect(art('team-qa-notes-user-content')).toMatchObject({ status: 'published', category_id: ids.get('Work Instructions / Quality checks') });
+  });
+
+  it('archives the legacy tops, the emptied subcategories and the retired articles; no duplicate active names', () => {
+    const active = cats().filter((x) => !x.archived);
+    const tops = active.filter((x) => !x.parent_id).map((x) => x.name);
+    expect(tops.sort()).toEqual(CATEGORY_TREE.map((t) => t.name).sort());
+    for (const k of ['Troubleshooting Center', 'Claims & Reimbursements', 'Claims & Reimbursements / Claim intake', 'Claims & Reimbursements / Medical records'])
+      expect(cats().find((x) => x.id === ids.get(k))!.archived, k).toBe(1);
+    const key = (x: Cat) => `${x.parent_id}/${x.name}`;
+    expect(new Set(active.map(key)).size).toBe(active.length);
+    expect(active.length).toBe(CATEGORY_TREE.length + CATEGORY_TREE.reduce((n, t) => n + t.children.length, 0));
+    for (const s of ['approve-a-claim-for-payment', 'handling-medical-records-requests', 'process-a-member-reimbursement', 'bluefin-corporate-health-coverage-summary'])
+      expect(art(s)?.status, s).toBe('archived');
+    const reimb = u.app.sqlite.prepare("select count(*) n from articles where category_id = ? and status <> 'archived'").get(ids.get('Claims & Reimbursements / Reimbursements')) as { n: number };
+    expect(reimb.n).toBe(1);
+  });
+
+  it('search shows the new category path for moved articles', async () => {
+    const r = await u.req(u.viewer, 'GET', `/api/search?q=${encodeURIComponent('failed to import')}`);
+    const hit = (r.body.groups as { hits: { title: string; categoryPath: string }[] }[]).flatMap((g) => g.hits).find((h) => h.title === 'EDI claim failed to import');
+    expect(hit?.categoryPath).toBe('EDI & Automation / EDI issues');
+  });
+
+  it('a second run is a no-op', () => {
+    expect(state()).toBe(snapshot);
   });
 });
 

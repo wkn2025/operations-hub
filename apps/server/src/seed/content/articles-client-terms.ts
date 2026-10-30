@@ -1,5 +1,6 @@
 import type { PmNode } from '@ops/shared';
 import type { SeedArticle } from './articles';
+import { REIMBURSEMENT_WI } from './articles-claims';
 import { b, callout, collapsible, demo, h, ol, p, ref, steps, table, ul } from './pm';
 
 /**
@@ -120,7 +121,7 @@ const WAYFARER: SeedArticle = {
       'The insurer may decline to cover a declared condition; all other conditions and insured persons remain covered.'),
     h(3, '5.3 Undeclared conditions'),
     ul('Claims arising from a pre-existing condition that should have been declared and was not are not covered.', 'Assistance will still help you obtain treatment, but costs will be at your own expense and assistance may ask for a deposit or credit card guarantee before issuing any GOP.'),
-    callout('info', 'Assistance handling', p('When a case involves a known condition, the case manager checks the schedule for declared conditions before issuing a GOP. If the condition is not declared, request the GP history (24 months) using ', ref('Send a medical records request'), ' and issue a GOP only for costs clearly unrelated to the condition.')),
+    callout('info', 'Assistance handling', p('When a case involves a known condition, the case manager checks the schedule for declared conditions before issuing a GOP. If the condition is not declared, request the GP history (24 months) as described in the medical records step of ', ref(REIMBURSEMENT_WI), ', and issue a GOP only for costs clearly unrelated to the condition.')),
 
     ...benefit(6, 'Medical evacuation and repatriation', {
       intro: ['Covers transport to a suitable hospital or back to your home country when medically necessary and arranged by assistance.'],
@@ -216,7 +217,7 @@ const WAYFARER: SeedArticle = {
       { title: 'Notify', body: [p('Report the claim within 30 days of returning home through the assistance portal or by e-mail to claims@demo.test.')] },
       { title: 'Send documents', body: [p('Original itemised invoices and receipts, the medical report, policy number, proof of travel dates, and for luggage a police report within 24 hours of discovery.')] },
       { title: 'Assessment', body: [p('Assistance assesses the claim within 15 working days of receiving all documents and may ask for medical records or a medical examination.')] },
-      { title: 'Payment', body: [p('Payment is made by bank transfer in euro, minus the excess. Our internal handling: ', ref('Process a member reimbursement'), '.')] },
+      { title: 'Payment', body: [p('Payment is made by bank transfer in euro, minus the excess. Our internal handling: ', ref(REIMBURSEMENT_WI), '.')] },
     ),
 
     ...benefit(14, 'Luggage and personal belongings', {
@@ -490,7 +491,7 @@ const BLUEFIN: SeedArticle = {
     ul('Assistance issues a ', ref('GOP (Guarantee of Payment)', 'GOP'), ' to the hospital within the thresholds in section 3.2. Travellers should not pay hospital bills themselves.',
       'Where the provider insists on payment, assistance can pay by virtual card. Travellers using their corporate card claim back within 60 days through the client\'s expense system; assistance validates the claim within 10 working days.',
       'Invoices are checked against reasonable and customary charges; in the USA, network rates apply.'),
-    p('Provider invoices are registered and checked as described in ', ref('Register an incoming provider invoice'), '. Reimbursement of travellers follows ', ref('Process a member reimbursement'), '.'),
+    p('Provider invoices are registered and checked as described in ', ref('Register an incoming provider invoice'), '. Reimbursement of travellers follows ', ref(REIMBURSEMENT_WI), '.'),
 
     ...benefit(14, 'Luggage, business equipment and personal belongings', {
       intro: ['Loss, theft of or damage to personal luggage and the client\'s business equipment.'],

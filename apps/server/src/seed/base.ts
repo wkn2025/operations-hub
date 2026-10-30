@@ -6,7 +6,7 @@ import type { PmNode, Role, User } from '@ops/shared';
 import { articles, categories, editorAllowlist, files, flows, users } from '../db/schema';
 import { createFlow, transitionFlow, updateFlow } from '../services/flows';
 import { SEED_FLOWS } from './content/flows';
-import { createArticle, slugify, transition, uniqueSlug, updateArticle } from '../services/articles';
+import { createArticle, reindexCategorySubtree, slugify, transition, uniqueSlug, updateArticle } from '../services/articles';
 import { storeFile } from '../services/files';
 import { DEMO_USERS } from '../auth/dev';
 import { SEED_ARTICLES } from './content/articles';
@@ -16,17 +16,38 @@ import { ecnetPaymentRunSvg } from './screenshots/ecnet-payment-run.svg';
 import { macroHealthPortalSvg } from './screenshots/macrohealth-portal.svg';
 import { claimLifecycleSvg } from './screenshots/claim-lifecycle.svg';
 
-/** The nine top-level categories (exact names from the plan) with their demo subcategories. */
+/** The eight top-level categories with their demo subcategories (restructured 2026-10-30, was nine). */
 export const CATEGORY_TREE: { name: string; description: string; children: string[] }[] = [
-  { name: 'EDI & Automation', description: 'Electronic claim exchange, acknowledgements and the automations around them.', children: ['Inbound claims (837)', 'Acknowledgements (999/277)', 'Automation scripts'] },
+  { name: 'EDI & Automation', description: 'Electronic claim exchange, acknowledgements and the automations around them.', children: ['Inbound claims (837)', 'Acknowledgements (999/277)', 'Automation scripts', 'EDI issues'] },
   { name: 'Clients & Terms and Conditions', description: 'Who our clients are and what each contract lets us authorise.', children: ['Travel insurance clients', 'Corporate clients', 'Coverage summaries'] },
-  { name: 'Work Instructions', description: 'Step-by-step procedures for recurring operational tasks.', children: ['Case handling', 'Invoice processing', 'Quality checks'] },
-  { name: 'Claims & Reimbursements', description: 'From claim intake to reimbursement, including medical records.', children: ['Claim intake', 'Reimbursements', 'Medical records'] },
+  { name: 'Work Instructions', description: 'Step-by-step procedures for recurring operational tasks.', children: ['Case handling', 'Invoice processing', 'Reimbursements'] },
+  { name: 'Quality Assurance', description: 'Checks, sampling and sign-offs that keep claims and payments right first time.', children: ['Quality checks', 'Audit & sampling'] },
   { name: 'Provider Networks & Partners', description: 'Hospitals, clinics and assistance partners we work with.', children: ['Hospital network', 'Assistance partners'] },
-  { name: 'Finance & Payment Processing', description: 'Payment runs, currencies, fees and reconciliation.', children: ['Payment runs', 'Currency & fees', 'Reconciliation'] },
+  { name: 'Finance & Payment Processing', description: 'Payment runs, currencies, fees and reconciliation.', children: ['Payment runs', 'Currency & fees', 'Reconciliation', 'Payment issues'] },
   { name: 'Internal Systems', description: 'Globo, ECNet and the other tools we run on.', children: ['Globo', 'ECNet', 'Access & permissions'] },
-  { name: 'Troubleshooting Center', description: 'Guided fixes for the problems that come up most.', children: ['EDI issues', 'Payment issues'] },
   { name: 'Glossary & Acronyms', description: 'The terms and abbreviations used across operations.', children: ['EDI terms', 'Medical terms'] },
+];
+
+/**
+ * In-place upgrade of a database seeded with the old nine-category tree (demo seed only).
+ * Moves keep the category id, so articles follow: [old parent, name, new parent].
+ */
+const LEGACY_MOVES: [string, string, string][] = [
+  ['Troubleshooting Center', 'EDI issues', 'EDI & Automation'],
+  ['Troubleshooting Center', 'Payment issues', 'Finance & Payment Processing'],
+  ['Work Instructions', 'Quality checks', 'Quality Assurance'],
+  ['Claims & Reimbursements', 'Reimbursements', 'Work Instructions'],
+];
+/** Legacy rows archived once empty; children before parents (same rule as PATCH /api/categories, 409 otherwise). */
+const LEGACY_ARCHIVE: [string | null, string][] = [
+  ['Claims & Reimbursements', 'Claim intake'], ['Claims & Reimbursements', 'Medical records'],
+  [null, 'Claims & Reimbursements'], [null, 'Troubleshooting Center'],
+];
+/** Demo articles retired by merges or removals: archived, never deleted, so their history stays. */
+const RETIRED_SLUGS = [
+  'approve-a-claim-for-payment', 'process-a-member-reimbursement', 'send-a-medical-records-request',
+  'invoice-denial-reasons-and-how-to-explain-them', 'handling-medical-records-requests',
+  'bluefin-corporate-health-coverage-summary', 'atlas-student-travel-cover-coverage-summary', 'harbor-cruise-assist-coverage-summary',
 ];
 
 const SEED_FILES: Record<string, { mime: string; data: () => Buffer }> = {
@@ -77,7 +98,7 @@ export function seedAllowed(env: Record<string, string | undefined>, argv: strin
     throw new Error('Seed refused: NODE_ENV=production or AUTH_MODE=oidc. Pass --force-demo to seed demo data anyway.');
 }
 
-/** Production-safe: only the nine top-level categories (no demo users, articles or subcategories). Idempotent. */
+/** Production-safe: only the eight top-level categories (no demo users, articles or subcategories). Idempotent. */
 export function seedCategories(app: App) {
   app.sqlite.transaction(() => CATEGORY_TREE.forEach((t, i) => ensureCategory(app, t.name, null, i, t.description)))();
 }
@@ -92,10 +113,11 @@ export async function seedBase(app: App) {
 
   const catIds = new Map<string, string>();
   app.sqlite.transaction(() => {
+    const tops = CATEGORY_TREE.map((t, i) => ensureCategory(app, t.name, null, i, t.description));
+    moveLegacyCategories(app);
     CATEGORY_TREE.forEach((t, i) => {
-      const top = ensureCategory(app, t.name, null, i, t.description);
-      catIds.set(t.name, top);
-      t.children.forEach((c, j) => catIds.set(`${t.name} / ${c}`, ensureCategory(app, c, top, j, null)));
+      catIds.set(t.name, tops[i]!);
+      t.children.forEach((c, j) => catIds.set(`${t.name} / ${c}`, ensureCategory(app, c, tops[i]!, j, null)));
     });
   })();
 
@@ -123,7 +145,40 @@ export async function seedBase(app: App) {
     if (cur.status !== 'published') transition(app, byRole.admin, id, cur.status === 'archived' ? 'restore' : 'publish');
     if (cur.status === 'archived') transition(app, byRole.admin, id, 'publish');
   }
+  retireLegacy(app, byRole.admin);
   seedFlows(app, byRole.admin);
+}
+
+/** Active category by (parent name or null for top level, name). */
+function findCategory(app: App, parent: string | null, name: string) {
+  const all = app.db.select().from(categories).all().filter((c) => !c.archived);
+  const parentId = parent === null ? null : all.find((c) => c.name === parent && !c.parentId)?.id;
+  return parentId === undefined ? undefined : all.find((c) => c.name === name && c.parentId === parentId);
+}
+
+function moveLegacyCategories(app: App) {
+  for (const [from, name, to] of LEGACY_MOVES) {
+    const row = findCategory(app, from, name), target = findCategory(app, null, to);
+    if (!row || !target || findCategory(app, to, name)) continue;
+    const sortOrder = CATEGORY_TREE.find((t) => t.name === to)!.children.indexOf(name);
+    app.db.update(categories).set({ parentId: target.id, sortOrder }).where(eq(categories.id, row.id)).run();
+    reindexCategorySubtree(app, row.id);
+  }
+}
+
+function retireLegacy(app: App, admin: User) {
+  for (const slug of RETIRED_SLUGS) {
+    const a = app.db.select().from(articles).where(eq(articles.slug, slug)).get();
+    if (a && a.status !== 'archived') transition(app, admin, a.id, 'archive');
+  }
+  for (const [parent, name] of LEGACY_ARCHIVE) {
+    const row = findCategory(app, parent, name);
+    if (!row) continue;
+    const busy = app.db.select().from(categories).all().some((c) => c.parentId === row.id && !c.archived)
+      || app.sqlite.prepare("select 1 from articles where category_id = ? and status <> 'archived'").get(row.id);
+    if (busy) { console.warn(`seed: legacy category "${name}" still holds content; left active`); continue; }
+    app.db.update(categories).set({ archived: true }).where(eq(categories.id, row.id)).run();
+  }
 }
 
 /** Plan name for the full demo seed (Task 9); same function. */

@@ -1,4 +1,5 @@
 import type { SeedArticle } from './articles';
+import { REIMBURSEMENT_WI } from './articles-claims';
 import { b, callout, collapsible, demo, h, p, ref, steps, table, ul } from './pm';
 
 /** DEMO: client coverage summaries (full terms and conditions live in articles-client-terms.ts). All clients, contract references, limits and contacts are fictional. */
@@ -31,7 +32,7 @@ export const CLIENT_ARTICLES: SeedArticle[] = [
         ['Evacuation', 'Actual cost', 'Yes']),
       h(2, 'Direct billing'),
       p('Network hospitals bill us directly, usually by EDI. Non-network providers are paid by the member and reimbursed. The yearly deductible is tracked in Globo on the policy record.'),
-      callout('warning', 'Deductible first', p('Before approving a claim, check the remaining deductible on the policy. The approval screen does not deduct it automatically for Meridian. See ', ref('Approve a claim for payment'), '.')),
+      callout('warning', 'Deductible first', p('Before approving a claim, check the remaining deductible on the policy. The approval screen does not deduct it automatically for Meridian. See the approval step in ', ref(REIMBURSEMENT_WI), '.')),
       demo(),
     ],
   },

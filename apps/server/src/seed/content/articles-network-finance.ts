@@ -1,4 +1,5 @@
 import type { SeedArticle } from './articles';
+import { REIMBURSEMENT_WI } from './articles-claims';
 import { b, callout, code, collapsible, demo, h, i, ol, p, ref, shot, steps, table, tasks, ul } from './pm';
 
 /** DEMO: provider network administration and finance. All providers, tariffs, banks and figures are fictional. */
@@ -56,7 +57,7 @@ export const NETWORK_FINANCE_ARTICLES: SeedArticle[] = [
         ['GOP', 'Required before non-emergency admission; emergency admissions notified within 24 hours'],
         ['Payment', '30 days from approval in the weekly payment run'],
         ['Medical records', 'Discharge summary sent with the invoice at no charge']),
-      callout('tip', 'Check the discount', p('If the 12 % discount line is missing, deny the difference with code D07; see ', ref('Invoice denial reasons and how to explain them'), '.')),
+      callout('tip', 'Check the discount', p('If the 12 % discount line is missing, deny the difference with code D07; see the denial reason codes in ', ref(REIMBURSEMENT_WI), '.')),
       demo(),
     ],
   },
@@ -127,7 +128,7 @@ export const NETWORK_FINANCE_ARTICLES: SeedArticle[] = [
         { title: 'Re-pay', body: [p('Re-open the invoice for payment in ECNet; it joins the ', ref('Weekly provider payment run'), '.')] },
       ),
       callout('danger', 'Regulatory returns', p('Return code ', code('RR04'), ' or any sanctions reason: do not retry. Report to compliance.')),
-      p('A guided version of this check is available as the DEMO flow ', b('Payment returned by bank'), ' in the Troubleshooting Center.'),
+      p('A guided version of this check is available as the DEMO flow ', b('Payment returned by bank'), ' under Guided flows.'),
       demo(),
     ],
   },

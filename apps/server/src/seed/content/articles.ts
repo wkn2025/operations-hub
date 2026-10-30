@@ -4,6 +4,7 @@ import { EDI_ARTICLES } from './articles-edi';
 import { CLIENT_ARTICLES } from './articles-clients';
 import { CLIENT_TERMS_ARTICLES } from './articles-client-terms';
 import { CLAIMS_ARTICLES } from './articles-claims';
+import { QA_ARTICLES } from './articles-qa';
 import { NETWORK_FINANCE_ARTICLES } from './articles-network-finance';
 import { SYSTEMS_ARTICLES } from './articles-systems';
 import { GLOSSARY_ARTICLES } from './articles-glossary';
@@ -137,7 +138,7 @@ const CORE_ARTICLES: SeedArticle[] = [
   {
     title: 'EDI claim failed to import',
     type: 'troubleshooting',
-    category: 'Troubleshooting Center / EDI issues',
+    category: 'EDI & Automation / EDI issues',
     owner: 'editor',
     tags: ['edi', 'import', 'error', '837i'],
     reviewDate: '2026-10-20',
@@ -226,27 +227,9 @@ const CORE_ARTICLES: SeedArticle[] = [
       demo(),
     ],
   },
-  {
-    title: 'Handling medical records requests',
-    type: 'standard',
-    category: 'Claims & Reimbursements / Medical records',
-    owner: 'editor',
-    tags: ['medical records', 'privacy', 'claims'],
-    reviewDate: '2027-02-01',
-    fields: { summary: 'How to request records from a hospital and how to store them safely.' },
-    content: [
-      p('We request medical records only when the medical team needs them to confirm cover or plan a repatriation.'),
-      h(2, 'Requesting records'),
-      ul('Use the request template in Globo; it includes the patient’s signed consent.', 'Ask only for the admission period, not the full history.', 'Chase after 48 hours, then escalate to the medical team.'),
-      h(2, 'Storing records'),
-      callout('danger', 'Never by e-mail attachment', p('Records go into the case’s ', b('Medical'), ' folder only. Delete any copy from your mailbox and downloads.')),
-      collapsible('Retention', p('Records are kept for 10 years after the case closes, then deleted automatically.')),
-      demo(),
-    ],
-  },
 ];
 
 export const SEED_ARTICLES: SeedArticle[] = [
   ...CORE_ARTICLES, ...EDI_ARTICLES, ...CLIENT_ARTICLES, ...CLIENT_TERMS_ARTICLES, ...CLAIMS_ARTICLES,
-  ...NETWORK_FINANCE_ARTICLES, ...SYSTEMS_ARTICLES, ...GLOSSARY_ARTICLES,
+  ...QA_ARTICLES, ...NETWORK_FINANCE_ARTICLES, ...SYSTEMS_ARTICLES, ...GLOSSARY_ARTICLES,
 ];

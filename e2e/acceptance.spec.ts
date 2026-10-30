@@ -255,7 +255,7 @@ test('every top-level category (and the sidebar entry for it) has published cont
   await loginAs(page, 'viewer@demo.test');
   const cats = (await (await page.request.get('/api/categories')).json()).categories as { id: string; parentId: string | null; name: string; slug: string; archived: boolean }[];
   const top = cats.filter((c) => !c.parentId && !c.archived);
-  expect(top.length).toBe(9);
+  expect(top.length).toBe(8);
   const arts = (await (await page.request.get('/api/articles?limit=200')).json()).articles as { categoryId: string | null }[];
   const topOf = (id: string | null): string | undefined => { const c = cats.find((k) => k.id === id); return c ? (c.parentId ? topOf(c.parentId) : c.id) : undefined; };
   for (const t of top) {

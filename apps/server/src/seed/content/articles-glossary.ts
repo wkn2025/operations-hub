@@ -1,4 +1,5 @@
 import type { SeedArticle } from './articles';
+import { REIMBURSEMENT_WI } from './articles-claims';
 import { b, callout, demo, p, ref, table } from './pm';
 
 /** DEMO: glossary entries and the acronym list. */
@@ -15,7 +16,7 @@ export const GLOSSARY_ARTICLES: SeedArticle[] = [
       aliases: ['Remittance advice', 'Decision letter'], relatedTerms: ['Denial reason code', '835', 'Excess'],
     },
     content: [
-      p('Providers receive an EOB with every payment run; members receive it as the decision letter on a reimbursement. Denied lines carry the codes from ', ref('Invoice denial reasons and how to explain them'), '.'),
+      p('Providers receive an EOB with every payment run; members receive it as the decision letter on a reimbursement. Denied lines carry the denial reason codes listed in ', ref(REIMBURSEMENT_WI), '.'),
       demo(),
     ],
   },

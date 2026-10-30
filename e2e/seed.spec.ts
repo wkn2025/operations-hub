@@ -10,7 +10,7 @@ const shot = async (page: Page, name: string) => { // SCREENSHOTS=1 refreshes do
 
 const articles: [string, string, string][] = [
   ['macrohealth-edi-837p-and-837i-exchange', 'MacroHealth EDI: 837P and 837I exchange', '28-seed-technical-macrohealth'],
-  ['approve-a-claim-for-payment', 'Approve a claim for payment', '29-seed-work-instruction-approval'],
+  ['reimbursement-from-document-intake-to-proof-of-payment', 'Reimbursement: from document intake to proof of payment', '29-seed-work-instruction-approval'],
   ['bluefin-corporate-health-full-terms-and-conditions', 'Bluefin Corporate Health: full terms and conditions', '30-seed-client-terms-bluefin'],
 ];
 
