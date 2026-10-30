@@ -87,7 +87,7 @@ export const CLAIMS_ARTICLES: SeedArticle[] = [
         { title: 'Open the approval queue', body: [p('Globo, ', b('Invoices'), ', filter ', code('Status = Registered'), ', oldest first. Member reimbursements appear in the same queue.')] },
         { title: 'Match to the GOP', body: [p('Provider invoices: same provider, dates inside the GOP period, amount within the remaining balance. No GOP: ', ref('Request a missing GOP'), '.')] },
         { title: 'Check the items', body: [ul('Every billed item belongs to the treatment in the medical report.', 'No duplicates of items already paid on this case.', 'Unit prices in line with the provider agreement, if there is one.')] },
-        { title: 'Apply client rules', body: [p('Apply the limits, excess or deductible from the client terms, for example ', ref('Wayfarer Family Travel Plan: policy terms and conditions'), '. Deny excluded lines with a reason code from step 4.')] },
+        { title: 'Apply client rules', body: [p('Apply the limits, excess or deductible from the client terms, for example ', ref('Wayfarer Family Travel Plan: policy terms and conditions'), '. Deny excluded lines with a reason code from section 4.')] },
         { title: 'Approve', body: [p('Set the approved amount and write the approval note. Above EUR 5,000 the claim waits for the second approver. Globo then generates the decision letter; check that denied lines show a reason.')] },
       ),
       callout('tip', 'Partial approval', p('Approve the covered part and deny the rest in one action. The payee gets a single remittance with both lines.')),
@@ -102,6 +102,7 @@ export const CLAIMS_ARTICLES: SeedArticle[] = [
         ['D05', 'Missing documents', 'Please send the itemised invoice and the medical report.'],
         ['D06', 'Excess or deductible', 'This amount is the policy excess and is payable by the patient.'],
         ['D07', 'Price above agreement', 'The price exceeds the agreed tariff; we paid the agreed amount.']),
+      h(3, 'Good practice'),
       ol('Deny lines, not whole invoices, wherever possible.', 'Never deny for missing documents without asking for them first.', 'Write the note for the reader: no internal system names or error codes.'),
       callout('info', 'Disputes', p('If a provider disagrees, follow ', ref('Provider disputes an invoice denial'), '.')),
 

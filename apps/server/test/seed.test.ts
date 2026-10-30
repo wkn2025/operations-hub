@@ -218,6 +218,8 @@ describe('seed upgrades a database seeded with the old 9-category tree', () => {
     const active = cats().filter((x) => !x.archived);
     const tops = active.filter((x) => !x.parent_id).map((x) => x.name);
     expect(tops.sort()).toEqual(CATEGORY_TREE.map((t) => t.name).sort());
+    const visible = (u.app.sqlite.prepare('select name from categories where parent_id is null and archived = 0 order by sort_order, name').all() as { name: string }[]).map((x) => x.name);
+    expect(visible).toEqual(CATEGORY_TREE.map((t) => t.name));
     for (const k of ['Troubleshooting Center', 'Claims & Reimbursements', 'Claims & Reimbursements / Claim intake', 'Claims & Reimbursements / Medical records'])
       expect(cats().find((x) => x.id === ids.get(k))!.archived, k).toBe(1);
     const key = (x: Cat) => `${x.parent_id}/${x.name}`;
