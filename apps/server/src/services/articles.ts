@@ -58,6 +58,18 @@ export function allCategories(s: Svc): (CatRow & { slug: string; description: st
   return s.db.select().from(categories).all();
 }
 
+/** The FTS "category" column holds the path: reindex every article in the subtree of `id` after a rename or move. */
+export function reindexCategorySubtree(s: Svc, id: string) {
+  const all = allCategories(s), ids = new Set([id]);
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const c of all) if (c.parentId && ids.has(c.parentId) && !ids.has(c.id)) { ids.add(c.id); grew = true; }
+  }
+  for (const a of s.sqlite.prepare('select id, category_id from articles').all() as { id: string; category_id: string | null }[]) {
+    if (a.category_id && ids.has(a.category_id)) indexArticle(s.sqlite, a.id);
+  }
+}
+
 /**
  * SQL predicate (alias `a` = articles) mirroring can('article:read'):
  * viewer: published in a visible category; editor: any status (search excludes archived); admin: all.

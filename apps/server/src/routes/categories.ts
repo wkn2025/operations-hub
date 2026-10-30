@@ -4,24 +4,13 @@ import { z } from 'zod';
 import { categoryCreateBody, categoryPatchBody, type User } from '@ops/shared';
 import { requireRole } from '../auth/policy';
 import { categories } from '../db/schema';
-import { ApiError, allCategories, categoryPath, hiddenCategoryIds, notFound, parse, uniqueSlug } from '../services/articles';
+import { ApiError, allCategories, categoryPath, hiddenCategoryIds, notFound, parse, reindexCategorySubtree, uniqueSlug } from '../services/articles';
 import { audit } from '../services/audit';
-import { indexArticle } from '../services/search';
 
 export function categoryRoutes(app: FastifyInstance) {
   const admin = requireRole('admin'); // category structure is an admin function
   const find = (id: string) => app.db.select().from(categories).where(eq(categories.id, id)).get();
-  /** The FTS "category" column holds the path: reindex every article in the subtree of `id`. */
-  const reindexSubtree = (id: string) => {
-    const after = allCategories(app), ids = new Set([id]);
-    for (let grew = true; grew;) {
-      grew = false;
-      for (const c of after) if (c.parentId && ids.has(c.parentId) && !ids.has(c.id)) { ids.add(c.id); grew = true; }
-    }
-    for (const a of app.sqlite.prepare('select id, category_id from articles').all() as { id: string; category_id: string | null }[]) {
-      if (a.category_id && ids.has(a.category_id)) indexArticle(app.sqlite, a.id);
-    }
-  };
+  const reindexSubtree = (id: string) => reindexCategorySubtree(app, id);
   const withPath = () => { const all = allCategories(app); return (c: (typeof all)[number]) => ({ ...c, path: categoryPath(all, c.id) }); };
 
   app.get('/api/categories', { preHandler: requireRole('admin', 'editor', 'viewer') }, async (req) => {
