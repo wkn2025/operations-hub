@@ -36,7 +36,7 @@ docker run -d --name ops-hub -p 127.0.0.1:3000:3000 \
   -e SESSION_SECRET=... -e OIDC_ISSUER=... -e OIDC_CLIENT_ID=... -e OIDC_CLIENT_SECRET=... \
   -e OIDC_REDIRECT_URI=https://hub.example.com/api/auth/callback -e ADMIN_BOOTSTRAP_EMAILS=it.admin@example.com \
   operations-hub
-docker exec ops-hub sh -c 'cd /app && npm run seed -- --categories-only'   # once: create the nine top-level categories
+docker exec ops-hub sh -c 'cd /app && npm run seed -- --categories-only'   # once: create the eight top-level categories
 docker exec ops-hub sh -c 'cd /app && npm run backup'   # writes to /app/backups (the ops-hub-backups volume)
 ```
 
@@ -48,13 +48,13 @@ The container runs as uid/gid 1000 (`node`). Named volumes (as above) inherit th
 npm ci
 npm run build                       # builds apps/web/dist
 # set the variables above (or put them in .env), then:
-npm run seed -- --categories-only   # once: create the nine top-level categories (no demo content)
+npm run seed -- --categories-only   # once: create the eight top-level categories (no demo content)
 npm start -w apps/server
 ```
 
 ### First start: categories
 
-A new production database has **no categories**, and editors can only file articles under one. Run `npm run seed -- --categories-only` once (same `.env`/`DATA_DIR` as the server; it is allowed with `NODE_ENV=production`/`AUTH_MODE=oidc`). It creates only the nine top-level categories, never demo users, articles or subcategories, and is safe to re-run: it skips any category that already exists under the same name. Admins add subcategories in **Admin -> Categories**. [verified with placeholder OIDC settings on an empty `DATA_DIR`]
+A new production database has **no categories**, and editors can only file articles under one. Run `npm run seed -- --categories-only` once (same `.env`/`DATA_DIR` as the server; it is allowed with `NODE_ENV=production`/`AUTH_MODE=oidc`). It creates only the eight top-level categories, never demo users, articles or subcategories, and is safe to re-run: it skips any category that already exists under the same name. Admins add subcategories in **Admin -> Categories**. [verified with placeholder OIDC settings on an empty `DATA_DIR`]
 
 The full `npm run seed` (without the flag) **resets the demo content**: every seeded DEMO article and flow is put back to its seeded text and published again, overwriting edits made to them. It refuses to run in production unless forced with `--force-demo`; never force it on a real deployment.
 

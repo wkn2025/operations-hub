@@ -62,7 +62,7 @@ Run the relevant suite before every completion claim. Full `npm test` + `npm run
 
 ## UI conventions
 
-Premium Apple-like white UI: primary `#26408F`, accent `#C7CD3D` sparingly, background `#FFFFFF`, Inter. Colors only via `styles/tokens.css` + Tailwind theme — no raw color literals elsewhere. 9 fixed top-level categories (admin-editable). `ErrorState` with Retry for failed loads; 401 → `/login?next=…`; honour reduced motion; keep a11y (labels, focus, aria, keyboard) — reviewers check it. localStorage only for UI prefs.
+Premium Apple-like white UI: primary `#26408F`, accent `#C7CD3D` sparingly, background `#FFFFFF`, Inter. Colors only via `styles/tokens.css` + Tailwind theme — no raw color literals elsewhere. 8 fixed top-level categories (admin-editable; was 9 until the 2026-10-30 restructure). `ErrorState` with Retry for failed loads; 401 → `/login?next=…`; honour reduced motion; keep a11y (labels, focus, aria, keyboard) — reviewers check it. localStorage only for UI prefs.
 
 ## Coding conventions
 
