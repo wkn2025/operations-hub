@@ -1,7 +1,7 @@
 import { forwardRef, type ComponentPropsWithoutRef, type ReactNode } from 'react';
 import clsx from 'clsx';
 import {
-  BookA, Cpu, FileText, Folder, Handshake, Hospital, Landmark, LifeBuoy, ListChecks, MonitorCog, Receipt, ScrollText, Workflow, type LucideIcon,
+  BookA, Cpu, FileText, Folder, Handshake, Hospital, Landmark, LifeBuoy, ListChecks, MonitorCog, ScrollText, ShieldCheck, Workflow, type LucideIcon,
 } from 'lucide-react';
 import type { ArticleStatus, ArticleType } from '@ops/shared';
 
@@ -13,22 +13,26 @@ const CATEGORY_ICON: Record<string, LucideIcon> = {
   'EDI & Automation': Workflow,
   'Clients & Terms and Conditions': Handshake,
   'Work Instructions': ListChecks,
-  'Claims & Reimbursements': Receipt,
+  'Quality Assurance': ShieldCheck,
   'Provider Networks & Partners': Hospital,
   'Finance & Payment Processing': Landmark,
   'Internal Systems': MonitorCog,
-  'Troubleshooting Center': LifeBuoy,
   'Glossary & Acronyms': BookA,
 };
 export const categoryIcon = (name: string): LucideIcon => CATEGORY_ICON[name] ?? Folder;
 
+const TONE = {
+  primary: 'bg-primary-soft text-primary ring-1 ring-inset ring-primary/10',
+  neutral: 'bg-neutral-100 text-neutral-600',
+  accent: 'bg-accent text-primary', // lime well; primary on accent is >= 4.5:1 (tokens.test.ts)
+};
 /** Square icon tile used for templates and categories. */
-export function IconTile({ icon: Icon, size = 'md', tone = 'primary', className }: { icon: LucideIcon; size?: 'sm' | 'md' | 'lg'; tone?: 'primary' | 'neutral'; className?: string }) {
+export function IconTile({ icon: Icon, size = 'md', tone = 'primary', className }: { icon: LucideIcon; size?: 'sm' | 'md' | 'lg'; tone?: keyof typeof TONE; className?: string }) {
   const s = { sm: 'h-7 w-7 rounded-[9px]', md: 'h-9 w-9 rounded-[11px]', lg: 'h-12 w-12 rounded-[14px]' }[size];
   const i = { sm: 15, md: 18, lg: 22 }[size];
   return (
     <span className={clsx('inline-flex shrink-0 items-center justify-center', s,
-      tone === 'primary' ? 'bg-primary-soft text-primary ring-1 ring-inset ring-primary/10' : 'bg-neutral-100 text-neutral-600', className)}>
+      TONE[tone], className)}>
       <Icon size={i} strokeWidth={1.8} aria-hidden />
     </span>
   );

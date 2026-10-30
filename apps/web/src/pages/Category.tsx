@@ -34,7 +34,7 @@ export function CategoryPage() {
     <div key={cat.id}>
       <Breadcrumbs items={[{ label: 'Home', to: '/' }, ...categoryCrumbs(cat.path, all)]} />
       <header className="mt-6 flex items-start gap-5">
-        <IconTile icon={categoryIcon(top.name)} size="lg" />
+        <IconTile icon={categoryIcon(top.name)} size="lg" tone="accent" />
         <div className="min-w-0 flex-1">
           <h1 className="text-[32px] font-semibold leading-tight tracking-[-0.025em] text-neutral-900">{cat.name}</h1>
           <p className="mt-1.5 max-w-[62ch] text-[16px] leading-relaxed text-neutral-500">

@@ -83,7 +83,7 @@ export function Sidebar({ categories: allCategories, activeCategoryId, collapsed
                           <li key={s.id} className="pl-3 first:pt-0.5 last:pb-1">
                             <Link to={`/category/${s.slug}`} aria-current={active === s.id ? 'page' : undefined}
                               className={clsx('relative block rounded-[9px] px-2.5 py-1.5 text-[13px] leading-snug transition-colors',
-                                active === s.id ? 'bg-primary-soft font-medium text-primary' : 'text-neutral-600 hover:bg-white/80 hover:text-neutral-900')}>
+                                active === s.id ? 'bg-accent-soft font-medium text-accent-ink' : 'text-neutral-600 hover:bg-white/80 hover:text-neutral-900')}>
                               {active === s.id && <ActiveMarker className="-left-[14px] !rounded-full" />}
                               {s.name}
                             </Link>
@@ -125,11 +125,11 @@ function NavItem({ to, label, icon, active, within, collapsed, trailing }: {
   return (
     <Tip label={label} show={collapsed}>
       <div className={clsx('group relative flex items-center rounded-[12px] transition-colors',
-        active ? 'bg-primary-soft text-primary' : within ? 'text-neutral-900' : 'text-neutral-600 hover:bg-white/80 hover:text-neutral-900')}>
+        active ? 'bg-accent-soft text-accent-ink' : within ? 'text-neutral-900' : 'text-neutral-600 hover:bg-white/80 hover:text-neutral-900')}>
         {active && <ActiveMarker className="-left-3" />}
         <Link to={to} aria-current={active ? 'page' : undefined} aria-label={collapsed ? label : undefined}
           className="flex min-w-0 flex-1 items-center gap-3 rounded-[12px] px-[14px] py-2 text-[13.5px] font-medium">
-          <span className={clsx('shrink-0 transition-colors', active || within ? 'text-primary' : 'text-neutral-400 group-hover:text-neutral-600')}>{icon}</span>
+          <span className={clsx('shrink-0 transition-colors', active ? 'text-accent-ink' : within ? 'text-primary' : 'text-neutral-400 group-hover:text-neutral-600')}>{icon}</span>
           <Fade show={!collapsed} wrap><span className="block leading-snug">{label}</span></Fade>
         </Link>
         {trailing}

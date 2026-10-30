@@ -5,7 +5,7 @@
   --color-primary-hover: #1e3373;
   --color-primary-soft: #eef1f9;
   --color-primary-line: #d5dcef;
-  --color-accent: #c7cd3d; /* small accents only: active marker, highlighter, completion */
+  --color-accent: #c7cd3d; /* fills only: icon wells, active/hover states, marker, highlighter; never text, icons or the only state cue on white (tokens.test.ts) */
   --color-accent-soft: #f3f5d2;
   --color-accent-ink: #5a5e0b; /* text/icons on accent-soft; 6.2:1 on accent-soft */
   --color-accent-wash: color-mix(in srgb, var(--color-accent) 55%, transparent); /* highlighter stroke */

@@ -21,4 +21,15 @@ describe('tokens contrast', () => {
     for (const bg of ['neutral-50', 'neutral-100']) expect(ratio('color-text-muted', bg)).toBeGreaterThanOrEqual(4.5);
     expect(ratio('color-text-muted', 'color-background')).toBeGreaterThanOrEqual(4.5);
   });
+
+  // lime fills (icon wells, IconTile tone="accent") carry primary icons; accent-soft fills carry accent-ink
+  it('primary on accent and accent-ink on accent-soft are at least 4.5:1', () => {
+    expect(ratio('color-primary', 'color-accent')).toBeGreaterThanOrEqual(4.5);
+    expect(ratio('color-accent-ink', 'color-accent-soft')).toBeGreaterThanOrEqual(4.5);
+  });
+
+  // documents why lime is never text or a thin line on white
+  it('accent on white is below 3:1', () => {
+    expect(ratio('color-accent', 'color-background')).toBeLessThan(3);
+  });
 });
