@@ -88,7 +88,7 @@ export const CLAIMS_ARTICLES: SeedArticle[] = [
       h(2, 'Procedure'),
       steps(
         { title: 'Create the reimbursement', body: [p('On the case choose ', b('New reimbursement'), '. Enter each receipt as a line in its original currency.')] },
-        { title: 'Check cover', body: [p('Apply the limits and excess from the client summary, for example ', ref('Atlas Student Travel Cover: coverage summary'), '.')] },
+        { title: 'Check cover', body: [p('Apply the limits and excess from the client summary, for example ', ref('Wayfarer Family Travel Plan: policy terms and conditions'), '.')] },
         { title: 'Verify bank details', body: [p('The account holder must be the member or policyholder. Third-party accounts need a signed authorisation.')] },
         { title: 'Approve', body: [p('Follow ', ref('Approve a claim for payment'), '. The same approval limits apply.')] },
         { title: 'Send the decision letter', body: [p('Globo generates it from the approval. Check that denied lines show a reason.')] },

@@ -11,7 +11,7 @@ const shot = async (page: Page, name: string) => { // SCREENSHOTS=1 refreshes do
 const articles: [string, string, string][] = [
   ['macrohealth-edi-837p-and-837i-exchange', 'MacroHealth EDI: 837P and 837I exchange', '28-seed-technical-macrohealth'],
   ['approve-a-claim-for-payment', 'Approve a claim for payment', '29-seed-work-instruction-approval'],
-  ['bluefin-corporate-health-coverage-summary', 'Bluefin Corporate Health: coverage summary', '30-seed-client-terms-bluefin'],
+  ['bluefin-corporate-health-full-terms-and-conditions', 'Bluefin Corporate Health: full terms and conditions', '30-seed-client-terms-bluefin'],
 ];
 
 test('seeded DEMO articles render with screenshots, tables and working internal links', async ({ page }) => {
@@ -37,7 +37,7 @@ test('seeded articles with empty table cells open in the editor', async ({ page 
   expect((await page.request.post('/api/auth/dev/login', { data: { email: 'admin@demo.test' } })).ok()).toBeTruthy();
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  for (const slug of ['bluefin-corporate-health-coverage-summary', 'working-with-assistance-partners']) {
+  for (const slug of ['bluefin-corporate-health-full-terms-and-conditions', 'working-with-assistance-partners']) {
     const { id } = await (await page.request.get(`/api/articles/${slug}`)).json();
     await page.goto(`/edit/${id}`);
     const editor = page.locator('[contenteditable=true]').first();

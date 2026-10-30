@@ -79,7 +79,7 @@ export const NETWORK_FINANCE_ARTICLES: SeedArticle[] = [
       h(2, 'Partner invoices'),
       ul('Partners add a handling fee (fixed per case, see the partner record).', 'The invoice must list the underlying provider bills; ask for copies above EUR 2,000.'),
       p('Register partner invoices with ', ref('Register an incoming provider invoice'), ' and choose partner type ', code('Assistance partner'), '.'),
-      callout('info', 'Ports and cruises', p('Port agents for cruise passengers count as assistance partners; see ', ref('Harbor Cruise Assist: coverage summary'), '.')),
+      callout('info', 'Ports and cruises', p('Port agents for cruise passengers count as assistance partners. For policy wording on travel delay and curtailment, see ', ref('Wayfarer Family Travel Plan: policy terms and conditions'), '.')),
       demo(),
     ],
   },

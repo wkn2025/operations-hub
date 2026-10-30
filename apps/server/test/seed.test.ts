@@ -39,9 +39,9 @@ describe('seedDemo (Task 9)', () => {
     for (const t of CATEGORY_TREE) expect(arts.filter((a) => topOf(a.category_id) === t.name).length, t.name).toBeGreaterThanOrEqual(2);
   });
 
-  it('has at least 6 articles of each of the 6 templates', () => {
+  it('has at least 6 articles of each template (5 for client_terms: the T&C categories hold only full terms)', () => {
     const arts = published();
-    for (const t of ARTICLE_TYPES) expect(arts.filter((a) => a.type === t).length, t).toBeGreaterThanOrEqual(6);
+    for (const t of ARTICLE_TYPES) expect(arts.filter((a) => a.type === t).length, t).toBeGreaterThanOrEqual(t === 'client_terms' ? 5 : 6);
   });
 
   it('has at least 3 published flows and the three demo users', () => {
@@ -95,8 +95,8 @@ describe('seedDemo (Task 9)', () => {
       ['member reimbursement', 'Process a member reimbursement'],
       ['denial reasons', 'Invoice denial reasons and how to explain them'],
       ['medical records request', 'Send a medical records request'],
-      ['Bluefin', 'Bluefin Corporate Health: coverage summary'],
-      ['Atlas Student', 'Atlas Student Travel Cover: coverage summary'],
+      ['Bluefin', 'Bluefin Corporate Health: full terms and conditions'],
+      ['Wayfarer', 'Wayfarer Family Travel Plan: policy terms and conditions'],
       ['returned bank', 'Payment returned by the bank'],
       ['onboard network provider', 'Onboard a new network provider'],
       ['ECNet payment files', 'ECNet: postings and payment files'],

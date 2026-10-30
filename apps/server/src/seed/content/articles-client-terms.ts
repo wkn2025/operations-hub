@@ -354,7 +354,7 @@ const BLUEFIN: SeedArticle = {
   },
   content: [
     demo(),
-    p('This contract is made between ', b('Bluefin Corporate Health (fictional)'), ' (the client, the employer) and the Assistance Company (us). It sets out the medical, travel and security assistance we provide to Bluefin travellers and the terms on which we pay or guarantee costs. Short version for case managers: ', ref('Bluefin Corporate Health: coverage summary'), '.'),
+    p('This contract is made between ', b('Bluefin Corporate Health (fictional)'), ' (the client, the employer) and the Assistance Company (us). It sets out the medical, travel and security assistance we provide to Bluefin travellers and the terms on which we pay or guarantee costs. Authorisation limits are set out in section ', b('Authorisation thresholds'), '.'),
     callout('warning', 'Employer pre-approval and travel registration', p('Cover applies only to trips registered in the Bluefin travel-booking tool and approved by the traveller\'s line manager before departure. Assistance verifies registration in the daily traveller feed before issuing any guarantee.')),
 
     h(2, '1. Definitions'),
