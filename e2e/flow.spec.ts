@@ -125,7 +125,7 @@ test('editor builds a flow, fixes a validation error, publishes; a viewer runs i
   await expect(page.getByTestId('flow-result')).toContainText('Describe who to contact');
   // global search returns the flow in its own group
   await page.goto('/');
-  await page.getByRole('button', { name: /^Search procedures/ }).click();
+  await page.getByRole('button', { name: /Open search/ }).click(); // the top bar search (the home page has no search bar of its own)
   await page.getByRole('combobox', { name: 'Search' }).fill('printer powered');
   await expect(page.getByRole('group', { name: 'Flows' })).toContainText(title);
 });

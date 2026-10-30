@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App } from '../App';
 import { renderApp, mockFetch } from '../test/utils';
@@ -21,6 +21,10 @@ const counts = [
 ];
 const articles = Array.from({ length: 8 }, (_, i) => ({ id: `a${i}`, slug: `a${i}`, title: `Recent article ${i}`, type: 'standard', status: 'published',
   categoryId: 't0', categoryPath: 'EDI & Automation', revision: 1, updatedAt: '2026-10-01T10:00:00Z', publishedAt: null, reviewDate: null }));
+const flow = (i: number, title: string, status = 'published') => ({ id: `f${i}`, slug: `flow-${i}`, title, status, updatedAt: '2026-10-01T10:00:00Z',
+  articleId: null, article: null, nodeCount: 4 + i, startText: `Question ${i}` });
+// 4 published + 1 draft (editors receive drafts too); the home shows the first 3 published by title
+const flows = [flow(1, 'Printer offline'), flow(2, 'EDI file rejected'), flow(3, 'Draft flow', 'draft'), flow(4, 'Login fails'), flow(5, 'Zebra scanner')];
 const user = (role: string) => ({ user: { id: 'u1', email: 'x@demo.test', name: 'Demo User', role }, authMode: 'dev', demo: true });
 const routes = (role: string) => ({
   '/api/me': user(role), '/api/categories': { categories }, '/api/articles/counts': { counts },
@@ -43,16 +47,57 @@ describe('Home', () => {
     expect(within(main).queryByText('Troubleshooting Center')).toBeNull();
   });
 
-  it('caps "Recently updated" at 5, links to guided flows, and opens search from the hero', async () => {
+  it('caps "Recently updated" at 5; no search bar in the page body, the top bar search and Ctrl+K still open search', async () => {
     mockFetch(routes('viewer'));
     renderApp(<App />, '/');
     const main = await screen.findByRole('main');
     const recent = await within(main).findByRole('region', { name: 'Recently updated' });
     expect(await within(recent).findByText('Recent article 0')).toBeInTheDocument();
     expect(within(recent).getAllByRole('link')).toHaveLength(5);
-    expect(within(main).getByRole('link', { name: /Guided flows/ })).toHaveAttribute('href', '/flows');
-    await userEvent.click(within(main).getByRole('button', { name: /^Search procedures/ }));
+    expect(within(main).queryByRole('button', { name: /search/i })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: /Open search/ }));
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await userEvent.keyboard('{Control>}k{/Control}');
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+  });
+
+  it('features up to 3 published guided flows above the categories, with a link to all flows', async () => {
+    mockFetch({ ...routes('editor'), '/api/flows': { flows } });
+    renderApp(<App />, '/');
+    const main = await screen.findByRole('main');
+    const band = await within(main).findByRole('region', { name: /guided flow/i });
+    await within(band).findByText('EDI file rejected');
+    const cards = within(band).getAllByRole('link').filter((l) => l.getAttribute('href') !== '/flows');
+    expect(cards.map((l) => l.getAttribute('href'))).toEqual(['/flows/flow-2', '/flows/flow-4', '/flows/flow-1']);
+    expect(cards[0]).toHaveAccessibleName(/EDI file rejected/);
+    expect(within(band).queryByText('Draft flow')).toBeNull();
+    expect(within(band).getByRole('link', { name: /All guided flows/ })).toHaveAttribute('href', '/flows');
+    const cats = within(main).getByRole('navigation', { name: 'Categories' });
+    expect(band.compareDocumentPosition(cats) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('hides the flows band when there are no published flows', async () => {
+    mockFetch({ ...routes('viewer'), '/api/flows': { flows: [flow(3, 'Draft flow', 'draft')] } });
+    renderApp(<App />, '/');
+    const main = await screen.findByRole('main');
+    await within(main).findByRole('navigation', { name: 'Categories' });
+    await waitFor(() => expect(within(main).queryByRole('region', { name: /guided flow/i })).toBeNull());
+  });
+
+  it('a failed flows load shows a retry that recovers, without hiding the rest of the home', async () => {
+    let fail = true;
+    mockFetch({ ...routes('viewer'), '/api/flows': () => (fail ? { __status: 500 } : { flows }) });
+    renderApp(<App />, '/');
+    const main = await screen.findByRole('main');
+    const alert = await within(main).findByRole('alert');
+    expect(alert).toHaveTextContent(/guided flows/i);
+    expect(within(main).getByRole('navigation', { name: 'Categories' })).toBeInTheDocument();
+    fail = false;
+    await userEvent.click(within(alert).getByRole('button', { name: /Retry/ }));
+    const band = await within(main).findByRole('region', { name: /guided flow/i });
+    expect(await within(band).findByText('Printer offline')).toBeInTheDocument();
   });
 
   it('viewers get no editor actions and no review badge', async () => {

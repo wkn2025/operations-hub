@@ -48,7 +48,7 @@ export function Topbar({ me }: { me: Me }) {
           <Menu.Trigger className="flex items-center gap-2.5 rounded-[12px] py-1.5 pl-1.5 pr-2.5 text-left transition-colors hover:bg-white/90 data-[state=open]:bg-white">
             <span aria-hidden className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-primary text-xs font-semibold text-white">{initials(user.name)}</span>
             <span className="hidden leading-tight md:block">
-              <span className="block text-[13px] font-medium text-neutral-900">{user.name}</span>
+              <span className="block whitespace-nowrap text-[13px] font-medium text-neutral-900">{user.name}</span>
               <span className="block text-xs text-neutral-500">{role.label}</span>
             </span>
             <ChevronDown size={14} className="text-neutral-400" aria-hidden />

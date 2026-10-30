@@ -51,7 +51,7 @@ export function Sidebar({ categories: allCategories, activeCategoryId, collapsed
 
         <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 pb-3 pt-1">
           <NavItem to="/" label="Home" icon={<House size={18} strokeWidth={1.8} />} active={pathname === '/'} collapsed={collapsed} />
-          <NavItem to="/flows" label="Guided flows" icon={<Route size={18} strokeWidth={1.8} />} active={pathname.startsWith('/flows')} collapsed={collapsed} />
+          <NavItem to="/flows" label="Guided flows" icon={<Route size={18} strokeWidth={1.8} />} active={pathname.startsWith('/flows')} collapsed={collapsed} featured />
           {canEdit && <NavItem to="/edit/new" label="New article" icon={<SquarePen size={18} strokeWidth={1.8} />} active={pathname === '/edit/new'} collapsed={collapsed} />}
           {isAdmin && <NavItem to="/admin" label="Admin" icon={<ShieldCheck size={18} strokeWidth={1.8} />} active={pathname.startsWith('/admin')} collapsed={collapsed} />}
           <Fade show={!collapsed}>
@@ -119,8 +119,8 @@ function topOf(cats: Category[], id: string): string {
   return c?.id ?? id;
 }
 
-function NavItem({ to, label, icon, active, within, collapsed, trailing }: {
-  to: string; label: string; icon: ReactNode; active: boolean; within?: boolean; collapsed: boolean; trailing?: ReactNode;
+function NavItem({ to, label, icon, active, within, collapsed, trailing, featured }: {
+  to: string; label: string; icon: ReactNode; active: boolean; within?: boolean; collapsed: boolean; trailing?: ReactNode; featured?: boolean;
 }) {
   return (
     <Tip label={label} show={collapsed}>
@@ -129,7 +129,8 @@ function NavItem({ to, label, icon, active, within, collapsed, trailing }: {
         {active && <ActiveMarker className="-left-3" />}
         <Link to={to} aria-current={active ? 'page' : undefined} aria-label={collapsed ? label : undefined}
           className="flex min-w-0 flex-1 items-center gap-3 rounded-[12px] px-[14px] py-2 text-[13.5px] font-medium">
-          <span className={clsx('shrink-0 transition-colors', active ? 'text-accent-ink' : within ? 'text-primary' : 'text-neutral-400 group-hover:text-neutral-600')}>{icon}</span>
+          <span className={clsx('shrink-0 transition-colors', featured ? '-m-1 rounded-[8px] bg-accent p-1 text-primary' // lime well, like the home tiles
+            : active ? 'text-accent-ink' : within ? 'text-primary' : 'text-neutral-400 group-hover:text-neutral-600')}>{icon}</span>
           <Fade show={!collapsed} wrap><span className="block leading-snug">{label}</span></Fade>
         </Link>
         {trailing}
