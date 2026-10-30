@@ -37,6 +37,7 @@ export const CLIENT_ARTICLES: SeedArticle[] = [
         { title: 'Above USD 50,000 or any air ambulance', body: [p('Call the Bluefin travel-risk desk (24/7, number in the Globo client record) and confirm by e-mail.')] },
       ),
       callout('danger', 'Not covered', ul('Planned treatment abroad', 'Trips not registered in the Bluefin travel tool', 'Cosmetic procedures')),
+      p('Full contract wording: ', ref('Bluefin Corporate Health: full terms and conditions'), '.'),
       demo(),
     ],
   },

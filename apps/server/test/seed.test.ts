@@ -118,6 +118,37 @@ describe('seedDemo (Task 9)', () => {
   });
 });
 
+describe('full DEMO terms and conditions', () => {
+  const common = [/^\d+\. Definitions/, /Eligibility and territory/, /Period of cover/, /Emergency medical expenses/, /Pre-existing medical conditions/,
+    /vaccinations/i, /Medical evacuation and repatriation/, /Repatriation of mortal remains/, /Pregnancy and childbirth/, /Mental health/,
+    /Dental emergency/, /Prescription medication/, /Guarantee of payment/, /Claims procedure/, /Luggage.*personal belongings/,
+    /Personal money and documents/, /Compassionate visit/, /General exclusions/, /General conditions/, /Fraud/, /Subrogation/,
+    /Other insurance/, /Sanctions/, /Complaints/, /Governing law/, /How to contact assistance/];
+  const cases: [string, string, RegExp[]][] = [
+    ['Wayfarer Family Travel Plan: policy terms and conditions', 'Clients & Terms and Conditions / Travel insurance clients',
+      [/Trip cancellation/, /Curtailment/, /Travel delay/, /Personal liability/, /Accompanying child/]],
+    ['Bluefin Corporate Health: full terms and conditions', 'Clients & Terms and Conditions / Corporate clients',
+      [/Medical screening/, /Pre-trip vaccinations and health checks/, /Security and political evacuation/, /War and terrorism/, /Return of dependants/, /Authorisation thresholds/, /Annual aggregate/]],
+  ];
+  for (const [title, category, extra] of cases) {
+    it(`${title}: right category, DEMO-labelled, a section for every benefit, published`, () => {
+      const a = SEED_ARTICLES.find((x) => x.title === title);
+      expect(a, title).toBeDefined();
+      expect(a!.type).toBe('client_terms');
+      expect(a!.category).toBe(category);
+      expect(a!.fields?.client).toMatch(/\(fictional\)/);
+      expect(a!.fields?.contractRef).toMatch(/-DEMO$/);
+      expect(a!.fields?.validTo! >= '2027-01-01').toBe(true);
+      const heads: string[] = [];
+      a!.content.forEach((n) => walk(n, (x) => { if (x.type === 'heading') heads.push(x.content!.map((t) => t.text).join('')); }));
+      for (const re of [...common, ...extra]) expect(heads.some((t) => new RegExp(re.source, 'i').test(t)), `${title}: heading ${re}`).toBe(true);
+      const row = all<{ content: string; status: string }>('select content, status from articles where title = ?', title)[0];
+      expect(row?.status).toBe('published');
+      expect(row!.content).toContain('DEMO content');
+    });
+  }
+});
+
 describe('seed contract dates', () => {
   it('no demo client contract runs out in 2026 (the demo would show expired T&Cs within weeks)', () => {
     const ends = SEED_ARTICLES.map((a) => (a.fields as { validTo?: string } | undefined)?.validTo).filter((v): v is string => !!v);

@@ -2,6 +2,7 @@ import type { ArticleType, PmNode, TemplateFields } from '@ops/shared';
 import { a, b, callout, code, collapsible, demo, h, hl, i, ol, p, pre, ref, shot, steps, table, tasks, ul } from './pm';
 import { EDI_ARTICLES } from './articles-edi';
 import { CLIENT_ARTICLES } from './articles-clients';
+import { CLIENT_TERMS_ARTICLES } from './articles-client-terms';
 import { CLAIMS_ARTICLES } from './articles-claims';
 import { NETWORK_FINANCE_ARTICLES } from './articles-network-finance';
 import { SYSTEMS_ARTICLES } from './articles-systems';
@@ -246,6 +247,6 @@ const CORE_ARTICLES: SeedArticle[] = [
 ];
 
 export const SEED_ARTICLES: SeedArticle[] = [
-  ...CORE_ARTICLES, ...EDI_ARTICLES, ...CLIENT_ARTICLES, ...CLAIMS_ARTICLES,
+  ...CORE_ARTICLES, ...EDI_ARTICLES, ...CLIENT_ARTICLES, ...CLIENT_TERMS_ARTICLES, ...CLAIMS_ARTICLES,
   ...NETWORK_FINANCE_ARTICLES, ...SYSTEMS_ARTICLES, ...GLOSSARY_ARTICLES,
 ];
