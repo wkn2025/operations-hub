@@ -1,0 +1,70 @@
+/* Single source of truth for design tokens. Tailwind theme (tailwind.config.ts) maps to these. */
+:root {
+  /* Brand */
+  --color-primary: #26408f;
+  --color-primary-hover: #1e3373;
+  --color-primary-soft: #eef1f9;
+  --color-primary-line: #d5dcef;
+  --color-accent: #c7cd3d; /* fills only: icon wells, active/hover states, marker, highlighter; never text, icons or the only state cue on white (tokens.test.ts) */
+  --color-accent-soft: #f3f5d2;
+  --color-accent-ink: #5a5e0b; /* text/icons on accent-soft; 6.2:1 on accent-soft */
+  --color-accent-wash: color-mix(in srgb, var(--color-accent) 55%, transparent); /* highlighter stroke */
+  --color-accent-tint: color-mix(in srgb, var(--color-accent) 45%, transparent); /* text selection */
+  --color-accent-stripe: color-mix(in srgb, var(--color-accent-soft) 50%, transparent);
+  --color-on-primary: #ffffff;
+  --color-overlay: color-mix(in srgb, var(--neutral-100) 55%, transparent); /* modal backdrop */
+  --wash-primary: color-mix(in srgb, var(--color-primary) 6%, transparent); /* page background glow */
+  --wash-accent: color-mix(in srgb, var(--color-accent) 7%, transparent);
+  --color-background: #ffffff;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f6f7fa;
+
+  /* Neutral scale (cool, nudged towards the primary hue) */
+  --neutral-50: #f8f9fc;
+  --neutral-100: #f1f3f8;
+  --neutral-200: #e4e8f0;
+  --neutral-300: #cdd3df;
+  --neutral-400: #98a1b4;
+  --neutral-500: #646d86; /* 4.6:1 on neutral-100, 5.2:1 on white (tokens.test.ts) */
+  --neutral-600: #4a536b;
+  --neutral-700: #353d55;
+  --neutral-800: #222a42;
+  --neutral-900: #141b33;
+
+  /* Semantic */
+  --color-text: var(--neutral-900);
+  --color-text-muted: var(--neutral-500);
+  --color-border: var(--neutral-200);
+  --color-success: #1f7a4d;
+  --color-success-soft: #e6f4ec;
+  --color-warning: #9a6200;
+  --color-warning-soft: #fdf4e1;
+  --color-danger: #b4232f;
+  --color-danger-soft: #fcebec;
+  --color-info: var(--color-primary);
+  --color-info-soft: var(--color-primary-soft);
+
+  /* Radii (14–20px for floating panels) */
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --radius-xl: 20px;
+
+  /* Soft shadows: offset + blur, tinted with the primary */
+  --shadow-sm: 0 1px 2px rgb(20 27 51 / 0.05);
+  --shadow-md: 0 2px 4px rgb(20 27 51 / 0.03), 0 8px 24px rgb(38 64 143 / 0.07);
+  --shadow-button: 0 1px 2px rgb(20 27 51 / 0.2), inset 0 1px 0 rgb(255 255 255 / 0.12);
+  --shadow-lg: 0 4px 10px rgb(20 27 51 / 0.04), 0 18px 48px rgb(38 64 143 / 0.13);
+
+  /* Glass */
+  --glass-bg: rgb(255 255 255 / 0.72);
+  --glass-border: rgb(255 255 255 / 0.9);
+  --glass-ring: rgb(38 64 143 / 0.08);
+
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'Cascadia Code', 'SFMono-Regular', Consolas, monospace;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  /* sampled damped spring (k=260, c=24), ~3% overshoot; use with ~600ms */
+  --ease-spring: linear(0, 0.029, 0.098, 0.19, 0.294, 0.401, 0.505, 0.602, 0.689, 0.764, 0.828, 0.881, 0.924, 0.957, 0.982, 1, 1.013, 1.021, 1.026, 1.028, 1.028, 1.026, 1.024, 1.021, 1.018, 1.015, 1.012, 1.01, 1.008, 1.006, 1.004, 1.003, 1.002, 1.001, 1);
+}

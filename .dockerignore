@@ -1,0 +1,14 @@
+node_modules
+**/node_modules
+**/dist
+data
+apps/server/data
+backups
+exports
+.env
+.git
+.superpowers
+test-results
+playwright-report
+docs/screenshots
+*.tsbuildinfo
