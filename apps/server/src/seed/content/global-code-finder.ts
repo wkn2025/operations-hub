@@ -42,22 +42,23 @@ export const GLOBAL_CODE_FLOW: SeedFlow = {
     q('fac', "Is this a hospital or facility bill, not a doctor's own fee?", 'er', 'sep'),
     q('er', 'Is it for the hospital emergency room (observation without admission counts)?', 'r-er', 'surg'),
     q('surg', 'Does this bill include a surgery or a delivery?', 'r-forfait', 'admit'),
-    q('admit', 'Was the patient admitted (room, ICU)?', 'r-inpatient', 'r-review'),
+    q('admit', 'Was the patient admitted (room, ICU)?', 'r-inpatient', 'cons', 'If not, answer No: a hospital outpatient bill (imaging, chemotherapy day unit, dialysis, physio, clinic consultation) continues to the service questions.'),
 
     // Separate professional fee
-    q('sep', 'Is it a separate fee from a doctor, nurse or anesthesiologist, billed apart from a facility bill?', 'anes', 'cons'),
+    q('sep', 'Is it a separate fee from a doctor, nurse or anesthesiologist, billed apart from a facility bill?', 'anes', 'nursebill'),
     q('anes', 'Is it from the anesthesiologist?', 'r-anes', 'nurse'),
     q('nurse', 'Is it for nursing services?', 'r-medfees', 'read'),
     q('read', 'Is it only a radiologist or pathologist reading an image or sample?', 'readkind', 'inpt'),
     q('readkind', 'Is it reading an image or scan?', 'img', 'bxread'),
     q('bxread', 'Is the sample described as a biopsy?', 'r-biopsy', 'r-analysis'),
+    q('nursebill', 'Is it a nursing bill (for example home nursing)?', 'r-medfees', 'cons', 'Yes for nursing care itself (home nursing, private-duty nurse). A nurse giving only a vaccine, an injection or a wound dressing: answer No.'),
     q('inpt', 'Did the doctor treat or operate while the patient was admitted?', 'r-b00', 'r-outpt'),
 
     // Consultation
-    q('cons', 'Is the main purpose to see a doctor?', 'tele', 'test'),
+    q('cons', 'Is the main purpose a consultation with a doctor or other health professional (dietitian, podiatrist, optometrist…), not therapy sessions?', 'tele', 'test', 'Therapy sessions (physio, psychotherapy, occupational or speech therapy, acupuncture, chiropractic) answer No.'),
     q('tele', 'Was it by video or phone?', 'r-tele', 'home'),
     q('home', 'Was it a house call?', 'r-home', 'spec'),
-    q('spec', 'Is the doctor a specialist (eye, heart, skin, psychiatry, dietitian…)?', 'r-spec', 'r-a01'),
+    q('spec', 'Is it a specialist (eye, heart, skin, psychiatry, dietitian, podiatrist, optometrist…)?', 'r-spec', 'r-a01'),
 
     // Test or scan
     q('test', 'Is the main purpose a test or scan?', 'imgq', 'med'),
@@ -84,7 +85,7 @@ export const GLOBAL_CODE_FLOW: SeedFlow = {
     q('lab', 'Is it a lab analysis of a sample (blood, urine, Pap smear…)?', 'r-analysis', 'r-review', 'Colposcopy and urodynamic tests also count: answer Yes.'),
 
     // Medicine or treatment
-    q('med', 'Is the main purpose to give or buy a medicine (pharmacy, injection, infusion, vaccine)?', 'vac', 'wound'),
+    q('med', 'Is the main purpose to give or buy a medicine (pharmacy, injection, infusion, vaccine)?', 'vac', 'wound', 'Blood transfusion and oxygen therapy: answer No (no code yet; they go to manual review).'),
     q('vac', 'Is it a vaccination?', 'r-vac', 'chemo'),
     q('chemo', 'Is it chemotherapy?', 'r-chemo', 'r-medicines'),
     q('wound', 'Is it a wound dressing, stitches, stitch removal or abscess drainage?', 'r-wound', 'talk'),

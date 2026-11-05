@@ -23,6 +23,13 @@ Non-goals: new engine, new UI, Copy button, numeric-code editor/importer, amount
 - Footer wording in every result detail start/end is not repeated; the first question's `detail` states: classifies the invoice only, never coverage or necessity.
 - Tests (`apps/server/test/`): `validateFlow` clean; every question has exactly 2 options; every scenario row of the reference §5 walked as an answer sequence through `startRun/answer`, asserting the result node; unresolved-rule results name both codes.
 
+**User approved fixes 2026-11-05** (gaps found by the literal-reading invoice simulator, `global-code-finder.invoices.test.ts`):
+1. Hospital outpatient bills: `admit` No → `cons` (was `r-review`), so imaging, chemotherapy day unit, dialysis, physio or clinic consults billed by a hospital continue to the service questions (INV-46, INV-50).
+2. Standalone nursing: `sep` No → new `nursebill` "Is it a nursing bill (for example home nursing)?" → `r-medfees` / `cons` (INV-23). `nurse` under `sep` stays.
+3. Other health professionals: `cons` covers a consultation with a doctor or other health professional, "not therapy sessions" (text and detail); `spec` lists the reference §4 Specialist Consultation professions (INV-49, INV-85, INV-86).
+4. Transfusion / oxygen: `med` detail sends blood transfusion and oxygen therapy to No, so they reach manual review (INV-71, INV-72).
+5. Code the purpose of the service, not who delivers it (controller ruling): `nursebill` detail says Yes only for nursing care itself; a nurse giving only a vaccine, injection or wound dressing answers No (INV-83, INV-84).
+
 ## Tree
 
 Format: `id` "question" → Yes / No. Result ids start `r-`.
@@ -46,11 +53,12 @@ Format: `id` "question" → Yes / No. Result ids start `r-`.
 - `fac` "Is this a hospital or facility bill, not a doctor's own fee?" → `er` / `sep`
 - `er` "Is it for the hospital emergency room (observation without admission counts)?" → `r-er` / `surg`
 - `surg` "Does this bill include a surgery or a delivery?" → `r-forfait` / `admit`
-- `admit` "Was the patient admitted (room, ICU)?" → `r-inpatient` / `r-review`
+- `admit` "Was the patient admitted (room, ICU)?" → `r-inpatient` / `cons` (detail: a hospital outpatient bill continues to the service questions)
 - Ruling (mine): ER + surgery on one facility bill → ER (rule 4 order); flagged in `r-er` detail.
 
 **Separate professional fee**
-- `sep` "Is it a separate fee from a doctor, nurse or anesthesiologist, billed apart from a facility bill?" → `anes` / `cons`
+- `sep` "Is it a separate fee from a doctor, nurse or anesthesiologist, billed apart from a facility bill?" → `anes` / `nursebill`
+- `nursebill` "Is it a nursing bill (for example home nursing)?" → `r-medfees` / `cons` (detail: nursing care itself only; a nurse giving only a vaccine, injection or dressing answers No)
 - `anes` "Is it from the anesthesiologist?" → `r-anes` / `nurse`
 - `nurse` "Is it for nursing services?" → `r-medfees` / `read`
 - `read` "Is it only a radiologist or pathologist reading an image or sample?" → `readkind` / `inpt`
@@ -58,9 +66,9 @@ Format: `id` "question" → Yes / No. Result ids start `r-`.
 - `inpt` "Did the doctor treat or operate while the patient was admitted?" → `r-b00` (B00 Inpatient Physician Fees) / `r-outpt` (A00 Outpatient Physician Fees; includes outpatient surgeon and separate ER doctor)
 
 **Consultation**
-- `cons` "Is the main purpose to see a doctor?" → `tele` / `test`
+- `cons` "Is the main purpose a consultation with a doctor or other health professional (dietitian, podiatrist, optometrist…), not therapy sessions?" → `tele` / `test` (detail lists the therapies)
 - `tele` "Was it by video or phone?" → `r-tele` / `home`; `home` "Was it a house call?" → `r-home` / `spec`
-- `spec` "Is the doctor a specialist (eye, heart, skin, psychiatry, dietitian…)?" → `r-spec` / `r-a01`
+- `spec` "Is it a specialist (eye, heart, skin, psychiatry, dietitian, podiatrist, optometrist…)?" → `r-spec` / `r-a01`
 - `r-a01` detail: general consult, follow-up, urgent care, walk-in, US routine check-up (flagged for later review), certificate billed separately, non-surgical joint injection or nerve block; extra tests/medicines do not change it. Specialist at urgent care: confirm with team lead (backlog item 10).
 
 **Test or scan**
@@ -78,7 +86,7 @@ Format: `id` "question" → Yes / No. Result ids start `r-`.
 - `bx` "Is it a biopsy (tissue sample)?" → `r-biopsy` / `lab`; `lab` "Is it a lab analysis of a sample (blood, urine, Pap smear…)?" → `r-analysis` / `r-review`
 
 **Medicine or treatment**
-- `med` "Is the main purpose to give or buy a medicine (pharmacy, injection, infusion, vaccine)?" → `vac` / `wound`
+- `med` "Is the main purpose to give or buy a medicine (pharmacy, injection, infusion, vaccine)?" → `vac` / `wound` (detail: blood transfusion and oxygen therapy answer No)
 - `vac` "Is it a vaccination?" → `r-vac` / `chemo`; `chemo` "Is it chemotherapy?" → `r-chemo` / `r-medicines` (visit solely for non-chemo injection counts; incidental medicine on a consultation does not)
 - `wound` "Is it a wound dressing, stitches, stitch removal or abscess drainage?" → `r-wound` (outside ER only) / `talk`
 - `talk` "Is it physio, psychotherapy, occupational or speech therapy?" → `pp` / `other`
