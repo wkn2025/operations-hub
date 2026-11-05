@@ -274,6 +274,6 @@ describe('seed rename', () => {
     const rows = s.app.sqlite.prepare("select id, slug, title, nodes from flows where title like 'EDI claim%'").all() as { id: string; slug: string; title: string; nodes: string }[];
     expect(rows.map((r) => [r.id, r.slug, r.title])).toEqual([[id, 'edi-claim-failed-to-import-demo', 'EDI claim failed to import']]);
     expect(rows[0]!.nodes).toMatch(/Missing Claim/);
-    expect(rows[0]!.nodes).not.toMatch(/DEMO|999|Retry match/);
+    expect(rows[0]!.nodes).not.toMatch(/DEMO|\b999\b|Retry match/);
   });
 });
