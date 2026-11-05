@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { Link, Navigate, useParams } from 'react-router';
 import clsx from 'clsx';
 import { FileQuestion, Plus } from 'lucide-react';
 import { TEMPLATE_LABELS } from '@ops/shared';
@@ -27,6 +27,8 @@ export function CategoryPage() {
   if (!cat) return <NotFound what="category" />;
 
   const list = arts.data ?? [];
+  // ponytail: name match; generalise to "leaf with one article" if more single-article sections appear
+  if (cat.name === 'Bank information' && list.length > 0) return <Navigate to={`/article/${list[0].slug}`} replace />;
   const parent = cat.parentId ? all.find((c) => c.id === cat.parentId) : null;
   const top = parent ?? cat;
 
