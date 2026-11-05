@@ -19,7 +19,9 @@ export function ClientDirectory({ articles }: { articles: ArticleSummary[] }) {
   for (const a of articles) {
     if (a.status === 'archived') continue;
     const k = a.client && display(a.client) && a.line && a.docKind ? `${key(a.client)}|${a.line}|${a.docKind}` : null;
-    if (!k || slots.has(k)) { other.push(a); continue; }
+    const held = k ? slots.get(k) : undefined;
+    if (!k || (held && (held.status === 'published' || a.status !== 'published'))) { other.push(a); continue; }
+    if (held) other.push(held); // a published article takes the slot from a draft
     slots.set(k, a);
     if (!names.has(key(a.client!))) names.set(key(a.client!), display(a.client!));
   }

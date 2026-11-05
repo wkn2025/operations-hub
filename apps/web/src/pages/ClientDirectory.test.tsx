@@ -72,4 +72,25 @@ describe('Clients & Terms and Conditions directory', () => {
     expect(screen.getByRole('link', { name: 'Acme full v2' })).toHaveAttribute('href', '/article/acme-full-v2');
     expect(screen.getByRole('link', { name: 'Untagged note' })).toBeInTheDocument();
   });
+
+  it('a failed later page shows an error with Retry instead of a partial directory, and does not refetch on its own', async () => {
+    let failing = true;
+    const many = Array.from({ length: 60 }, (_, i) => doc(`d-${i}`, `Client ${String(i).padStart(2, '0')}`, 'travel', 'full'));
+    const fetch = mockFetch({ '/api/me': me, '/api/categories': cats, '/api/articles/counts': { counts: [] }, '/api/articles?': (url: string) => {
+      const off = Number(new URL(url, 'http://x').searchParams.get('offset') ?? 0);
+      if (off > 0 && failing) return { __status: 500, error: 'internal' };
+      return { articles: many.slice(off, off + 50), total: many.length };
+    } });
+    renderApp(<Routes><Route path="category/:slug" element={<CategoryPage />} /></Routes>, '/category/clients');
+    const retry = await screen.findByRole('button', { name: /retry/i });
+    expect(screen.queryByRole('button', { name: 'Client 00' })).toBeNull(); // no partial list
+    await new Promise((r) => setTimeout(r, 300));
+    const pageCalls = () => fetch.mock.calls.filter(([u]) => String(u).includes('offset=50')).length;
+    const before = pageCalls();
+    await new Promise((r) => setTimeout(r, 300));
+    expect(pageCalls()).toBe(before); // no retry loop
+    failing = false;
+    await userEvent.click(retry);
+    expect(await screen.findByRole('button', { name: 'Client 59' })).toBeInTheDocument();
+  });
 });
