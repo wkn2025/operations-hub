@@ -1,4 +1,5 @@
 import type { FlowNode } from '@ops/shared';
+import { GLOBAL_CODE_FLOW } from './global-code-finder';
 
 /**
  * Seed guided flows: DEMO ones (fictional procedures, title ends in "(DEMO)") and the real EDI import flow. Extension point like SEED_ARTICLES. Article nodes name a seeded article by
@@ -59,4 +60,5 @@ export const SEED_FLOWS: SeedFlow[] = [
       { id: 'finance', kind: 'result', severity: 'info', text: 'Send the return notice to the finance desk and note it on the invoice.' },
     ],
   },
+  GLOBAL_CODE_FLOW,
 ];

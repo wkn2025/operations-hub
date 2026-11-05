@@ -52,7 +52,7 @@ describe('seedDemo (Task 9)', () => {
   it('is idempotent: second run adds no articles, revisions, flows or files', () => {
     expect((c.app.sqlite.prepare('select count(*) n from revisions').get() as { n: number }).n).toBe(revsAfterFirst);
     expect(all('select id from articles')).toHaveLength(SEED_ARTICLES.length);
-    expect(all('select id from flows')).toHaveLength(3);
+    expect(all('select id from flows')).toHaveLength(4);
     const dupFiles = all("select name from files group by name having count(*) > 1");
     expect(dupFiles).toEqual([]);
   });

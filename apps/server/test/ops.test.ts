@@ -104,7 +104,7 @@ describe('backup and export on the seeded demo database', () => {
       expect(names.has(`articles/${s}.json`), s).toBe(true);
     }
     expect([...names].filter((n) => n.startsWith('files/')).length).toBeGreaterThanOrEqual(5); // seeded screenshots used by articles
-    expect([...names].filter((n) => n.startsWith('flows/')).length).toBe(3);
+    expect([...names].filter((n) => n.startsWith('flows/')).length).toBe(4);
     const index = JSON.parse(String(entries.find((e) => e.name === 'index.json')!.data));
     expect(index.articles.length).toBe((c.app.sqlite.prepare('select count(*) n from articles').get() as { n: number }).n);
     const one = JSON.parse(String(entries.find((e) => e.name === `articles/${published[0]}.json`)!.data));
