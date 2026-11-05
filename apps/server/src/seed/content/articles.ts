@@ -3,6 +3,7 @@ import { a, b, callout, code, collapsible, demo, h, hl, i, ol, p, pre, ref, shot
 import { ALL_ENTRIES, EDI_101, EDI_ARTICLES, EDI_IMPORT, MANUAL_HANDLING, MISSING_CLAIM, MISSING_GOP } from './articles-edi';
 import { CLIENT_ARTICLES } from './articles-clients';
 import { CLIENT_TERMS_ARTICLES } from './articles-client-terms';
+import { CLIENT_PLACEHOLDER_ARTICLES } from './articles-client-placeholders';
 import { CLAIMS_ARTICLES } from './articles-claims';
 import { QA_ARTICLES } from './articles-qa';
 import { NETWORK_FINANCE_ARTICLES } from './articles-network-finance';
@@ -63,13 +64,13 @@ const CORE_ARTICLES: SeedArticle[] = [
   {
     title: 'Northwind Travel Insurance: coverage summary',
     type: 'client_terms',
-    category: 'Clients & Terms and Conditions / Coverage summaries',
+    category: 'Clients & Terms and Conditions',
     owner: 'admin',
     tags: ['northwind', 'travel insurance', 'coverage'],
     reviewDate: '2027-01-15',
     fields: {
       summary: 'What we may authorise for Northwind policyholders without calling the client first.',
-      client: 'Northwind Travel Insurance (fictional)', contractRef: 'NW-ASSIST-2026-DEMO', validFrom: '2026-01-01', validTo: '2027-12-31', region: 'Worldwide excl. USA/Canada',
+      client: 'Northwind Travel Insurance (fictional)', line: 'travel', docKind: 'summary', contractRef: 'NW-ASSIST-2026-DEMO', validFrom: '2026-01-01', validTo: '2027-12-31', region: 'Worldwide excl. USA/Canada',
       keyLimits: [
         { label: 'Medical expenses', value: 'EUR 250,000' },
         { label: 'Authorise without client', value: 'EUR 5,000' },
@@ -166,6 +167,6 @@ const CORE_ARTICLES: SeedArticle[] = [
 ];
 
 export const SEED_ARTICLES: SeedArticle[] = [
-  ...CORE_ARTICLES, ...EDI_ARTICLES, ...CLIENT_ARTICLES, ...CLIENT_TERMS_ARTICLES, ...CLAIMS_ARTICLES,
+  ...CORE_ARTICLES, ...EDI_ARTICLES, ...CLIENT_ARTICLES, ...CLIENT_TERMS_ARTICLES, ...CLIENT_PLACEHOLDER_ARTICLES, ...CLAIMS_ARTICLES,
   ...QA_ARTICLES, ...NETWORK_FINANCE_ARTICLES, ...SYSTEMS_ARTICLES, ...GLOSSARY_ARTICLES, ...BANK_ARTICLES,
 ];

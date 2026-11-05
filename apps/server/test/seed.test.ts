@@ -155,6 +155,22 @@ describe('seedDemo (Task 9)', () => {
   });
 });
 
+describe('client directory', () => {
+  it('every client has corporate and travel, each with full T&C and coverage summary, filed under the top category', () => {
+    const terms = SEED_ARTICLES.filter((a) => a.type === 'client_terms' && a.category.startsWith('Clients & Terms and Conditions'));
+    const byClient = new Map<string, string[]>();
+    for (const a of terms) {
+      expect(a.category, a.title).toBe('Clients & Terms and Conditions');
+      expect(['corporate', 'travel'], a.title).toContain(a.fields?.line);
+      expect(['full', 'summary'], a.title).toContain(a.fields?.docKind);
+      byClient.set(a.fields!.client!, [...(byClient.get(a.fields!.client!) ?? []), `${a.fields!.line}/${a.fields!.docKind}`]);
+    }
+    expect(byClient.size).toBeGreaterThanOrEqual(4);
+    for (const [client, combos] of byClient) expect(combos.sort(), client).toEqual(['corporate/full', 'corporate/summary', 'travel/full', 'travel/summary']);
+    expect(CATEGORY_TREE.find((t) => t.name === 'Clients & Terms and Conditions')!.children).toEqual([]);
+  });
+});
+
 describe('category restructure', () => {
   it('has the 8 top-level categories with the moved subcategories', () => {
     const tree = Object.fromEntries(CATEGORY_TREE.map((t) => [t.name, t.children]));
@@ -240,6 +256,7 @@ describe('seed upgrades a database seeded with the old 9-category tree', () => {
       const a = await u.req(u.admin, 'POST', '/api/articles', { title, categoryId: ids.get(cat), content: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'old' }] }] } });
       expect(a.status, title).toBe(201);
       expect((await u.req(u.admin, 'POST', `/api/articles/${a.body.id}/publish`)).status).toBe(200);
+      ids.set(title, a.body.id);
       if (EDI_OLD.includes(title)) oldIds.push(a.body.id);
     }
     // old articles link to each other, carry tags and an extra revision; a user article links to one of them
@@ -289,8 +306,12 @@ describe('seed upgrades a database seeded with the old 9-category tree', () => {
     const key = (x: Cat) => `${x.parent_id}/${x.name}`;
     expect(new Set(active.map(key)).size).toBe(active.length);
     expect(active.length).toBe(CATEGORY_TREE.length + CATEGORY_TREE.reduce((n, t) => n + t.children.length, 0));
-    for (const s of ['approve-a-claim-for-payment', 'handling-medical-records-requests', 'process-a-member-reimbursement', 'bluefin-corporate-health-coverage-summary'])
+    for (const s of ['approve-a-claim-for-payment', 'handling-medical-records-requests', 'process-a-member-reimbursement'])
       expect(art(s)?.status, s).toBe('archived');
+    // retired earlier, brought back by the client directory: same row (history kept), published, moved to the top category
+    expect(art('bluefin-corporate-health-coverage-summary')).toMatchObject({ id: ids.get('Bluefin Corporate Health: coverage summary'), status: 'published', category_id: ids.get('Clients & Terms and Conditions') });
+    for (const k of ['Travel insurance clients', 'Corporate clients', 'Coverage summaries'])
+      expect(cats().find((x) => x.id === ids.get(`Clients & Terms and Conditions / ${k}`))!.archived, k).toBe(1);
     const reimb = u.app.sqlite.prepare("select count(*) n from articles where category_id = ? and status <> 'archived'").get(ids.get('Claims & Reimbursements / Reimbursements')) as { n: number };
     expect(reimb.n).toBe(1);
   });
@@ -358,9 +379,9 @@ describe('full DEMO terms and conditions', () => {
     /Personal money and documents/, /Compassionate visit/, /General exclusions/, /General conditions/, /Fraud/, /Subrogation/,
     /Other insurance/, /Sanctions/, /Complaints/, /Governing law/, /How to contact assistance/];
   const cases: [string, string, RegExp[]][] = [
-    ['Wayfarer Family Travel Plan: policy terms and conditions', 'Clients & Terms and Conditions / Travel insurance clients',
+    ['Wayfarer Family Travel Plan: policy terms and conditions', 'Clients & Terms and Conditions',
       [/Trip cancellation/, /Curtailment/, /Travel delay/, /Personal liability/, /Accompanying child/]],
-    ['Bluefin Corporate Health: full terms and conditions', 'Clients & Terms and Conditions / Corporate clients',
+    ['Bluefin Corporate Health: full terms and conditions', 'Clients & Terms and Conditions',
       [/Medical screening/, /Pre-trip vaccinations and health checks/, /Security and political evacuation/, /War and terrorism/, /Return of dependants/, /Authorisation thresholds/, /Annual aggregate/]],
   ];
   for (const [title, category, extra] of cases) {

@@ -29,7 +29,7 @@ test('editor creates an article from a template with an image and an internal li
   // internal link via the toolbar picker
   await page.getByRole('toolbar', { name: 'Insert' }).getByRole('button', { name: 'Link to article' }).click();
   await page.getByRole('combobox', { name: 'Link to an article' }).fill('Northwind');
-  await page.getByRole('option', { name: /Northwind Travel Insurance/ }).click();
+  await page.getByRole('option', { name: /Northwind Travel Insurance: coverage summary/ }).click();
   await expect(body.locator('[data-internal-link]')).toHaveText(/Northwind Travel Insurance/);
 
   // image upload via the hidden file input behind the toolbar button

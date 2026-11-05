@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { ARTICLE_STATUSES, ARTICLE_TYPES, ROLES } from './roles';
-import type { TemplateFields } from './templates';
+import { CLIENT_DOC_KINDS, CLIENT_LINES, type TemplateFields } from './templates';
 
 export const roleSchema = z.enum(ROLES);
 export const articleStatusSchema = z.enum(ARTICLE_STATUSES);
@@ -25,7 +25,7 @@ const names = z.array(z.string().trim().min(1).max(LIST_ITEM_MAX)).max(30);
 /** `articles.fields` (mirrors TemplateFields in templates.ts). Unknown keys are stripped; wrong shapes are rejected. */
 export const templateFieldsSchema = z.object({
   summary: txt('summary'), purpose: txt('purpose'), scope: txt('scope'), audience: txt('audience'), verification: txt('verification'),
-  client: txt('client'), contractRef: txt('contractRef'), validFrom: isoDate, validTo: isoDate, region: txt('region'),
+  client: txt('client'), contractRef: txt('contractRef'), validFrom: isoDate, validTo: isoDate, region: txt('region'), line: z.enum(CLIENT_LINES), docKind: z.enum(CLIENT_DOC_KINDS),
   keyLimits: z.array(z.object({ label: z.string().trim().min(1).max(LIST_ITEM_MAX), value: z.string().max(LIST_ITEM_MAX) })).max(12),
   systems: names, version: txt('version'),
   symptom: txt('symptom'), cause: txt('cause'), fix: txt('fix'), flowId: txt('flowId'),

@@ -7,13 +7,13 @@ export const CLIENT_ARTICLES: SeedArticle[] = [
   {
     title: 'Meridian Expat Care: coverage summary',
     type: 'client_terms',
-    category: 'Clients & Terms and Conditions / Coverage summaries',
+    category: 'Clients & Terms and Conditions',
     owner: 'admin',
     tags: ['meridian', 'expat', 'coverage'],
     reviewDate: '2027-01-01',
     fields: {
       summary: 'International health plan for expatriates. Covers planned and emergency care; direct billing with network hospitals.',
-      client: 'Meridian Expat Care (fictional)', contractRef: 'MER-EXP-2026-DEMO', validFrom: '2026-01-01', validTo: '2027-12-31', region: 'Worldwide excl. USA',
+      client: 'Meridian Expat Care (fictional)', line: 'corporate', docKind: 'summary', contractRef: 'MER-EXP-2026-DEMO', validFrom: '2026-01-01', validTo: '2027-12-31', region: 'Worldwide excl. USA',
       keyLimits: [
         { label: 'Annual limit', value: 'EUR 2,000,000' },
         { label: 'Authorise without client', value: 'EUR 15,000' },

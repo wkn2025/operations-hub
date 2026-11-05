@@ -10,6 +10,7 @@ import { IconTile, Skeleton, StatusBadge, TEMPLATE_ICON, categoryIcon } from '..
 import { fmtDate } from '../lib/text';
 import { NotFound } from './NotFound';
 import { ErrorState } from '../components/ui/ErrorState';
+import { ClientDirectory } from './ClientDirectory';
 
 export function CategoryPage() {
   const { slug = '' } = useParams();
@@ -31,6 +32,7 @@ export function CategoryPage() {
   if (cat.name === 'Bank information' && list.length > 0) return <Navigate to={`/article/${list[0].slug}`} replace />;
   const parent = cat.parentId ? all.find((c) => c.id === cat.parentId) : null;
   const top = parent ?? cat;
+  const clientDirectory = cat.name === 'Clients & Terms and Conditions';
 
   return (
     <div key={cat.id}>
@@ -50,7 +52,9 @@ export function CategoryPage() {
         )}
       </header>
 
-      {subs.length > 0 && (
+      {clientDirectory && arts.isSuccess && <ClientDirectory articles={list} />}
+
+      {!clientDirectory && subs.length > 0 && (
         <div role="tablist" aria-label="Filter by subcategory" className="mt-8 flex flex-wrap gap-1.5">
           {[{ id: null as string | null, name: 'All' }, ...subs].map((s) => {
             const on = filter === s.id;
@@ -66,6 +70,7 @@ export function CategoryPage() {
         </div>
       )}
 
+      {!(clientDirectory && arts.isSuccess) && (
       <div className="panel mt-5 overflow-hidden">
         {arts.isPending && <div className="space-y-3 p-5">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-6 w-3/4" />)}</div>}
         {arts.isError && <ErrorState title="Couldn’t load articles" onRetry={() => arts.refetch()} retrying={arts.isFetching} />}
@@ -99,6 +104,7 @@ export function CategoryPage() {
           })}
         </ul>
       </div>
+      )}
       <LoadMore q={arts} />
     </div>
   );

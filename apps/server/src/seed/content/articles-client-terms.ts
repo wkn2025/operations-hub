@@ -37,13 +37,13 @@ const bluefinTc = 'Bluefin Corporate Health: full terms and conditions';
 const WAYFARER: SeedArticle = {
   title: wayfarer,
   type: 'client_terms',
-  category: 'Clients & Terms and Conditions / Travel insurance clients',
+  category: 'Clients & Terms and Conditions',
   owner: 'admin',
   tags: ['wayfarer', 'travel insurance', 'family', 'policy wording', 'terms and conditions'],
   reviewDate: '2027-12-01',
   fields: {
     summary: 'Full policy wording for the Wayfarer single-trip and annual multi-trip family travel plan: emergency medical, repatriation, cancellation, luggage and liability, with the assistance procedure the insured must follow.',
-    client: 'Wayfarer Travel Insurance Ltd (fictional)', contractRef: 'WAY-FAM-2027-DEMO', validFrom: '2027-01-01', validTo: '2027-12-31',
+    client: 'Wayfarer Travel Insurance Ltd (fictional)', line: 'travel', docKind: 'full', contractRef: 'WAY-FAM-2027-DEMO', validFrom: '2027-01-01', validTo: '2027-12-31',
     region: 'Area 1 Europe / Area 2 Worldwide excl. USA, Canada, Caribbean / Area 3 Worldwide',
     keyLimits: [
       { label: 'Emergency medical expenses', value: 'EUR 3,000,000 per insured person' },
@@ -337,13 +337,13 @@ const WAYFARER: SeedArticle = {
 const BLUEFIN: SeedArticle = {
   title: bluefinTc,
   type: 'client_terms',
-  category: 'Clients & Terms and Conditions / Corporate clients',
+  category: 'Clients & Terms and Conditions',
   owner: 'admin',
   tags: ['bluefin', 'corporate', 'business travel', 'duty of care', 'terms and conditions'],
   reviewDate: '2027-03-31',
   fields: {
     summary: 'Full contract wording for the Bluefin group business-travel and employee medical assistance programme: employer pre-approval, authorisation thresholds, security evacuation, dependants and annual aggregate limits.',
-    client: 'Bluefin Corporate Health (fictional)', contractRef: 'BF-CORP-2026-DEMO', validFrom: '2026-04-01', validTo: '2027-03-31', region: 'Worldwide incl. USA',
+    client: 'Bluefin Corporate Health (fictional)', line: 'corporate', docKind: 'full', contractRef: 'BF-CORP-2026-DEMO', validFrom: '2026-04-01', validTo: '2027-03-31', region: 'Worldwide incl. USA',
     keyLimits: [
       { label: 'Medical expenses', value: 'USD 1,000,000 per person per trip' },
       { label: 'Annual aggregate (all travellers)', value: 'USD 25,000,000' },

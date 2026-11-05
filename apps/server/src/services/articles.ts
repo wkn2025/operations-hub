@@ -358,7 +358,8 @@ export function listArticles(s: Svc, user: User, f: ArticleFilter) {
   const { cats, sql, params } = articleWhere(s, user, f);
   const order = f.sort === 'title' ? 'a.title collate nocase, a.id' : 'a.updated_at desc, a.id';
   const rows = s.sqlite.prepare(
-    `select a.id, a.slug, a.title, a.type, a.status, a.category_id as categoryId, a.owner_id as ownerId, a.revision, a.updated_at as updatedAt, a.published_at as publishedAt, a.review_date as reviewDate, json_extract(a.fields, '$.summary') as summary
+    `select a.id, a.slug, a.title, a.type, a.status, a.category_id as categoryId, a.owner_id as ownerId, a.revision, a.updated_at as updatedAt, a.published_at as publishedAt, a.review_date as reviewDate, json_extract(a.fields, '$.summary') as summary,
+       json_extract(a.fields, '$.client') as client, json_extract(a.fields, '$.line') as line, json_extract(a.fields, '$.docKind') as docKind
      from articles a where ${sql} order by ${order} limit ? offset ?`,
   ).all(...params, f.limit, f.offset) as ({ categoryId: string | null } & Record<string, unknown>)[];
   return rows.map((r) => ({ ...r, categoryPath: r.categoryId ? categoryPath(cats, r.categoryId) : '' }));
