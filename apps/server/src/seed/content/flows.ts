@@ -1,7 +1,7 @@
 import type { FlowNode } from '@ops/shared';
 
 /**
- * DEMO guided flows (fictional procedures). Extension point like SEED_ARTICLES. Article nodes name a seeded article by
+ * Seed guided flows: DEMO ones (fictional procedures, title ends in "(DEMO)") and the real EDI import flow. Extension point like SEED_ARTICLES. Article nodes name a seeded article by
  * slug (resolved to its id at seed time). `articleSlug` on the flow links the flow to a troubleshooting article.
  */
 export type SeedFlowNode = Omit<FlowNode, 'articleId'> & { articleSlug?: string };
@@ -11,22 +11,20 @@ const yn = (yes: string, no: string) => [{ label: 'Yes', to: yes }, { label: 'No
 
 export const SEED_FLOWS: SeedFlow[] = [
   {
-    title: 'EDI claim failed to import (DEMO)',
+    // real procedure (EDI 101 reference), not DEMO: the three import checks, then the web.transformer pages
+    title: 'EDI claim failed to import',
     articleSlug: 'edi-claim-failed-to-import',
-    startId: 'gop',
+    startId: 'member',
     nodes: [
-      { id: 'gop', kind: 'question', text: 'Is there a GOP for this case?', detail: 'Open the case in Globo and look at the Guarantees tab. DEMO flow: fictional procedure and data.', options: yn('member', 'no-gop') },
-      { id: 'no-gop', kind: 'result', severity: 'warning', text: 'The matcher rejects claims without a guarantee (E-112 NO_GOP).', detail: 'Ask the medical team to issue a GOP, then re-queue the claim from Quarantine.' },
-      { id: 'member', kind: 'question', text: 'Does the member ID on the claim match the policy record?', detail: 'Compare NM1*IL in the claim with the policy. Providers often drop leading zeros.', options: [{ label: 'Yes, they match', to: 'case' }, { label: 'No, they differ', to: 'fix-member' }, { label: 'I am not sure', to: 'recheck-member' }] },
-      { id: 'recheck-member', kind: 'result', severity: 'info', text: 'Look the member up by name and date of birth first.', detail: 'Once you have the policy record open, come back and answer again.' },
-      { id: 'fix-member', kind: 'result', severity: 'info', text: 'Correct the member ID on the claim and use Retry match.', detail: 'In the EDI Monitor open Quarantine, edit the claim and choose Retry match.' },
-      { id: 'case', kind: 'question', text: 'Is there an open case with the same member and an admission date within 3 days?', options: [...yn('ack', 'closed-case'), { label: 'Go back and check the member ID again', to: 'member' }] },
-      { id: 'closed-case', kind: 'question', text: 'Was a case for this member closed recently?', detail: 'Closed cases are never matched.', options: yn('reopen', 'new-case') },
-      { id: 'reopen', kind: 'result', severity: 'warning', text: 'Ask the team lead to reopen the case, then re-queue the claim.' },
-      { id: 'new-case', kind: 'result', severity: 'info', text: 'Create the case first. The claim cannot be imported without one.', detail: 'Assign it to the case management team with the claim reference.' },
-      { id: 'ack', kind: 'question', text: 'Did the clearinghouse reject the file with a 999?', options: yn('reject-999', 'retry') },
-      { id: 'reject-999', kind: 'article', text: 'Read how to interpret the 999 rejection', articleSlug: '999-implementation-acknowledgement' },
-      { id: 'retry', kind: 'result', severity: 'success', text: 'Everything checks out. Re-queue the claim.', detail: 'EDI Monitor, Quarantine, select the claim, Retry match. It should import within a minute.' },
+      { id: 'member', kind: 'question', text: 'Does the Member ID on the invoice exist in Globo?', detail: 'Import check 1 of 3.', options: yn('missing-claim', 'denied') },
+      { id: 'denied', kind: 'result', severity: 'warning', text: 'The invoice was automatically denied.', detail: 'An invoice whose Member ID does not exist in Globo is denied at the first import check.' },
+      { id: 'missing-claim', kind: 'question', text: 'Is the invoice on the Missing Claim page in web.transformer?', detail: 'Import check 2: the patient has no open case with the same diagnosis as the invoice.', options: yn('claim', 'missing-gop') },
+      { id: 'claim', kind: 'article', text: 'Read the error description, then find or open the right case', articleSlug: 'web-transformer-missing-claim' },
+      { id: 'missing-gop', kind: 'question', text: 'Is the invoice on the Missing GOP page in web.transformer?', detail: 'Import check 3: no open GOP with the same service dates and a provider registered under the Tax ID on the invoice.', options: yn('gop', 'manual') },
+      { id: 'gop', kind: 'article', text: 'Create the GOP on the invoice service dates', articleSlug: 'web-transformer-missing-gop' },
+      { id: 'manual', kind: 'question', text: 'Is the invoice on the Manual Handling page?', detail: 'It was imported, but the PCF could not be built when it moved from Pay to Settled.', options: yn('fix-pcf', 'entries') },
+      { id: 'fix-pcf', kind: 'article', text: 'Add the missing information and export again', articleSlug: 'web-transformer-manual-handling' },
+      { id: 'entries', kind: 'article', text: 'Look the invoice up in All Entries', articleSlug: 'web-transformer-all-entries' },
     ],
   },
   {

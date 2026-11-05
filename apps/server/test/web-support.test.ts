@@ -44,14 +44,14 @@ describe('seed guard', () => {
 
   it('does not reuse a same-named file uploaded by someone else', async () => {
     const other = c.app.sqlite.prepare("select id from users where email = 'ed@x.test'").get() as { id: string };
-    c.app.sqlite.prepare("insert into files(id,name,mime,size,path,uploaded_by,created_at) values('fake','demo-edi-monitor.svg','image/svg+xml',1,'fake',?,?)").run(other.id, new Date().toISOString());
+    c.app.sqlite.prepare("insert into files(id,name,mime,size,path,uploaded_by,created_at) values('fake','demo-globo-case.svg','image/svg+xml',1,'fake',?,?)").run(other.id, new Date().toISOString());
     await seedBase(c.app);
     const src = c.app.sqlite.prepare("select f.id, u.email from article_files x join files f on f.id = x.file_id join users u on u.id = f.uploaded_by").all() as { id: string; email: string }[];
     expect(src.length).toBeGreaterThan(0);
     expect(src.every((r) => r.id !== 'fake' && r.email === 'admin@demo.test')).toBe(true);
-    const n = (c.app.sqlite.prepare("select count(*) n from files where name = 'demo-edi-monitor.svg'").get() as { n: number }).n;
+    const n = (c.app.sqlite.prepare("select count(*) n from files where name = 'demo-globo-case.svg'").get() as { n: number }).n;
     await seedBase(c.app);
-    expect((c.app.sqlite.prepare("select count(*) n from files where name = 'demo-edi-monitor.svg'").get() as { n: number }).n).toBe(n); // own file reused
+    expect((c.app.sqlite.prepare("select count(*) n from files where name = 'demo-globo-case.svg'").get() as { n: number }).n).toBe(n); // own file reused
   });
 });
 
@@ -72,11 +72,12 @@ describe('seedBase', () => {
     ]));
     expect(c.app.sqlite.prepare("select 1 from editor_allowlist where email = 'editor@demo.test'").get()).toBeTruthy();
 
-    const arts = c.app.sqlite.prepare("select id, type, status, content from articles").all() as { id: string; type: string; status: string; content: string }[];
+    const arts = c.app.sqlite.prepare("select id, title, type, status, content from articles").all() as { id: string; title: string; type: string; status: string; content: string }[];
     expect(arts.length).toBeGreaterThanOrEqual(8);
     expect(arts.every((a) => a.status === 'published')).toBe(true);
     expect(new Set(arts.map((a) => a.type)).size).toBe(6);
-    expect(arts.every((a) => a.content.includes('DEMO'))).toBe(true);
+    // everything is DEMO-labelled except the real EDI procedure (EDI 101 rework; full golden list in seed.test.ts)
+    expect(arts.filter((a) => !a.content.includes('DEMO')).length).toBe(13);
     // second run must not create extra revisions
     const revs = (c.app.sqlite.prepare('select count(*) n from revisions').get() as { n: number }).n;
     await seedBase(c.app);

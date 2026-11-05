@@ -32,18 +32,18 @@ test('viewer browses a category to an article and finds an article by body text 
   await page.goto('/');
   await sidebar(page).getByRole('link', { name: 'EDI & Automation' }).click();
   await expect(page).toHaveURL(/\/category\//);
-  await page.getByRole('main').getByRole('link', { name: /837 claim file: segment-by-segment guide/ }).first().click();
-  await expect(page.getByRole('heading', { level: 1, name: '837 claim file: segment-by-segment guide' })).toBeVisible();
+  await page.getByRole('main').getByRole('link', { name: /EDI 101: the three files and the loop/ }).first().click();
+  await expect(page.getByRole('heading', { level: 1, name: 'EDI 101: the three files and the loop' })).toBeVisible();
 
-  // "separated" only occurs in the body ("elements are separated by *"), never in the title
+  // "savings analysis" only occurs in the body (the MacroHealth callout), never in the title
   await page.goto('/');
   await page.keyboard.press('Control+K');
-  await page.getByRole('combobox', { name: 'Search' }).fill('elements separated');
-  const hit = page.getByRole('option', { name: /837 claim file: segment-by-segment guide/ });
+  await page.getByRole('combobox', { name: 'Search' }).fill('savings analysis');
+  const hit = page.getByRole('option', { name: /EDI 101: the three files and the loop/ });
   await expect(hit).toBeVisible();
   await expect(hit.locator('mark').first()).toBeVisible(); // highlighted snippet from the body
   await hit.click();
-  await expect(page.getByRole('heading', { level: 1, name: '837 claim file: segment-by-segment guide' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'EDI 101: the three files and the loop' })).toBeVisible();
 });
 
 test('editor creates and publishes an article with a screenshot and an internal link; it survives reload and an API restart', async ({ page }) => {
@@ -58,8 +58,8 @@ test('editor creates and publishes an article with a screenshot and an internal 
   await body.click();
   await page.keyboard.type(`Version one mentions ${TOKEN}. Related: `);
   await page.getByRole('toolbar', { name: 'Insert' }).getByRole('button', { name: 'Link to article' }).click();
-  await page.getByRole('combobox', { name: 'Link to an article' }).fill('837 claim file');
-  await page.getByRole('option', { name: /837 claim file: segment-by-segment guide/ }).click();
+  await page.getByRole('combobox', { name: 'Link to an article' }).fill('EDI 101');
+  await page.getByRole('option', { name: /EDI 101: the three files and the loop/ }).click();
   await page.locator('input[aria-label="Upload image"]').setInputFiles({ name: 'acceptance-screen.png', mimeType: 'image/png', buffer: PNG });
   await expect(body.locator('img[src^="/api/files/"]')).toHaveCount(1);
   await body.locator('img').click();
@@ -91,7 +91,7 @@ test('editor creates and publishes an article with a screenshot and an internal 
   const after = page.getByRole('textbox', { name: 'Article text' });
   await expect(after).toContainText(`Version one mentions ${TOKEN}.`);
   await expect(after).toContainText('Version two paragraph.');
-  await expect(after.locator('[data-internal-link]')).toHaveText(/837 claim file/);
+  await expect(after.locator('[data-internal-link]')).toHaveText(/EDI 101/);
   await expect(page.getByLabel('Article title')).toHaveValue(title);
 });
 
@@ -110,8 +110,8 @@ test('after the restart a viewer sees the article: screenshot loads, internal li
   const hits = await searchIds(page.request, TOKEN);
   expect(hits.map((h) => h.id)).toContain(created!.id);
 
-  await page.getByRole('main').getByRole('link', { name: /837 claim file: segment-by-segment guide/ }).first().click();
-  await expect(page.getByRole('heading', { level: 1, name: '837 claim file: segment-by-segment guide' })).toBeVisible();
+  await page.getByRole('main').getByRole('link', { name: /EDI 101: the three files and the loop/ }).first().click();
+  await expect(page.getByRole('heading', { level: 1, name: 'EDI 101: the three files and the loop' })).toBeVisible();
 });
 
 test('editor restores an earlier revision from History', async ({ page }) => {
@@ -239,16 +239,20 @@ test('viewer cannot bypass the UI: API returns 401/403/404 for everything outsid
 test('viewer runs a troubleshooting flow to completion', async ({ page }) => {
   await loginAs(page, 'viewer@demo.test');
   await page.goto('/flows');
-  await page.getByRole('link', { name: 'EDI claim failed to import (DEMO)' }).first().click();
-  await expect(page.getByRole('heading', { name: 'Is there a GOP for this case?' })).toBeVisible();
+  await page.getByRole('link', { name: 'EDI claim failed to import' }).first().click();
+  await expect(page.getByRole('heading', { name: 'Does the Member ID on the invoice exist in Globo?' })).toBeVisible();
   await page.getByRole('button', { name: /Yes/ }).click();
-  await page.getByRole('button', { name: /Yes, they match/ }).click();
-  await expect(page.getByRole('heading', { name: /open case with the same member/ })).toBeVisible();
-  await page.keyboard.press('1');
-  await expect(page.getByRole('heading', { name: 'Did the clearinghouse reject the file with a 999?' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Is the invoice on the Missing Claim page in web.transformer?' })).toBeVisible();
+  await page.keyboard.press('2');
+  await expect(page.getByRole('heading', { name: 'Is the invoice on the Missing GOP page in web.transformer?' })).toBeVisible();
+  await page.keyboard.press('2');
+  await expect(page.getByRole('heading', { name: 'Is the invoice on the Manual Handling page?' })).toBeVisible();
+  await page.keyboard.press('2');
+  await expect(page.getByRole('link', { name: /Open full article/ })).toHaveAttribute('href', '/article/web-transformer-all-entries');
+  await page.getByRole('button', { name: 'Start over' }).first().click();
   await page.keyboard.press('2');
   await expect(page.getByTestId('flow-result')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Everything checks out. Re-queue the claim.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'The invoice was automatically denied.' })).toBeVisible();
 });
 
 test('every top-level category (and the sidebar entry for it) has published content a viewer can open', async ({ page }) => {

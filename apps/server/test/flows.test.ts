@@ -160,8 +160,8 @@ describe('flow search', () => {
 });
 
 describe('seed flows', () => {
-  it('ship 3 demo flows with >= 8 nodes that pass validateFlow', () => {
-    expect(SEED_FLOWS.map((f) => f.title)).toEqual(['EDI claim failed to import (DEMO)', 'Invoice cannot be registered (DEMO)', 'Payment returned by bank (DEMO)']);
+  it('ship 4 demo flows with >= 8 nodes that pass validateFlow', () => {
+    expect(SEED_FLOWS.map((f) => f.title)).toEqual(['EDI claim failed to import', 'Invoice cannot be registered (DEMO)', 'Payment returned by bank (DEMO)']);
     for (const f of SEED_FLOWS) {
       expect(f.nodes.length, f.title).toBeGreaterThanOrEqual(8);
       const v = validateFlow({ title: f.title, startId: f.startId, nodes: f.nodes.map((n) => (n.kind === 'article' ? { ...n, articleId: 'x' } : n)) });
@@ -172,13 +172,13 @@ describe('seed flows', () => {
 });
 
 describe('seedBase flows', () => {
-  it('creates 3 published, valid flows linked to seeded articles; idempotent; the troubleshooting article exposes its flow', async () => {
+  it('creates 4 published, valid flows linked to seeded articles; idempotent; the troubleshooting article exposes its flow', async () => {
     const { mkdtempSync } = await import('node:fs'), { tmpdir } = await import('node:os'), { join } = await import('node:path');
     const { seedBase } = await import('../src/seed/base');
     const s = await setup(mkdtempSync(join(tmpdir(), 'ops-flow-')));
     await seedBase(s.app);
     const first = (await s.req(s.viewer, 'GET', '/api/flows')).body.flows;
-    expect(first.map((f: any) => f.title).sort()).toEqual(['EDI claim failed to import (DEMO)', 'Invoice cannot be registered (DEMO)', 'Payment returned by bank (DEMO)']);
+    expect(first.map((f: any) => f.title).sort()).toEqual(['EDI claim failed to import', 'Invoice cannot be registered (DEMO)', 'Payment returned by bank (DEMO)']);
     for (const f of first) {
       const full = (await s.req(s.admin, 'GET', `/api/flows/${f.id}`)).body;
       expect(full.validation, f.title).toMatchObject({ ok: true, errors: [], warnings: [] });
@@ -190,7 +190,7 @@ describe('seedBase flows', () => {
     await seedBase(s.app);
     expect(s.app.sqlite.prepare('select revision from flows order by slug').all()).toEqual(rev);
     const art = (await s.req(s.viewer, 'GET', '/api/articles/edi-claim-failed-to-import')).body;
-    expect(art.flow).toMatchObject({ slug: 'edi-claim-failed-to-import-demo' });
+    expect(art.flow).toMatchObject({ slug: 'edi-claim-failed-to-import' });
   });
 });
 
@@ -243,8 +243,9 @@ describe('review fixes', () => {
     expect(count()).toBe(2);
   });
 
-  it('demo flow titles are labelled DEMO and the first step says so', () => {
+  it('demo flow titles are labelled DEMO and the first step says so; the real EDI flow carries no DEMO label', () => {
     for (const f of SEED_FLOWS) {
+      if (f.title === 'EDI claim failed to import') { expect(JSON.stringify(f)).not.toMatch(/DEMO/); continue; }
       expect(f.title, f.title).toMatch(/\(DEMO\)$/);
       expect(f.nodes.find((n) => n.id === f.startId)!.detail, f.title).toMatch(/DEMO/);
     }
@@ -259,6 +260,20 @@ describe('seed rename', () => {
     await seedBase(s.app);
     s.app.sqlite.prepare("update flows set title = replace(title, ' (DEMO)', ''), slug = replace(slug, '-demo', '')").run();
     await seedBase(s.app);
-    expect(s.app.sqlite.prepare('select title from flows order by title').all().map((r: any) => r.title)).toEqual(['EDI claim failed to import (DEMO)', 'Invoice cannot be registered (DEMO)', 'Payment returned by bank (DEMO)']);
+    expect(s.app.sqlite.prepare('select title from flows order by title').all().map((r: any) => r.title)).toEqual(['EDI claim failed to import', 'Invoice cannot be registered (DEMO)', 'Payment returned by bank (DEMO)']);
+  });
+
+  it('the old DEMO EDI flow is adopted and rewritten in place (real procedure, no DEMO label); its published slug stays', async () => {
+    const { mkdtempSync } = await import('node:fs'), { tmpdir } = await import('node:os'), { join } = await import('node:path');
+    const { seedBase } = await import('../src/seed/base');
+    const s = await setup(mkdtempSync(join(tmpdir(), 'ops-flow-')));
+    await seedBase(s.app);
+    s.app.sqlite.prepare("update flows set title = 'EDI claim failed to import (DEMO)', slug = 'edi-claim-failed-to-import-demo' where slug = 'edi-claim-failed-to-import'").run();
+    const { id } = s.app.sqlite.prepare("select id from flows where slug = 'edi-claim-failed-to-import-demo'").get() as { id: string };
+    await seedBase(s.app);
+    const rows = s.app.sqlite.prepare("select id, slug, title, nodes from flows where title like 'EDI claim%'").all() as { id: string; slug: string; title: string; nodes: string }[];
+    expect(rows.map((r) => [r.id, r.slug, r.title])).toEqual([[id, 'edi-claim-failed-to-import-demo', 'EDI claim failed to import']]);
+    expect(rows[0]!.nodes).toMatch(/Missing Claim/);
+    expect(rows[0]!.nodes).not.toMatch(/DEMO|999|Retry match/);
   });
 });

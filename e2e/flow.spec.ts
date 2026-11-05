@@ -18,38 +18,38 @@ test('viewer runs the EDI flow to a result, goes back and restarts; cannot edit'
   await loginAs(page, 'viewer@demo.test');
   await page.goto('/flows');
   await shot(page, '17-flows-list');
-  await page.getByRole('link', { name: 'EDI claim failed to import (DEMO)' }).first().click();
-  await expect(page).toHaveURL(/\/flows\/edi-claim-failed-to-import-demo$/);
-  await heading(page, 'Is there a GOP for this case?');
+  await page.getByRole('link', { name: 'EDI claim failed to import' }).first().click();
+  await expect(page).toHaveURL(/\/flows\/edi-claim-failed-to-import$/);
+  await heading(page, 'Does the Member ID on the invoice exist in Globo?');
   await shot(page, '18-flow-question');
 
   await page.getByRole('button', { name: /Yes/ }).click();
-  await heading(page, 'Does the member ID on the claim match the policy record?');
-  await page.getByRole('button', { name: /Yes, they match/ }).click();
-  await heading(page, 'Is there an open case with the same member and an admission date within 3 days?');
-  await page.keyboard.press('1'); // keyboard: first answer
-  await heading(page, 'Did the clearinghouse reject the file with a 999?');
+  await heading(page, 'Is the invoice on the Missing Claim page in web.transformer?');
+  await page.getByRole('button', { name: /^2. No/ }).click();
+  await heading(page, 'Is the invoice on the Missing GOP page in web.transformer?');
+  await page.keyboard.press('2'); // keyboard: second answer
+  await heading(page, 'Is the invoice on the Manual Handling page?');
   await shot(page, '19-flow-trail');
-  await page.keyboard.press('2');
-  await heading(page, 'Everything checks out. Re-queue the claim.');
-  await expect(page.getByTestId('flow-result')).toHaveAttribute('data-severity', 'success');
-  await shot(page, '20-flow-result');
-
-  await page.keyboard.press('Backspace');
-  await heading(page, 'Did the clearinghouse reject the file with a 999?');
-  await page.getByRole('button', { name: /^1. Yes/ }).click(); // 999 rejected -> article step with an inline preview
-  await expect(page.getByRole('link', { name: /Open full article/ })).toHaveAttribute('href', '/article/999-implementation-acknowledgement');
+  await page.getByRole('button', { name: /^1. Yes/ }).click(); // Manual Handling -> article step with an inline preview
+  await expect(page.getByRole('link', { name: /Open full article/ })).toHaveAttribute('href', '/article/web-transformer-manual-handling');
   await shot(page, '21-flow-article');
 
+  await page.keyboard.press('Backspace');
+  await heading(page, 'Is the invoice on the Manual Handling page?');
+
   await page.getByRole('button', { name: 'Start over' }).first().click();
-  await heading(page, 'Is there a GOP for this case?');
+  await heading(page, 'Does the Member ID on the invoice exist in Globo?');
+  await page.keyboard.press('2');
+  await heading(page, 'The invoice was automatically denied.');
+  await expect(page.getByTestId('flow-result')).toHaveAttribute('data-severity', 'warning');
+  await shot(page, '20-flow-result');
 
   // the troubleshooting article exposes the flow
   await page.goto('/article/edi-claim-failed-to-import');
-  await expect(page.getByRole('link', { name: /Start guided flow/ })).toHaveAttribute('href', '/flows/edi-claim-failed-to-import-demo');
+  await expect(page.getByRole('link', { name: /Start guided flow/ })).toHaveAttribute('href', '/flows/edi-claim-failed-to-import');
 
   // viewers: no edit page, no writes
-  await page.goto('/flows/edi-claim-failed-to-import-demo/edit');
+  await page.goto('/flows/edi-claim-failed-to-import/edit');
   await expect(page.getByRole('heading', { name: /Editing isn.t available/ })).toBeVisible();
   const list = await (await page.request.get('/api/flows')).json();
   const f = list.flows[0];

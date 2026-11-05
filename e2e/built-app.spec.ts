@@ -22,22 +22,22 @@ test('built app under the production CSP: home, article with screenshot, editor 
   expect(home!.headers()['content-security-policy']).toContain("img-src 'self' data: blob:");
   await expect(page.getByRole('navigation', { name: 'Primary' })).toBeVisible();
 
-  await page.goto('/article/macrohealth-edi-837p-and-837i-exchange'); // deep link: SPA fallback
-  await expect(page.getByRole('heading', { level: 1, name: 'MacroHealth EDI: 837P and 837I exchange' })).toBeVisible();
-  const img = page.getByRole('img', { name: /MacroHealth Exchange portal/ });
+  await page.goto('/article/edi-101-the-three-files-and-the-loop'); // deep link: SPA fallback
+  await expect(page.getByRole('heading', { level: 1, name: 'EDI 101: the three files and the loop' })).toBeVisible();
+  const img = page.getByRole('img', { name: /The EDI loop across three organisations/ });
   await expect(img).toBeVisible();
   await expect.poll(() => img.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0)).toBe(true);
 
-  const { id } = await (await page.request.get('/api/articles/macrohealth-edi-837p-and-837i-exchange')).json();
+  const { id } = await (await page.request.get('/api/articles/edi-101-the-three-files-and-the-loop')).json();
   await page.goto(`/edit/${id}`); // lazy chunk + Tiptap
   const body = page.getByRole('textbox', { name: 'Article text' });
   await expect(body).toBeVisible();
   await expect(body.locator('table').first()).toBeVisible();
 
-  await page.goto('/flows/edi-claim-failed-to-import-demo');
-  await expect(page.getByRole('heading', { name: 'Is there a GOP for this case?' })).toBeVisible();
+  await page.goto('/flows/edi-claim-failed-to-import');
+  await expect(page.getByRole('heading', { name: 'Does the Member ID on the invoice exist in Globo?' })).toBeVisible();
   await page.getByRole('button', { name: /Yes/ }).first().click();
-  await expect(page.getByRole('heading', { name: 'Does the member ID on the claim match the policy record?' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Is the invoice on the Missing Claim page in web.transformer?' })).toBeVisible();
 
   expect(problems).toEqual([]);
 });

@@ -11,6 +11,25 @@ import { indexArticle } from '../src/services/search';
 import { safeHref } from '../../web/src/lib/text';
 
 const REIMB = 'Reimbursement: from document intake to proof of payment';
+/** EDI & Automation rework (Feature E): real procedure from the EDI 101 reference, no DEMO label. Golden list, not read from the seed. */
+const EDI_REAL: [string, string][] = [
+  ['EDI 101: the three files and the loop', 'EDI & Automation / EDI 101'],
+  ['Importing EDI invoices into Globo: the three checks', 'EDI & Automation / Import & web.transformer'],
+  ['web.transformer: Missing Claim', 'EDI & Automation / Import & web.transformer'],
+  ['web.transformer: Missing GOP', 'EDI & Automation / Import & web.transformer'],
+  ['web.transformer: All Entries', 'EDI & Automation / Import & web.transformer'],
+  ['web.transformer: Manual Handling', 'EDI & Automation / Import & web.transformer'],
+  ['Adjudicating an EDI invoice: reductions, denials and MRR', 'EDI & Automation / Adjudication & adjustments'],
+  ['EDI denial codes', 'EDI & Automation / Adjudication & adjustments'],
+  ['Changing a coverage decision on an EDI invoice', 'EDI & Automation / Adjudication & adjustments'],
+  ['EDI claim failed to import', 'EDI & Automation / EDI issues'],
+  ['837 Health Care Claim', 'Glossary & Acronyms / EDI terms'],
+  ['PCF file', 'Glossary & Acronyms / EDI terms'],
+  ['835 payment file', 'Glossary & Acronyms / EDI terms'],
+];
+const EDI_OLD = ['UHCG Direct EDI: inbound 837I pipeline', 'MacroHealth EDI: 837P and 837I exchange', '837 claim file: segment-by-segment guide',
+  'Acknowledgements: 999 and 277CA handling', '999 rejected a whole batch (IK5*R)', 'MacroHealth file not picked up',
+  '999 Implementation Acknowledgement', 'ISA/GS interchange envelope'];
 const RETIRED = ['Approve a claim for payment', 'Process a member reimbursement', 'Send a medical records request',
   'Invoice denial reasons and how to explain them', 'Handling medical records requests'];
 
@@ -59,20 +78,22 @@ describe('seedDemo (Task 9)', () => {
     ]));
   });
 
-  it('marks every article DEMO, resolves every internal link and uses only renderer-supported nodes', () => {
+  it('marks every article DEMO (except the real EDI procedure), resolves every internal link and uses only renderer-supported nodes', () => {
     const ids = new Set(published().map((a) => a.id));
     const nodeTypes = new Set<string>(Object.values(PM_NODES));
     const markTypes = new Set<string>(PM_MARKS);
+    const real = new Set(EDI_REAL.map(([t]) => t));
     let links = 0;
     for (const a of published()) {
-      expect(a.content, a.title).toContain('DEMO content');
+      if (real.has(a.title)) expect(a.content, a.title).not.toMatch(/DEMO/);
+      else expect(a.content, a.title).toContain('DEMO content');
       // eslint-disable-next-line no-control-regex
       expect(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/.test(a.content), a.title).toBe(false);
       walk(JSON.parse(a.content), (n) => {
         expect(nodeTypes.has(n.type), `${a.title}: node ${n.type}`).toBe(true);
         n.marks?.forEach((m) => expect(markTypes.has(m.type), `${a.title}: mark ${m.type}`).toBe(true));
         if (n.type === 'internalLink') { links++; expect(ids.has(n.attrs!.articleId as string), `${a.title} -> ${n.attrs!.label}`).toBe(true); }
-        if (n.type === 'image') expect(n.attrs!.src, a.title).toMatch(/^\/api\/files\/[\w-]+$/);
+        if (n.type === 'image') { expect(n.attrs!.src, a.title).toMatch(/^\/api\/files\/[\w-]+$/); expect(String(n.attrs!.alt ?? '').length, `${a.title}: image alt`).toBeGreaterThan(20); }
         if (n.type === 'text') expect(n.text, `${a.title}: empty text node`).toBeTruthy(); // ProseMirror rejects empty text nodes
       });
     }
@@ -93,11 +114,18 @@ describe('seedDemo (Task 9)', () => {
 
   it('covers the required operational topics and search finds the new articles by title', async () => {
     const cases: [string, string][] = [
-      ['MacroHealth 837P', 'MacroHealth EDI: 837P and 837I exchange'],
-      ['UHCG Direct pipeline', 'UHCG Direct EDI: inbound 837I pipeline'],
-      ['segment-by-segment', '837 claim file: segment-by-segment guide'],
-      ['277CA', 'Acknowledgements: 999 and 277CA handling'],
-      ['IK5', '999 rejected a whole batch (IK5*R)'],
+      ['EDI 101', 'EDI 101: the three files and the loop'],
+      ['shared folder', 'EDI 101: the three files and the loop'],
+      ['web.transformer Missing Claim', 'web.transformer: Missing Claim'],
+      ['Missing GOP', 'web.transformer: Missing GOP'],
+      ['UHAP ID', 'web.transformer: All Entries'],
+      ['Manual Handling Vat ID', 'web.transformer: Manual Handling'],
+      ['MRR On Hold', 'Adjudicating an EDI invoice: reductions, denials and MRR'],
+      ['denial codes', 'EDI denial codes'],
+      ['Pre-existing', 'EDI denial codes'],
+      ['refund and create a copy', 'Changing a coverage decision on an EDI invoice'],
+      ['PCF', 'PCF file'],
+      ['835', '835 payment file'],
       ['missing GOP', 'Request a missing GOP'],
       ['member reimbursement', REIMB],
       ['denial reasons', REIMB],
@@ -132,7 +160,7 @@ describe('category restructure', () => {
     const tree = Object.fromEntries(CATEGORY_TREE.map((t) => [t.name, t.children]));
     expect(Object.keys(tree)).toEqual(['EDI & Automation', 'Clients & Terms and Conditions', 'Work Instructions', 'Quality Assurance',
       'Provider Networks & Partners', 'Finance & Payment Processing', 'Internal Systems', 'Glossary & Acronyms']);
-    expect(tree['EDI & Automation']).toContain('EDI issues');
+    expect(tree['EDI & Automation']).toEqual(['EDI 101', 'Import & web.transformer', 'Adjudication & adjustments', 'EDI issues']);
     expect(tree['Finance & Payment Processing']).toContain('Payment issues');
     expect(tree['Work Instructions']).toEqual(['Case handling', 'Invoice processing', 'Reimbursements']);
     expect(tree['Quality Assurance']).toEqual(['Quality checks', 'Audit & sampling']);
@@ -153,7 +181,7 @@ describe('category restructure', () => {
 
   it('files the troubleshooting articles under EDI & Automation and Finance, and QA articles under Quality Assurance', () => {
     const cat = (t: string) => SEED_ARTICLES.find((a) => a.title === t)?.category;
-    for (const t of ['EDI claim failed to import', '999 rejected a whole batch (IK5*R)', 'MacroHealth file not picked up']) expect(cat(t), t).toBe('EDI & Automation / EDI issues');
+    expect(cat('EDI claim failed to import')).toBe('EDI & Automation / EDI issues');
     expect(cat('Provider disputes an invoice denial')).toBe('Finance & Payment Processing / Payment issues');
     expect(SEED_ARTICLES.filter((a) => a.category.startsWith('Quality Assurance / ')).length).toBeGreaterThanOrEqual(2);
     expect(SEED_ARTICLES.some((a) => /Troubleshooting Center|Claims & Reimbursements/.test(a.category))).toBe(false);
@@ -184,7 +212,17 @@ describe('seed upgrades a database seeded with the old 9-category tree', () => {
     ['Process a member reimbursement', 'Claims & Reimbursements / Reimbursements'],
     ['Bluefin Corporate Health: coverage summary', 'Clients & Terms and Conditions / Coverage summaries'],
     ['Team QA notes (user content)', 'Work Instructions / Quality checks'],
+    // the old fictional EDI set (Feature E deletes these on re-seed)
+    ['UHCG Direct EDI: inbound 837I pipeline', 'EDI & Automation / Inbound claims (837)'],
+    ['MacroHealth EDI: 837P and 837I exchange', 'EDI & Automation / Inbound claims (837)'],
+    ['837 claim file: segment-by-segment guide', 'EDI & Automation / Inbound claims (837)'],
+    ['Acknowledgements: 999 and 277CA handling', 'EDI & Automation / Acknowledgements (999/277)'],
+    ['999 rejected a whole batch (IK5*R)', 'Troubleshooting Center / EDI issues'],
+    ['MacroHealth file not picked up', 'Troubleshooting Center / EDI issues'],
+    ['999 Implementation Acknowledgement', 'Glossary & Acronyms / EDI terms'],
+    ['ISA/GS interchange envelope', 'Glossary & Acronyms / EDI terms'],
   ];
+  const oldIds: string[] = [];
   let snapshot = '';
   const state = () => JSON.stringify([cats().sort((a, b) => a.id.localeCompare(b.id)),
     u.app.sqlite.prepare('select id, status, category_id, revision from articles order by id').all(),
@@ -201,7 +239,15 @@ describe('seed upgrades a database seeded with the old 9-category tree', () => {
       const a = await u.req(u.admin, 'POST', '/api/articles', { title, categoryId: ids.get(cat), content: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'old' }] }] } });
       expect(a.status, title).toBe(201);
       expect((await u.req(u.admin, 'POST', `/api/articles/${a.body.id}/publish`)).status).toBe(200);
+      if (EDI_OLD.includes(title)) oldIds.push(a.body.id);
     }
+    // old articles link to each other, carry tags and an extra revision; a user article links to one of them
+    const [first, second] = oldIds;
+    const linkDoc = (to: string) => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'internalLink', attrs: { articleId: to, label: 'old link' } }] }] });
+    const cur = (await u.req(u.admin, 'GET', `/api/articles/${first}`)).body;
+    expect((await u.req(u.admin, 'PATCH', `/api/articles/${first}`, { baseRevision: cur.revision, content: linkDoc(second!), tags: ['edi', 'old'] })).status).toBe(200);
+    expect((await u.req(u.admin, 'POST', '/api/articles', { title: 'User note linking old EDI', categoryId: ids.get('Glossary & Acronyms / EDI terms'), content: linkDoc(first!) })).status).toBe(201);
+    expect(oldIds).toHaveLength(EDI_OLD.length);
     await seedDemo(u.app);
     snapshot = state();
     await seedDemo(u.app);
@@ -250,6 +296,34 @@ describe('seed upgrades a database seeded with the old 9-category tree', () => {
 
   it('a second run is a no-op', () => {
     expect(state()).toBe(snapshot);
+  });
+
+  it('deletes the old fictional EDI articles with their revisions, tags, links and search rows; only the new EDI set remains', async () => {
+    const marks = oldIds.map(() => '?').join(',');
+    const n = (sql: string) => (u.app.sqlite.prepare(sql.replace('IDS', marks)).get(...oldIds) as { n: number }).n;
+    expect(n('select count(*) n from articles where id in (IDS)')).toBe(0);
+    expect((u.app.sqlite.prepare(`select count(*) n from articles where title in (${EDI_OLD.map(() => '?').join(',')})`).get(...EDI_OLD) as { n: number }).n).toBe(0);
+    expect(n('select count(*) n from revisions where article_id in (IDS)')).toBe(0);
+    expect(n('select count(*) n from article_tags where article_id in (IDS)')).toBe(0);
+    expect(n('select count(*) n from article_fts where article_id in (IDS)')).toBe(0);
+    expect(u.app.sqlite.prepare('select l.from_article_id from article_links l left join articles a on a.id = l.to_article_id where a.id is null').all()).toEqual([]);
+    expect(u.app.sqlite.prepare('select title from articles where title = ?').get('User note linking old EDI')).toBeDefined(); // user content kept
+    for (const [title, cat] of EDI_REAL) {
+      const rows = u.app.sqlite.prepare('select status, category_id from articles where title = ?').all(title) as { status: string; category_id: string }[];
+      expect(rows, title).toHaveLength(1);
+      expect(rows[0]!.status, title).toBe('published');
+      const c = cats().find((x) => x.id === rows[0]!.category_id)!;
+      expect([cats().find((x) => x.id === c.parent_id)?.name, c.name, c.archived].join(' / '), title).toBe(`${cat} / 0`);
+    }
+    const ediTop = cats().find((x) => x.name === 'EDI & Automation' && !x.parent_id)!;
+    expect(cats().filter((x) => x.parent_id === ediTop.id && !x.archived).map((x) => x.name).sort()).toEqual(['Adjudication & adjustments', 'EDI 101', 'EDI issues', 'Import & web.transformer']);
+    for (const k of ['EDI & Automation / Inbound claims (837)', 'EDI & Automation / Acknowledgements (999/277)', 'EDI & Automation / Automation scripts'])
+      expect(cats().find((x) => x.id === ids.get(k))!.archived, k).toBe(1);
+    for (const q of ['segment-by-segment', 'IK5', 'MacroHealth 837P', 'interchange envelope']) {
+      const r = await u.req(u.viewer, 'GET', `/api/search?q=${encodeURIComponent(q)}`);
+      const titles = (r.body.groups as { hits: { title: string }[] }[]).flatMap((g) => g.hits.map((h) => h.title));
+      expect(titles.filter((x) => EDI_OLD.includes(x)), q).toEqual([]);
+    }
   });
 });
 
@@ -450,6 +524,123 @@ describe('Bank details for international wires: Americas', () => {
       const r = await c.req(c.viewer, 'GET', `/api/search?q=${encodeURIComponent(q)}`);
       const titles = (r.body.groups as { hits: { title: string }[] }[]).flatMap((g) => g.hits.map((h) => h.title));
       expect(titles, q).toContain(TITLE);
+    }
+  });
+});
+
+describe('EDI & Automation: real procedure from the EDI 101 reference', () => {
+  const text = (n: PmNode) => { let t = ''; walk(n, (x) => { if (x.text) t += x.text; if (x.type === 'internalLink') t += String(x.attrs!.label); }); return t; };
+  const doc = (title: string) => {
+    const row = all<{ content: string }>("select content from articles where title = ? and status = 'published'", title)[0];
+    expect(row, title).toBeDefined();
+    return JSON.parse(row!.content) as PmNode;
+  };
+  const rowsOf = (n: PmNode) => { const rows: string[][] = []; walk(n, (x) => { if (x.type === 'tableRow') rows.push(x.content!.map(text)); }); return rows; };
+  const images = (n: PmNode) => { const out: PmNode[] = []; walk(n, (x) => { if (x.type === 'image') out.push(x); }); return out; };
+
+  it('the old fictional EDI articles are gone from the seed; the new set is in the right categories with no DEMO wording', () => {
+    for (const t of EDI_OLD) expect(SEED_ARTICLES.find((a) => a.title === t), t).toBeUndefined();
+    for (const [t, cat] of EDI_REAL) {
+      const a = SEED_ARTICLES.find((x) => x.title === t);
+      expect(a?.category, t).toBe(cat);
+      expect(JSON.stringify(a!.fields ?? {}), t).not.toMatch(/DEMO|fictional/i);
+    }
+  });
+
+  it('the denial-code table holds the 13 most common codes with their descriptions', () => {
+    const rows = rowsOf(doc('EDI denial codes'));
+    expect(rows[0]).toEqual(['Code', 'Description', 'When to use']);
+    expect(rows.slice(1).map((r) => r.slice(0, 2))).toEqual([
+      ['716', 'Invoice paid by member'], ['716', 'Member must pay and claim'], ['716', 'Processed in house'],
+      ['556', 'Exceeds benefit maximum / limit'], ['610', 'Routine care not covered'], ['947', 'Not a covered service'],
+      ['964', 'Pre-existing'], ['001', 'Requested member information'], ['028', "Before member's coverage"],
+      ['033', "After member's coverage terminated"], ['005', 'Request Medicare EOB'], ['011', 'Request primary insurance EOB'], ['902', 'Duplicate'],
+    ]);
+    expect(rows.find((r) => r[1] === 'Processed in house')![2]).toMatch(/two separate benefit plans/);
+    expect(rows.find((r) => r[0] === '902')![2]).toMatch(/previously processed claim/);
+  });
+
+  it('the import article names all three checks in order and where each failure goes', () => {
+    const rows = rowsOf(doc('Importing EDI invoices into Globo: the three checks'));
+    expect(rows.slice(1).map((r) => r[0])).toEqual(['1. Member ID', '2. Diagnosis', '3. GOP']);
+    expect(rows[1]![2]).toMatch(/automatically denied/);
+    expect(rows[2]![1]).toMatch(/open case with the same diagnosis/);
+    expect(rows[2]![2]).toMatch(/Missing Claim/);
+    expect(rows[3]![1]).toMatch(/same service dates from and to.*Tax ID/);
+    expect(rows[3]![2]).toMatch(/Missing GOP/);
+  });
+
+  it('EDI 101 explains the three files and the twelve-step loop with a diagram', () => {
+    const d = doc('EDI 101: the three files and the loop');
+    expect(rowsOf(d).slice(1).map((r) => r[0])).toEqual(['837', 'PCF', '835']);
+    const lists = d.content!.filter((n) => n.type === 'orderedList');
+    expect(lists).toHaveLength(1);
+    const items = lists[0]!.content!.map(text);
+    expect(items).toHaveLength(12);
+    expect(items[0]).toBe('Patient receives assistance.');
+    expect(items[6]).toMatch(/EC retrieves the file and imports it into Globo/);
+    expect(items[8]).toMatch(/Pay to Settled.*PCF/);
+    expect(items[11]).toBe('Payment is issued to the provider.');
+    expect(images(d).map((n) => n.attrs!.alt)).toEqual([expect.stringMatching(/UHCG.*MacroHealth.*Euro-Center/)]);
+    expect(text(d)).toMatch(/PCF_MH_ERCT_20240905065598\.txt/);
+  });
+
+  it('the web.transformer pages carry the real rules', () => {
+    const mc = text(doc('web.transformer: Missing Claim'));
+    for (const s of ['Diagnosis code mismatch', 'Wrong claim provided', 'Treatment outside of policy period', 'Ctrl + F', 'Client #', 'Prague or Bangkok', 'Exact', 'Claim Number', 'Update'])
+      expect(mc, s).toContain(s);
+    const gop = text(doc('web.transformer: Missing GOP'));
+    expect(gop).toMatch(/service dates shown on the invoice/);
+    expect(gop).toMatch(/Exact/);
+    expect(gop).toMatch(/allowed amount after savings.*not the billed amount/);
+    const ae = text(doc('web.transformer: All Entries'));
+    expect(ae).toMatch(/without the 909000 prefix/);
+    expect(ae).toMatch(/claim source fee invoice ID/);
+    expect(ae).toMatch(/claim broker fee invoice ID/);
+    expect(ae).toMatch(/2024\/09\/05/);
+    const mh = rowsOf(doc('web.transformer: Manual Handling')).slice(1);
+    expect(mh.map((r) => r[0])).toEqual(['Missing Tax ID', 'Missing address', 'Missing diagnosis']);
+    expect(mh[0]![1]).toMatch(/Vat ID field in the Finance tab/);
+    expect(mh[1]![1]).toMatch(/city, state, country, zip or street/);
+  });
+
+  it('adjudication covers the three reductions, the denial steps and the three MRR conditions', () => {
+    const d = doc('Adjudicating an EDI invoice: reductions, denials and MRR');
+    expect(rowsOf(d).slice(1).map((r) => r[0])).toEqual(['Co-payment', 'Deductible', 'Maximum amount']);
+    const t = text(d);
+    expect(t).toMatch(/Most common in Swedish policies/);
+    expect(t).toMatch(/not covered/);
+    expect(t).toMatch(/Delete the savings/);
+    expect(t).toMatch(/3-digit denial code in the internal remarks/);
+    const lists: string[] = []; walk(d, (n) => { if (n.type === 'bulletList') lists.push(n.content!.map(text).join(' | ')); });
+    expect(lists).toContain('Invoice status is Pending | MRR is in the internal remark | The line is On Hold');
+  });
+
+  it('changing a coverage decision covers both directions with the right batch rule, reprocessing and verification', () => {
+    const d = doc('Changing a coverage decision on an EDI invoice');
+    expect(d.content!.filter((n) => n.type === 'heading').map(text)).toEqual(['Denied, now to be paid', 'Paid, now to be denied', 'Reprocessing', 'Verification']);
+    const steps = d.content!.filter((n) => n.type === 'steps').map((s) => s.content!.map((x) => `${x.attrs!.title}: ${text(x)}`).join(' | '));
+    expect(steps).toHaveLength(2);
+    expect(steps[0]).toMatch(/refund and create a copy/);
+    expect(steps[0]).toMatch(/Message WKN with the UHAP ID and invoice date/);
+    expect(steps[0]).toMatch(/both the negative and the positive line in the same batch/);
+    expect(steps[0]).not.toMatch(/different batch/);
+    expect(steps[1]).toMatch(/void them if still pending.*automatic refund if already settled/);
+    expect(steps[1]).toMatch(/automatic refund and create a copy/);
+    expect(steps[1]).toMatch(/UHCG – United Health Care Global – Refunds Overpayments Reporting/);
+    expect(steps[1]).not.toMatch(/same batch/);
+    const t = text(d);
+    expect(t).toMatch(/Same-batch grouping applies only here/);
+    expect(t).toMatch(/Negative and positive go in different batches/);
+    expect(t).toMatch(/Reprocess Invoice.*UHAP ID.*Reprocess/);
+    expect(t).toMatch(/Cancelled.*claim replacement ID/);
+    expect(images(d).map((n) => n.attrs!.alt)).toEqual([expect.stringMatching(/182.*Not covered.*0\.00.*120\.00/)]);
+  });
+
+  it('headings never skip a level in the EDI articles', () => {
+    for (const [t] of EDI_REAL) {
+      let last = 1;
+      walk(doc(t), (n) => { if (n.type === 'heading') { const l = n.attrs!.level as number; expect(l - last, `${t}: h${last} -> h${l}`).toBeLessThanOrEqual(1); last = l; } });
     }
   });
 });

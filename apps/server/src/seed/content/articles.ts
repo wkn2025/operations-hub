@@ -1,6 +1,6 @@
 import type { ArticleType, PmNode, TemplateFields } from '@ops/shared';
 import { a, b, callout, code, collapsible, demo, h, hl, i, ol, p, pre, ref, shot, steps, table, tasks, ul } from './pm';
-import { EDI_ARTICLES } from './articles-edi';
+import { ALL_ENTRIES, EDI_101, EDI_ARTICLES, EDI_IMPORT, MANUAL_HANDLING, MISSING_CLAIM, MISSING_GOP } from './articles-edi';
 import { CLIENT_ARTICLES } from './articles-clients';
 import { CLIENT_TERMS_ARTICLES } from './articles-client-terms';
 import { CLAIMS_ARTICLES } from './articles-claims';
@@ -25,50 +25,10 @@ export interface SeedArticle {
   content: PmNode[];
 }
 
-const ediTech = 'UHCG Direct EDI: inbound 837I pipeline';
 const invoiceWi = 'Register an incoming provider invoice';
 const gop = 'GOP (Guarantee of Payment)';
-const ack999 = '999 Implementation Acknowledgement';
 
 const CORE_ARTICLES: SeedArticle[] = [
-  {
-    title: ediTech,
-    type: 'technical',
-    category: 'EDI & Automation / Inbound claims (837)',
-    owner: 'admin',
-    tags: ['edi', '837i', 'uhcg', 'pipeline'],
-    reviewDate: '2027-03-01',
-    fields: {
-      summary: 'How institutional claims travel from the UHCG Direct SFTP drop to a case in Globo, and where each step can fail.',
-      systems: ['UHCG Direct', 'EDI Gateway', 'Globo', 'ECNet'], version: 'v2.4 (DEMO)',
-    },
-    content: [
-      h(2, 'Overview'),
-      p('Inbound 837I files arrive several times a day. The ', b('EDI Gateway'), ' validates the envelope, answers with a ', ref(ack999, '999 acknowledgement'), ', splits the batch into single claims and hands each claim to Globo, where it is matched to an open assistance case.'),
-      shot('edi-monitor.svg', 'EDI Monitor showing three inbound batches, one with a rejected claim', 'EDI Monitor, batch view (illustrative DEMO screenshot)'),
-      h(2, 'Processing stages'),
-      table(['Stage', 'System', 'Typical duration', 'Fails when'],
-        ['Pickup', 'EDI Gateway', '< 1 min', 'SFTP credentials expired'],
-        ['Envelope check (ISA/GS)', 'EDI Gateway', 'seconds', 'Wrong sender ID or control number reused'],
-        ['999 acknowledgement', 'EDI Gateway', 'seconds', 'Syntax errors in a segment'],
-        ['Case matching', 'Globo', '1–5 min', 'No open case or no GOP issued'],
-        ['Financial posting', 'ECNet', 'nightly', 'Currency or provider record missing']),
-      h(2, 'File naming'),
-      p('Files follow the pattern below. The control number must be unique per sender for 12 months.'),
-      pre('text', 'UHCGD_837I_<senderId>_<yyyyMMddHHmm>_<controlNo>.x12\nUHCGD_837I_DEMO01_202610290815_000412.x12'),
-      callout('warning', 'Duplicate control numbers', p('A reused ISA13 control number makes the gateway reject the whole batch with a ', code('TA1'), '. Ask the sender to resend with a new number; never edit the file by hand.')),
-      h(2, 'Monitoring'),
-      ul('The EDI Monitor dashboard refreshes every 60 seconds.', 'Alerts go to the EDI on-call channel when a batch is older than 30 minutes.', 'Rejected claims stay in the quarantine queue for 14 days.'),
-      collapsible('Segment reference used by the case matcher',
-        table(['Segment', 'Element', 'Used for'],
-          ['CLM', 'CLM01', 'Provider claim reference'],
-          ['NM1*IL', 'NM109', 'Member ID'],
-          ['REF*G1', 'REF02', 'GOP / prior authorisation number'],
-          ['DTP*434', 'DTP03', 'Statement period'])),
-      p('If a claim does not show up in Globo, follow ', ref('EDI claim failed to import'), '.'),
-      demo(),
-    ],
-  },
   {
     title: invoiceWi,
     type: 'work_instruction',
@@ -140,33 +100,25 @@ const CORE_ARTICLES: SeedArticle[] = [
     title: 'EDI claim failed to import',
     type: 'troubleshooting',
     category: 'EDI & Automation / EDI issues',
-    owner: 'editor',
-    tags: ['edi', 'import', 'error', '837i'],
-    reviewDate: '2026-10-20',
+    owner: 'admin',
+    tags: ['edi', 'import', 'web.transformer', 'missing claim', 'missing gop'],
+    reviewDate: '2027-11-05',
     fields: {
-      summary: 'A provider says they sent a claim by EDI, but there is no invoice on the case.',
-      symptom: 'Claim visible in the EDI Monitor but no invoice in Globo.',
-      cause: 'Usually a missing GOP, an invalid member ID, or no open case to match.',
-      fix: 'Correct the reference data, then re-queue the claim from quarantine.',
+      summary: 'An invoice was sent through EDI, but it does not show on the case in Globo.',
+      symptom: 'An EDI invoice is not on the case in Globo.',
+      cause: 'One of the three import checks failed: the Member ID does not exist in Globo (automatically denied), no open case has the same diagnosis (Missing Claim), or no open GOP matches the service dates and provider Tax ID (Missing GOP).',
+      fix: 'Find the invoice in web.transformer and fix what the failed check needs, then let the import pick it up.',
     },
     content: [
       h(2, 'Check these in order'),
       steps(
-        { title: 'Is there a GOP for this case?', body: [p('Open the case and the ', b('Guarantees'), ' tab. If not, the matcher rejects the claim with ', code('E-112 NO_GOP'), '. Ask the medical team to issue one, then re-queue.')] },
-        { title: 'Is the member ID valid?', body: [p('Compare ', code('NM1*IL'), ' in the claim with the policy record. Leading zeros are often dropped by providers.')] },
-        { title: 'Does a matching case exist?', body: [p('The matcher needs an open case with the same member and an admission date within ±3 days. Closed cases are not matched.')] },
-        { title: 'Re-queue the claim', body: [p('In the EDI Monitor, open ', b('Quarantine'), ', select the claim and choose ', b('Retry match'), '.')] },
+        { title: 'Find the invoice in All Entries', body: [p('Every invoice processed via EDI is recorded there. Filter the UHAP ID column, or enter the Member ID without the 909000 prefix in the Client ID column. See ', ref(ALL_ENTRIES), '.')] },
+        { title: 'Does the Member ID exist in Globo?', body: [p('If not, the invoice was automatically denied at the first import check.')] },
+        { title: 'Is it on the Missing Claim page?', body: [p('No open case has the same diagnosis as the invoice. Follow ', ref(MISSING_CLAIM), '.')] },
+        { title: 'Is it on the Missing GOP page?', body: [p('No open GOP has the same service dates from and to and a provider registered under the Tax ID on the invoice. Follow ', ref(MISSING_GOP), '.')] },
       ),
-      callout('success', 'Resolved?', p('The invoice appears in Globo within 5 minutes with status ', hl('Registered'), '.')),
-      h(2, 'Error codes'),
-      table(['Code', 'Meaning', 'Who fixes it'],
-        ['E-112 NO_GOP', 'No guarantee of payment on the case', 'Medical team'],
-        ['E-118 MEMBER', 'Member ID not found on the policy', 'Claims handler'],
-        ['E-121 NOCASE', 'No open case in the date window', 'Case manager'],
-        ['E-200 SYNTAX', 'Segment syntax error, see the 999', 'Provider / EDI team']),
-      p('Background: ', ref(ediTech), '. To register the invoice manually instead, use ', ref(invoiceWi), '.'),
-      p('Still stuck? Raise a ticket with the EDI team: ', a('edi-support@example.test', 'mailto:edi-support@example.test'), '.'),
-      demo(),
+      callout('info', 'Imported, but not exported?', p('If the invoice is in Globo but its PCF was not built when it moved from Pay to Settled, it is on the Manual Handling page: ', ref(MANUAL_HANDLING), '.')),
+      p('How the checks work: ', ref(EDI_IMPORT), '. The whole loop: ', ref(EDI_101), '.'),
     ],
   },
   {
@@ -186,23 +138,6 @@ const CORE_ARTICLES: SeedArticle[] = [
       h(2, 'In practice'),
       ul('Issued from the Guarantees tab in Globo.', 'Sent to the provider by fax or e-mail; providers reference it in their invoice.', 'Required before an EDI claim can be matched.'),
       p('See also ', ref('EDI claim failed to import'), '.'),
-      demo(),
-    ],
-  },
-  {
-    title: ack999,
-    type: 'glossary',
-    category: 'Glossary & Acronyms / EDI terms',
-    owner: 'admin',
-    tags: ['999', 'edi', 'acknowledgement', 'glossary'],
-    fields: {
-      term: 'Implementation Acknowledgement', acronym: '999',
-      definition: 'The X12 transaction that tells the sender whether a file passed syntax validation.',
-      relatedTerms: ['TA1', '277CA', '837I'],
-    },
-    content: [
-      p('A 999 is generated by the EDI Gateway within seconds of pickup. ', b('Accepted'), ' means the file is syntactically valid, not that the claims inside will be paid.'),
-      table(['IK5 code', 'Meaning'], ['A', 'Accepted'], ['E', 'Accepted with errors'], ['R', 'Rejected']),
       demo(),
     ],
   },

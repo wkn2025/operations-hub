@@ -10,17 +10,21 @@ import { createArticle, reindexCategorySubtree, slugify, transition, uniqueSlug,
 import { storeFile } from '../services/files';
 import { extractText } from '../services/pm-text';
 import { indexArticle } from '../services/search';
+import { audit } from '../services/audit';
 import { DEMO_USERS } from '../auth/dev';
 import { SEED_ARTICLES } from './content/articles';
-import { ediMonitorSvg } from './screenshots/edi-monitor.svg';
+import { ediLoopSvg } from './screenshots/edi-loop.svg';
 import { globoCaseSvg } from './screenshots/globo-case.svg';
 import { ecnetPaymentRunSvg } from './screenshots/ecnet-payment-run.svg';
-import { macroHealthPortalSvg } from './screenshots/macrohealth-portal.svg';
+import { globoRefundFieldsSvg } from './screenshots/globo-refund-fields.svg';
 import { claimLifecycleSvg } from './screenshots/claim-lifecycle.svg';
+
+const EDI_DESCRIPTION = 'How EDI invoices travel between UHCG, MacroHealth and Euro-Center, and how we import, adjudicate and adjust them.';
+const OLD_EDI_DESCRIPTION = 'Electronic claim exchange, acknowledgements and the automations around them.';
 
 /** The eight top-level categories with their demo subcategories (restructured 2026-10-30, was nine). */
 export const CATEGORY_TREE: { name: string; description: string; children: string[] }[] = [
-  { name: 'EDI & Automation', description: 'Electronic claim exchange, acknowledgements and the automations around them.', children: ['Inbound claims (837)', 'Acknowledgements (999/277)', 'Automation scripts', 'EDI issues'] },
+  { name: 'EDI & Automation', description: EDI_DESCRIPTION, children: ['EDI 101', 'Import & web.transformer', 'Adjudication & adjustments', 'EDI issues'] },
   { name: 'Clients & Terms and Conditions', description: 'Who our clients are and what each contract lets us authorise.', children: ['Travel insurance clients', 'Corporate clients', 'Coverage summaries'] },
   { name: 'Work Instructions', description: 'Step-by-step procedures for recurring operational tasks.', children: ['Case handling', 'Invoice processing', 'Reimbursements'] },
   { name: 'Quality Assurance', description: 'Checks, sampling and sign-offs that keep claims and payments right first time.', children: ['Quality checks', 'Audit & sampling'] },
@@ -44,6 +48,7 @@ const LEGACY_MOVES: [string, string, string][] = [
 const LEGACY_ARCHIVE: [string | null, string][] = [
   ['Claims & Reimbursements', 'Claim intake'], ['Claims & Reimbursements', 'Medical records'],
   [null, 'Claims & Reimbursements'], [null, 'Troubleshooting Center'],
+  ['EDI & Automation', 'Inbound claims (837)'], ['EDI & Automation', 'Acknowledgements (999/277)'], ['EDI & Automation', 'Automation scripts'],
 ];
 /** Demo articles retired by merges or removals: archived, never deleted, so their history stays. */
 const RETIRED_SLUGS = [
@@ -52,11 +57,21 @@ const RETIRED_SLUGS = [
   'bluefin-corporate-health-coverage-summary', 'atlas-student-travel-cover-coverage-summary', 'harbor-cruise-assist-coverage-summary',
 ];
 
+/**
+ * The fictional EDI articles replaced by the real EDI 101 procedure (user ruling 2026-11-05). Unlike RETIRED_SLUGS these
+ * are DELETED by title, so they leave lists, search and history; revisions, tags, links and attachments cascade.
+ */
+export const DELETED_TITLES = [
+  'UHCG Direct EDI: inbound 837I pipeline', 'MacroHealth EDI: 837P and 837I exchange', '837 claim file: segment-by-segment guide',
+  'Acknowledgements: 999 and 277CA handling', '999 rejected a whole batch (IK5*R)', 'MacroHealth file not picked up',
+  '999 Implementation Acknowledgement', 'ISA/GS interchange envelope',
+];
+
 const SEED_FILES: Record<string, { mime: string; data: () => Buffer }> = {
-  'edi-monitor.svg': { mime: 'image/svg+xml', data: () => Buffer.from(ediMonitorSvg, 'utf8') },
+  'edi-loop.svg': { mime: 'image/svg+xml', data: () => Buffer.from(ediLoopSvg, 'utf8') },
+  'globo-refund-fields.svg': { mime: 'image/svg+xml', data: () => Buffer.from(globoRefundFieldsSvg, 'utf8') },
   'globo-case.svg': { mime: 'image/svg+xml', data: () => Buffer.from(globoCaseSvg, 'utf8') },
   'ecnet-payment-run.svg': { mime: 'image/svg+xml', data: () => Buffer.from(ecnetPaymentRunSvg, 'utf8') },
-  'macrohealth-portal.svg': { mime: 'image/svg+xml', data: () => Buffer.from(macroHealthPortalSvg, 'utf8') },
   'claim-lifecycle.svg': { mime: 'image/svg+xml', data: () => Buffer.from(claimLifecycleSvg, 'utf8') },
 };
 
@@ -116,6 +131,7 @@ export async function seedBase(app: App) {
   const catIds = new Map<string, string>();
   app.sqlite.transaction(() => {
     const tops = CATEGORY_TREE.map((t, i) => ensureCategory(app, t.name, null, i, t.description));
+    app.db.update(categories).set({ description: EDI_DESCRIPTION }).where(and(eq(categories.id, tops[0]!), eq(categories.description, OLD_EDI_DESCRIPTION))).run();
     moveLegacyCategories(app);
     CATEGORY_TREE.forEach((t, i) => {
       catIds.set(t.name, tops[i]!);
@@ -182,6 +198,15 @@ function moveLegacyCategories(app: App) {
 }
 
 function retireLegacy(app: App, admin: User) {
+  app.sqlite.transaction(() => {
+    for (const title of DELETED_TITLES) {
+      for (const { id } of app.sqlite.prepare('select id from articles where title = ?').all(title) as { id: string }[]) {
+        app.sqlite.prepare('delete from article_fts where article_id = ?').run(id);
+        app.sqlite.prepare('delete from articles where id = ?').run(id); // FK cascade: revisions, tags, links, attachments; flows -> null
+        audit(app.db, { actorId: admin.id, action: 'article.delete', entity: 'article', entityId: id, summary: `Seed deleted retired EDI article "${title}"` });
+      }
+    }
+  })();
   for (const slug of RETIRED_SLUGS) {
     const a = app.db.select().from(articles).where(eq(articles.slug, slug)).get();
     if (a && a.status !== 'archived') transition(app, admin, a.id, 'archive');
@@ -210,7 +235,9 @@ function seedFlows(app: App, admin: User) {
     const nodes = d.nodes.map(({ articleSlug, ...n }) => (articleSlug ? { ...n, articleId: articleId(articleSlug) } : n));
     const link = d.articleSlug ? articleId(d.articleSlug) : null;
     // also adopts the pre-DEMO-label row (same title without the suffix) so existing databases are renamed, not duplicated
-    const row = app.db.select().from(flows).where(eq(flows.slug, slugify(d.title))).get() ?? app.db.select().from(flows).where(eq(flows.slug, slugify(d.title.replace(/ \(DEMO\)$/, '')))).get();
+    // also adopts a renamed row: the pre-DEMO-label title, or the DEMO-labelled one of a flow that became real procedure (EDI, 2026-11-05)
+    const row = [d.title, d.title.replace(/ \(DEMO\)$/, ''), `${d.title} (DEMO)`]
+      .map((t) => app.db.select().from(flows).where(eq(flows.slug, slugify(t))).get()).find(Boolean);
     const id = row?.id ?? createFlow(app, admin, { title: d.title, nodes, startId: d.startId, articleId: link });
     const cur = app.db.select().from(flows).where(eq(flows.id, id)).get()!;
     if (cur.title !== d.title || cur.nodes !== JSON.stringify(nodes) || cur.startId !== d.startId || cur.articleId !== link) updateFlow(app, admin, id, { baseRevision: cur.revision, title: d.title, nodes, startId: d.startId, articleId: link });

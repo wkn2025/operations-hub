@@ -27,7 +27,7 @@ export const NETWORK_FINANCE_ARTICLES: SeedArticle[] = [
         { title: 'Create the provider record', body: [p('Globo, ', b('Providers'), ', ', b('New'), '. Status stays ', i('Pending'), ' until the last step.')] },
         { title: 'Verify bank details', body: [p('Phone the provider on a number from the agreement, not from the bank letter, and confirm the IBAN or account number.'), callout('danger', null, p('Never accept bank details by e-mail alone.'))] },
         { title: 'Record the tariff', body: [p('Attach the agreed tariff (for example ', ref('Clinica Solaris Group: network agreement terms'), ') and enter the discount and payment terms.')] },
-        { title: 'Set up EDI (optional)', body: [p('If the provider bills through MacroHealth, add its MacroHealth provider ID. See ', ref('MacroHealth EDI: 837P and 837I exchange'), '.')] },
+        { title: 'Check the Tax ID (EDI)', body: [p('EDI invoices are matched to a GOP whose provider is registered under the Tax ID on the invoice, so record the Tax ID exactly. See ', ref('Importing EDI invoices into Globo: the three checks'), '.')] },
         { title: 'Activate', body: [p('A second team member reviews and sets the status to ', i('Active'), '. The record syncs to ECNet overnight.')] },
       ),
       demo(),
