@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { start, step, validateFlow, type Flow } from '@ops/shared';
+import { FLOW_LIMITS, start, step, validateFlow, type Flow } from '@ops/shared';
 import { GLOBAL_CODE_FLOW } from '../src/seed/content/global-code-finder';
 
 // Nodes carry no article references, so SeedFlow is structurally a Flow.
@@ -50,12 +50,14 @@ describe('Global Code Finder flow structure', () => {
 // [scenario (reference section 5 row, then remaining leaves), answers (Y/N), expected result id]
 const scenarios: [string, string, string][] = [
   ['ER facility + CT + medications + sutures', 'NYYY', 'r-er'],
+  ['ER facility + CT + medications + sutures, read as a bundle with a main purpose', 'YYYYY', 'r-er'],
   ['ER observation, no admission', 'NYYY', 'r-er'],
   ['ER facility bill (first of two invoices)', 'NYYY', 'r-er'],
   ['separate inpatient hospital bill after ER', 'NYYNNY', 'r-inpatient'],
   ['separate ER physician professional bill', 'NYNYNNNN', 'r-outpt'],
   ['inpatient room, ICU, tests; no surgery', 'NYYNNY', 'r-inpatient'],
   ['hospital invoice with surgery and 3 inpatient days', 'NYYNY', 'r-forfait'],
+  ['surgery + inpatient days, read as a bundle with a main purpose', 'YYYYNY', 'r-forfait'],
   ['facility bill for minor outpatient surgery', 'NYYNY', 'r-forfait'],
   ['facility bill for vaginal delivery or C-section', 'NYYNY', 'r-forfait'],
   ['separately billed inpatient surgeon fee', 'NYNYNNNY', 'r-b00'],
@@ -68,11 +70,14 @@ const scenarios: [string, string, string][] = [
   ['general urgent care / walk-in evaluation', 'NYNNYNNNN', 'r-a01'],
   ['US routine check-up', 'NYNNYNNNN', 'r-a01'],
   ['doctor visit + lab + ointment, mainly consultation', 'NYNNYNNNN', 'r-a01'],
+  ['doctor visit + lab + ointment, read as a bundle with a main purpose', 'YYYNNYNNNN', 'r-a01'],
   ['same, with a specialist', 'NYNNYNNNY', 'r-spec'],
   ['clinic visit solely for expensive medication injection', 'NYNNNNYNN', 'r-medicines'],
   ['chemotherapy infusion', 'NYNNNNYNY', 'r-chemo'],
   ['vaccination visit', 'NYNNNNYY', 'r-vac'],
   ['independent lab test with specimen collection fee', 'NYNNNYNNNNY', 'r-analysis'],
+  ['colposcopy (Analysis)', 'NYNNNYNNNNY', 'r-analysis'],
+  ['urodynamic test (Analysis)', 'NYNNNYNNNNY', 'r-analysis'],
   ['lab analysis of surgical specimen, not biopsy', 'NYNYNNYNN', 'r-analysis'],
   ['separate pathology interpretation of biopsy', 'NYNYNNYNY', 'r-biopsy'],
   ['standalone biopsy', 'NYNNNYNNNY', 'r-biopsy'],
@@ -130,5 +135,82 @@ const scenarios: [string, string, string][] = [
 describe('Global Code Finder scenarios', () => {
   it.each(scenarios)('%s', (_name, answers, expected) => {
     expect(walk(answers)).toBe(expected);
+  });
+});
+
+const results = flow.nodes.filter((n) => n.kind === 'result');
+const node = (id: string) => byId.get(id)!;
+const det = (id: string) => node(id).detail ?? '';
+
+describe('Global Code Finder wording', () => {
+  it('every node text/detail is within FLOW_LIMITS', () => {
+    for (const n of flow.nodes) {
+      expect(n.text.length, n.id).toBeLessThanOrEqual(FLOW_LIMITS.text);
+      expect((n.detail ?? '').length, n.id).toBeLessThanOrEqual(FLOW_LIMITS.detail);
+    }
+  });
+
+  it('every result has a reason with one example', () => {
+    for (const n of results) {
+      expect(det(n.id).trim().length, n.id).toBeGreaterThan(0);
+      expect(det(n.id), n.id).toMatch(/Example:/);
+    }
+  });
+
+  it('only A01, B01, B00 and C12 appear as code numbers', () => {
+    for (const n of flow.nodes)
+      for (const m of `${n.text} ${n.detail ?? ''}`.match(/[A-Z]\d{2}/g) ?? [])
+        expect(['A01', 'B01', 'B00', 'C12'], `${n.id}: ${m}`).toContain(m);
+    expect(node('r-a01').text.startsWith('A01 ·')).toBe(true);
+    expect(node('r-er').text.startsWith('B01 ·')).toBe(true);
+    expect(node('r-b00').text.startsWith('B00 ·')).toBe(true);
+    expect(node('r-inpatient').text.startsWith('C12 ·')).toBe(true);
+  });
+
+  it('provisional rules are warnings that name their alternative', () => {
+    expect(node('r-us').text.startsWith('Ultrasonography')).toBe(true);
+    expect(det('r-us')).toMatch(/Ecography/);
+    expect(node('r-ecg').text.startsWith('ECG')).toBe(true);
+    expect(det('r-ecg')).toMatch(/EKG/);
+    expect(node('r-spiro').text).toBe('Spirometry / Pulmonary Function Test · code TBC');
+    for (const id of ['r-us', 'r-ecg', 'r-spiro']) {
+      expect(node(id).severity, id).toBe('warning');
+      expect(det(id), id).toMatch(/not yet defined/);
+    }
+  });
+
+  it('severity: review warning, free choice info, all other codes success', () => {
+    const special: Record<string, string> = { 'r-us': 'warning', 'r-ecg': 'warning', 'r-spiro': 'warning', 'r-review': 'warning', 'r-free': 'info' };
+    for (const n of results) expect(n.severity, n.id).toBe(special[n.id] ?? 'success');
+  });
+
+  it('key results explain their rule', () => {
+    expect(det('r-a01')).toMatch(/US routine check-up/);
+    expect(det('r-a01')).toMatch(/medical certificate/);
+    expect(det('r-analysis-cysto')).toMatch(/[Cc]ystoscopy is Analysis/);
+    expect(det('r-analysis-cysto')).toMatch(/flagged for review/);
+    expect(det('r-er')).toMatch(/surgery/);
+    expect(det('r-er')).toMatch(/tests.*dressings|dressings.*tests/);
+    expect(det('r-er')).toMatch(/stay ER/);
+    expect(det('r-review')).toMatch(/no generic fallback/);
+    expect(det('r-review')).toMatch(/team lead/);
+    for (const w of ['EMG', 'blood transfusion', 'oxygen therapy']) expect(det('r-review')).toMatch(w);
+  });
+
+  it('question details guide bundled invoices and edge cases', () => {
+    expect(det('multi').startsWith('DEMO flow.')).toBe(true);
+    expect(det('multi')).toMatch(/does not decide coverage or medical necessity/);
+    for (const id of ['multi', 'main']) {
+      expect(det(id), id).toMatch(/ER visit/);
+      expect(det(id), id).toMatch(/surgery/);
+      expect(det(id), id).toMatch(/highest value/);
+    }
+    expect(det('svc')).toMatch(/transport/);
+    expect(det('svc')).toMatch(/fee only/);
+    for (const id of ['scope', 'lab']) {
+      expect(det(id), id).toMatch(/[Cc]olposcopy/);
+      expect(det(id), id).toMatch(/urodynamic/);
+    }
+    expect(det('scope')).toMatch(/Analysis/);
   });
 });
