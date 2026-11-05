@@ -20,14 +20,15 @@ Non-goals: new engine, new UI, Copy button, numeric-code editor/importer, amount
 **User rulings 2026-11-05:**
 1. Outpatient Physician Fees = **A00**, including a separately billed outpatient surgeon fee and a separate ER doctor fee. B00 is only for doctors treating or operating during an admission.
 2. Anything dental = **M00 Dentist**, including a dental emergency billed as a hospital ER facility bill (overrides reference §5 "dental ER facility bill → ER"). Asked once, right after `svc` Yes.
-
-**User approved fixes 2026-11-05** (gaps found by the 82-invoice literal-reading simulator, `global-code-finder.invoices.test.ts`):
-1. Hospital outpatient bills: `admit` No → `cons` (was `r-review`), so imaging, chemotherapy day unit, dialysis, physio or clinic consults billed by a hospital continue to the service questions (INV-46, INV-50).
-2. Standalone nursing: `sep` No → new `nursebill` "Is it a nursing bill (for example home nursing)?" → `r-medfees` / `cons` (INV-23). `nurse` under `sep` stays.
-3. Other health professionals: `cons` covers a consultation with a doctor or other health professional; `spec` lists the reference §4 Specialist Consultation professions. Therapy sessions answer No at `cons` (detail) (INV-49).
-4. Transfusion / oxygen: `med` detail sends blood transfusion and oxygen therapy to No, so they reach manual review (INV-71, INV-72).
 - Footer wording in every result detail start/end is not repeated; the first question's `detail` states: classifies the invoice only, never coverage or necessity.
 - Tests (`apps/server/test/`): `validateFlow` clean; every question has exactly 2 options; every scenario row of the reference §5 walked as an answer sequence through `startRun/answer`, asserting the result node; unresolved-rule results name both codes.
+
+**User approved fixes 2026-11-05** (gaps found by the literal-reading invoice simulator, `global-code-finder.invoices.test.ts`):
+1. Hospital outpatient bills: `admit` No → `cons` (was `r-review`), so imaging, chemotherapy day unit, dialysis, physio or clinic consults billed by a hospital continue to the service questions (INV-46, INV-50).
+2. Standalone nursing: `sep` No → new `nursebill` "Is it a nursing bill (for example home nursing)?" → `r-medfees` / `cons` (INV-23). `nurse` under `sep` stays.
+3. Other health professionals: `cons` covers a consultation with a doctor or other health professional, "not therapy sessions" (text and detail); `spec` lists the reference §4 Specialist Consultation professions (INV-49, INV-85, INV-86).
+4. Transfusion / oxygen: `med` detail sends blood transfusion and oxygen therapy to No, so they reach manual review (INV-71, INV-72).
+5. Code the purpose of the service, not who delivers it (controller ruling): `nursebill` detail says Yes only for nursing care itself; a nurse giving only a vaccine, injection or wound dressing answers No (INV-83, INV-84).
 
 ## Tree
 
@@ -57,7 +58,7 @@ Format: `id` "question" → Yes / No. Result ids start `r-`.
 
 **Separate professional fee**
 - `sep` "Is it a separate fee from a doctor, nurse or anesthesiologist, billed apart from a facility bill?" → `anes` / `nursebill`
-- `nursebill` "Is it a nursing bill (for example home nursing)?" → `r-medfees` / `cons`
+- `nursebill` "Is it a nursing bill (for example home nursing)?" → `r-medfees` / `cons` (detail: nursing care itself only; a nurse giving only a vaccine, injection or dressing answers No)
 - `anes` "Is it from the anesthesiologist?" → `r-anes` / `nurse`
 - `nurse` "Is it for nursing services?" → `r-medfees` / `read`
 - `read` "Is it only a radiologist or pathologist reading an image or sample?" → `readkind` / `inpt`
@@ -65,7 +66,7 @@ Format: `id` "question" → Yes / No. Result ids start `r-`.
 - `inpt` "Did the doctor treat or operate while the patient was admitted?" → `r-b00` (B00 Inpatient Physician Fees) / `r-outpt` (A00 Outpatient Physician Fees; includes outpatient surgeon and separate ER doctor)
 
 **Consultation**
-- `cons` "Is the main purpose a consultation with a doctor or other health professional (dietitian, podiatrist, optometrist…)?" → `tele` / `test` (detail: therapy sessions answer No)
+- `cons` "Is the main purpose a consultation with a doctor or other health professional (dietitian, podiatrist, optometrist…), not therapy sessions?" → `tele` / `test` (detail lists the therapies)
 - `tele` "Was it by video or phone?" → `r-tele` / `home`; `home` "Was it a house call?" → `r-home` / `spec`
 - `spec` "Is it a specialist (eye, heart, skin, psychiatry, dietitian, podiatrist, optometrist…)?" → `r-spec` / `r-a01`
 - `r-a01` detail: general consult, follow-up, urgent care, walk-in, US routine check-up (flagged for later review), certificate billed separately, non-surgical joint injection or nerve block; extra tests/medicines do not change it. Specialist at urgent care: confirm with team lead (backlog item 10).

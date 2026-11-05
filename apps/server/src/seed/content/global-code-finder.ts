@@ -51,11 +51,11 @@ export const GLOBAL_CODE_FLOW: SeedFlow = {
     q('read', 'Is it only a radiologist or pathologist reading an image or sample?', 'readkind', 'inpt'),
     q('readkind', 'Is it reading an image or scan?', 'img', 'bxread'),
     q('bxread', 'Is the sample described as a biopsy?', 'r-biopsy', 'r-analysis'),
-    q('nursebill', 'Is it a nursing bill (for example home nursing)?', 'r-medfees', 'cons'),
+    q('nursebill', 'Is it a nursing bill (for example home nursing)?', 'r-medfees', 'cons', 'Yes for nursing care itself (home nursing, private-duty nurse). A nurse giving only a vaccine, an injection or a wound dressing: answer No.'),
     q('inpt', 'Did the doctor treat or operate while the patient was admitted?', 'r-b00', 'r-outpt'),
 
     // Consultation
-    q('cons', 'Is the main purpose a consultation with a doctor or other health professional (dietitian, podiatrist, optometrist…)?', 'tele', 'test', 'Therapy sessions (physio, psychotherapy, occupational or speech therapy, acupuncture, chiropractic) answer No.'),
+    q('cons', 'Is the main purpose a consultation with a doctor or other health professional (dietitian, podiatrist, optometrist…), not therapy sessions?', 'tele', 'test', 'Therapy sessions (physio, psychotherapy, occupational or speech therapy, acupuncture, chiropractic) answer No.'),
     q('tele', 'Was it by video or phone?', 'r-tele', 'home'),
     q('home', 'Was it a house call?', 'r-home', 'spec'),
     q('spec', 'Is it a specialist (eye, heart, skin, psychiatry, dietitian, podiatrist, optometrist…)?', 'r-spec', 'r-a01'),

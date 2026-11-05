@@ -353,6 +353,20 @@ const INVOICES: Invoice[] = [
   { id: 'INV-82', provider: 'NewYork-Presbyterian Hospital, New York, US', currency: 'USD',
     lines: [{ desc: 'NY HCRA surcharge on invoice 88213', amount: 62, service: 'admin-fee' }],
     expected: tbc('Administrative Fees'), why: '§5: separate US surcharge is Administrative Fees' },
+
+  // ---- purpose of the service, not who delivers it (controller ruling 2026-11-05) ----
+  { id: 'INV-83', provider: 'HomeCare Nurses, Lisbon, PT', currency: 'EUR',
+    lines: [{ desc: 'Home nurse visit: wound dressing change', amount: 65, service: 'wound-care' }],
+    expected: tbc('Wound Dressing'), why: '§4 Wound Dressing: a nurse doing only a dressing is coded by the service (nursebill detail)' },
+  { id: 'INV-84', provider: 'Walgreens Clinic, Seattle, US', currency: 'USD',
+    lines: [{ desc: 'Nurse-administered flu vaccine at clinic', amount: 45, service: 'vaccine' }],
+    expected: tbc('Vaccination'), why: '§4 Vaccination: a nurse giving only a vaccine is coded by the service (nursebill detail)' },
+  { id: 'INV-85', provider: 'Clínica Mente Sã, Porto Alegre, BR', currency: 'BRL',
+    lines: [{ desc: 'Consulta psicológica, 50 min', amount: 250, service: 'psychotherapy' }],
+    expected: tbc('Psychotherapy'), why: '§5: psychologist session is Psychotherapy; cons text excludes therapy sessions' },
+  { id: 'INV-86', provider: 'Specsavers Optometrists, Bristol, UK', currency: 'GBP',
+    lines: [{ desc: 'Optometrist eye examination', amount: 35, service: 'eye-exam' }],
+    expected: tbc('Specialist Consultation'), why: '§4 Specialist Consultation includes optometrist' },
 ];
 
 // ---------------- simulated staff member ----------------
@@ -372,8 +386,8 @@ const NOT_MEDICAL = new Set<Service>([...FEE_ONLY, ...TRANSPORT, ...EQUIPMENT]);
 const SEPARATE_FEE = set('surgeon-fee-inpatient', 'surgeon-fee-outpatient', 'er-doctor-fee', 'inpatient-physician-visit', 'anesthesiologist-fee',
   'nursing-in-hospital', 'radiologist-read-mri', 'pathologist-read-biopsy', 'pathologist-read-specimen');
 const READ = set('radiologist-read-mri', 'pathologist-read-biopsy', 'pathologist-read-specimen');
-/** cons "a consultation with a doctor or other health professional (dietitian, podiatrist, optometrist…)?"; detail: therapy sessions answer No. */
-const CONSULTATION = set('consultation-gp', 'consultation-specialist', 'urgent-care', 'checkup-us', 'medical-certificate', 'telemedicine', 'house-call', 'dietitian');
+/** cons "a consultation with a doctor or other health professional (dietitian, podiatrist, optometrist…), not therapy sessions?" */
+const CONSULTATION = set('consultation-gp', 'consultation-specialist', 'urgent-care', 'checkup-us', 'medical-certificate', 'telemedicine', 'house-call', 'dietitian', 'eye-exam');
 const SCOPE = set('gastroscopy', 'colonoscopy', 'cystoscopy');
 const HEART = set('holter', 'ecg', 'cardio-other');
 const ORGAN = new Set<Service>([...HEART, 'eeg', 'sleep-study', 'spirometry', 'audiometry']);
@@ -381,7 +395,7 @@ const LAB = set('lab', 'colposcopy');
 /** The imaging modality behind a scan or a radiologist's read. */
 const modality = (s: Service): Service => (s === 'radiologist-read-mri' ? 'mri' : s);
 const IMAGING = set('mri', 'ct', 'pet', 'ultrasound', 'mammogram', 'bone-density', 'xray');
-const TEST = new Set<Service>([...IMAGING, ...SCOPE, ...ORGAN, 'colposcopy', 'emg', 'biopsy', 'lab', 'eye-exam']);
+const TEST = new Set<Service>([...IMAGING, ...SCOPE, ...ORGAN, 'colposcopy', 'emg', 'biopsy', 'lab']);
 /** med lists "pharmacy, injection, infusion, vaccine"; its detail sends blood transfusion and oxygen therapy to No. */
 const MEDICINE = set('pharmacy', 'injection', 'vaccine', 'chemo');
 const THERAPY = set('physio', 'psychotherapy', 'occupational-therapy', 'speech-therapy');
@@ -420,17 +434,19 @@ const ANSWERS: Record<string, Ask> = {
   surg: (_s, inv) => billHas(inv, 'surgery-facility', 'delivery-facility'), // "does this bill include"
   admit: (_s, inv) => billHas(inv, 'inpatient-room', 'icu'),
   sep: (s) => SEPARATE_FEE.has(s),
-  nursebill: (s) => s.startsWith('nursing-'), // "a nursing bill (for example home nursing)"
+  // nursebill detail: Yes for nursing care itself; a nurse giving only a vaccine, injection or dressing answers No
+  // (those lines carry their own service kind, e.g. 'vaccine', 'wound-care').
+  nursebill: (s) => s.startsWith('nursing-'),
   anes: (s) => s === 'anesthesiologist-fee',
   nurse: (s) => s.startsWith('nursing-'),
   read: (s) => READ.has(s),
   readkind: (s) => s.startsWith('radiologist-'),
   bxread: (s) => s === 'pathologist-read-biopsy',
   inpt: (s) => s === 'surgeon-fee-inpatient' || s === 'inpatient-physician-visit',
-  cons: (s) => CONSULTATION.has(s), // therapies (physio, psychotherapy, OT, speech, acupuncture, chiropractic) answer No
+  cons: (s) => CONSULTATION.has(s), // text: "not therapy sessions" (physio, psychotherapy, OT, speech, acupuncture, chiropractic answer No)
   tele: (s) => s === 'telemedicine',
   home: (s) => s === 'house-call',
-  spec: (s) => s === 'consultation-specialist' || s === 'dietitian', // "eye, heart, skin, psychiatry, dietitian, podiatrist, optometrist…"
+  spec: (s) => s === 'consultation-specialist' || s === 'dietitian' || s === 'eye-exam', // "eye, heart, skin, psychiatry, dietitian, podiatrist, optometrist…"
   test: (s) => TEST.has(s),
   imgq: (s) => IMAGING.has(s),
   img: (s) => modality(s) === 'ultrasound',
@@ -494,8 +510,8 @@ const explain = (inv: Invoice, r: ReturnType<typeof run>) =>
 const UNCOVERED: string[] = [];
 
 describe('Global Code Finder: invoices', () => {
-  it('has 82 invoices with unique ids and positive amounts', () => {
-    expect(INVOICES).toHaveLength(82);
+  it('has 86 invoices with unique ids and positive amounts', () => {
+    expect(INVOICES).toHaveLength(86);
     expect(new Set(INVOICES.map((i) => i.id)).size).toBe(INVOICES.length);
     for (const inv of INVOICES) {
       expect(inv.lines.length, inv.id).toBeGreaterThan(0);

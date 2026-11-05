@@ -63,7 +63,8 @@ describe('Global Code Finder flow structure', () => {
     expect(to('anes')).toEqual(['r-anes', 'nurse']);
     expect(byId.get('nursebill')!.text).toBe('Is it a nursing bill (for example home nursing)?');
     expect(to('nursebill')).toEqual(['r-medfees', 'cons']);
-    expect(byId.get('cons')!.text).toBe('Is the main purpose a consultation with a doctor or other health professional (dietitian, podiatrist, optometrist…)?');
+    expect(byId.get('cons')!.text).toBe('Is the main purpose a consultation with a doctor or other health professional (dietitian, podiatrist, optometrist…), not therapy sessions?');
+    expect(byId.get('nursebill')!.detail).toBe('Yes for nursing care itself (home nursing, private-duty nurse). A nurse giving only a vaccine, an injection or a wound dressing: answer No.');
     expect(byId.get('cons')!.detail).toMatch(/Therapy sessions[^.]*answer No/);
     expect(byId.get('spec')!.text).toBe('Is it a specialist (eye, heart, skin, psychiatry, dietitian, podiatrist, optometrist…)?');
     expect(byId.get('spec')!.text).not.toMatch(/doctor/);
