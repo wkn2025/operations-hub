@@ -45,59 +45,70 @@ describe('Global Code Finder flow structure', () => {
     while (todo.length) for (const o of byId.get(todo.pop()!)?.options ?? []) if (!seen.has(o.to)) { seen.add(o.to); todo.push(o.to); }
     expect(flow.nodes.filter((n) => !seen.has(n.id)).map((n) => n.id)).toEqual([]);
   });
+
+  it('asks "dental?" right after svc Yes; the consultation-only dentist question is gone (user ruling 2026-11-05)', () => {
+    const to = (id: string) => byId.get(id)!.options!.map((o) => o.to);
+    expect(to('svc')).toEqual(['dental', 'adm']);
+    expect(byId.get('dental')!.text).toBe('Is it dental (dentist, dental emergency, prosthesis, orthodontics)?');
+    expect(to('dental')).toEqual(['r-dentist', 'fac']);
+    expect(to('cons')).toEqual(['tele', 'test']);
+    expect(byId.has('dent')).toBe(false);
+  });
 });
 
 // [scenario (reference section 5 row, then remaining leaves), answers (Y/N), expected result id]
 const scenarios: [string, string, string][] = [
-  ['ER facility + CT + medications + sutures', 'NYYY', 'r-er'],
-  ['ER facility + CT + medications + sutures, read as a bundle with a main purpose', 'YYYYY', 'r-er'],
-  ['ER observation, no admission', 'NYYY', 'r-er'],
-  ['ER facility bill (first of two invoices)', 'NYYY', 'r-er'],
-  ['separate inpatient hospital bill after ER', 'NYYNNY', 'r-inpatient'],
-  ['separate ER physician professional bill', 'NYNYNNNN', 'r-outpt'],
-  ['inpatient room, ICU, tests; no surgery', 'NYYNNY', 'r-inpatient'],
-  ['hospital invoice with surgery and 3 inpatient days', 'NYYNY', 'r-forfait'],
-  ['surgery + inpatient days, read as a bundle with a main purpose', 'YYYYNY', 'r-forfait'],
-  ['facility bill for minor outpatient surgery', 'NYYNY', 'r-forfait'],
-  ['facility bill for vaginal delivery or C-section', 'NYYNY', 'r-forfait'],
-  ['separately billed inpatient surgeon fee', 'NYNYNNNY', 'r-b00'],
-  ['separately billed outpatient surgeon fee', 'NYNYNNNN', 'r-outpt'],
-  ['separately billed anesthesiologist fee', 'NYNYY', 'r-anes'],
-  ['ophthalmologist consult with routine eye exam', 'NYNNYNNNY', 'r-spec'],
-  ['cataract surgery facility bill', 'NYYNY', 'r-forfait'],
-  ['dentist outpatient procedure', 'NYNNYY', 'r-dentist'],
-  ['dental emergency hospital ER facility bill', 'NYYY', 'r-er'],
-  ['general urgent care / walk-in evaluation', 'NYNNYNNNN', 'r-a01'],
-  ['US routine check-up', 'NYNNYNNNN', 'r-a01'],
-  ['doctor visit + lab + ointment, mainly consultation', 'NYNNYNNNN', 'r-a01'],
-  ['doctor visit + lab + ointment, read as a bundle with a main purpose', 'YYYNNYNNNN', 'r-a01'],
-  ['same, with a specialist', 'NYNNYNNNY', 'r-spec'],
-  ['clinic visit solely for expensive medication injection', 'NYNNNNYNN', 'r-medicines'],
-  ['chemotherapy infusion', 'NYNNNNYNY', 'r-chemo'],
-  ['vaccination visit', 'NYNNNNYY', 'r-vac'],
-  ['independent lab test with specimen collection fee', 'NYNNNYNNNNY', 'r-analysis'],
-  ['colposcopy (Analysis)', 'NYNNNYNNNNY', 'r-analysis'],
-  ['urodynamic test (Analysis)', 'NYNNNYNNNNY', 'r-analysis'],
-  ['lab analysis of surgical specimen, not biopsy', 'NYNYNNYNN', 'r-analysis'],
-  ['separate pathology interpretation of biopsy', 'NYNYNNYNY', 'r-biopsy'],
-  ['standalone biopsy', 'NYNNNYNNNY', 'r-biopsy'],
-  ['colonoscopy with biopsy', 'NYNNNYNYNN', 'r-scopies'],
-  ['gastroscopy with biopsy', 'NYNNNYNYY', 'r-gastro'],
-  ['cystoscopy (Analysis, flagged)', 'NYNNNYNYNY', 'r-analysis-cysto'],
-  ['MRI read billed by radiologist, no scan charge', 'NYNYNNYYNYY', 'r-mri'],
-  ['MRI $1,500 + CT $800, neither principal (most expensive: MRI)', 'YNYYNNNYYNYY', 'r-mri'],
-  ['CT $900 + Analysis $150, neither principal (most expensive: CT)', 'YNYYNNNYYNYNY', 'r-ct'],
-  ['consultation $200 + MRI $1,500, consultation is primary', 'YYYNNYNNNN', 'r-a01'],
+  ['ER facility + CT + medications + sutures', 'NYNYY', 'r-er'],
+  ['ER facility + CT + medications + sutures, read as a bundle with a main purpose', 'YYYNYY', 'r-er'],
+  ['ER observation, no admission', 'NYNYY', 'r-er'],
+  ['ER facility bill (first of two invoices)', 'NYNYY', 'r-er'],
+  ['separate inpatient hospital bill after ER', 'NYNYNNY', 'r-inpatient'],
+  ['separate ER physician professional bill (A00)', 'NYNNYNNNN', 'r-outpt'],
+  ['inpatient room, ICU, tests; no surgery', 'NYNYNNY', 'r-inpatient'],
+  ['hospital invoice with surgery and 3 inpatient days', 'NYNYNY', 'r-forfait'],
+  ['surgery + inpatient days, read as a bundle with a main purpose', 'YYYNYNY', 'r-forfait'],
+  ['facility bill for minor outpatient surgery', 'NYNYNY', 'r-forfait'],
+  ['facility bill for vaginal delivery or C-section', 'NYNYNY', 'r-forfait'],
+  ['separately billed inpatient surgeon fee', 'NYNNYNNNY', 'r-b00'],
+  ['separately billed outpatient surgeon fee (A00)', 'NYNNYNNNN', 'r-outpt'],
+  ['separately billed anesthesiologist fee', 'NYNNYY', 'r-anes'],
+  ['ophthalmologist consult with routine eye exam', 'NYNNNYNNY', 'r-spec'],
+  ['cataract surgery facility bill', 'NYNYNY', 'r-forfait'],
+  ['dentist outpatient procedure', 'NYY', 'r-dentist'],
+  ['dental emergency hospital ER facility bill (M00, user ruling)', 'NYY', 'r-dentist'],
+  ['dental prosthesis', 'NYY', 'r-dentist'],
+  ['orthodontics', 'NYY', 'r-dentist'],
+  ['general urgent care / walk-in evaluation', 'NYNNNYNNN', 'r-a01'],
+  ['US routine check-up', 'NYNNNYNNN', 'r-a01'],
+  ['doctor visit + lab + ointment, mainly consultation', 'NYNNNYNNN', 'r-a01'],
+  ['doctor visit + lab + ointment, read as a bundle with a main purpose', 'YYYNNNYNNN', 'r-a01'],
+  ['same, with a specialist', 'NYNNNYNNY', 'r-spec'],
+  ['clinic visit solely for expensive medication injection', 'NYNNNNNYNN', 'r-medicines'],
+  ['chemotherapy infusion', 'NYNNNNNYNY', 'r-chemo'],
+  ['vaccination visit', 'NYNNNNNYY', 'r-vac'],
+  ['independent lab test with specimen collection fee', 'NYNNNNYNNNNY', 'r-analysis'],
+  ['colposcopy (Analysis)', 'NYNNNNYNNNNY', 'r-analysis'],
+  ['urodynamic test (Analysis)', 'NYNNNNYNNNNY', 'r-analysis'],
+  ['lab analysis of surgical specimen, not biopsy', 'NYNNYNNYNN', 'r-analysis'],
+  ['separate pathology interpretation of biopsy', 'NYNNYNNYNY', 'r-biopsy'],
+  ['standalone biopsy', 'NYNNNNYNNNY', 'r-biopsy'],
+  ['colonoscopy with biopsy', 'NYNNNNYNYNN', 'r-scopies'],
+  ['gastroscopy with biopsy', 'NYNNNNYNYY', 'r-gastro'],
+  ['cystoscopy (Analysis, flagged)', 'NYNNNNYNYNY', 'r-analysis-cysto'],
+  ['MRI read billed by radiologist, no scan charge', 'NYNNYNNYYNYY', 'r-mri'],
+  ['MRI $1,500 + CT $800, neither principal (most expensive: MRI)', 'YNYYNNNNYYNYY', 'r-mri'],
+  ['CT $900 + Analysis $150, neither principal (most expensive: CT)', 'YNYYNNNNYYNYNY', 'r-ct'],
+  ['consultation $200 + MRI $1,500, consultation is primary', 'YYYNNNYNNN', 'r-a01'],
   ['wheelchair $600 + crutches $100 (most expensive: wheelchair)', 'YNYNNNYYY', 'r-wheelchair'],
   ['wheelchair $100 = crutches $100, no principal', 'YNN', 'r-free'],
-  ['standalone dressing or sutures outside ER', 'NYNNNNNY', 'r-wound'],
-  ['home physician visit', 'NYNNYNNY', 'r-home'],
-  ['video follow-up visit', 'NYNNYNY', 'r-tele'],
-  ['psychiatry specialist consultation', 'NYNNYNNNY', 'r-spec'],
-  ['psychologist therapy session', 'NYNNNNNNYYN', 'r-psycho'],
-  ['psychiatric inpatient facility accommodation', 'NYYNNY', 'r-inpatient'],
-  ['nursing service bill', 'NYNYNY', 'r-medfees'],
-  ['separately billed medical certificate', 'NYNNYNNNN', 'r-a01'],
+  ['standalone dressing or sutures outside ER', 'NYNNNNNNY', 'r-wound'],
+  ['home physician visit', 'NYNNNYNY', 'r-home'],
+  ['video follow-up visit', 'NYNNNYY', 'r-tele'],
+  ['psychiatry specialist consultation', 'NYNNNYNNY', 'r-spec'],
+  ['psychologist therapy session', 'NYNNNNNNNYYN', 'r-psycho'],
+  ['psychiatric inpatient facility accommodation', 'NYNYNNY', 'r-inpatient'],
+  ['nursing service bill', 'NYNNYNY', 'r-medfees'],
+  ['separately billed medical certificate', 'NYNNNYNNN', 'r-a01'],
   ['fee solely to obtain a medical report', 'NNY', 'r-admin'],
   ['separate US surcharge or Brazil tax', 'NNY', 'r-admin'],
   ['unknown service without matching code', 'NNNNN', 'r-review'],
@@ -107,29 +118,29 @@ const scenarios: [string, string, string][] = [
   ['ground ambulance', 'NNNYNN', 'r-ambulance'],
   ['crutches', 'NNNNYYN', 'r-crutches'],
   ['materials (eyeglasses)', 'NNNNYN', 'r-materials'],
-  ['facility bill, neither ER, surgery nor admission', 'NYYNNN', 'r-review'],
-  ['ultrasound (provisional)', 'NYNNNYYY', 'r-us'],
-  ['CT scan', 'NYNNNYYNYNY', 'r-ct'],
-  ['PET scan', 'NYNNNYYNYNN', 'r-pet'],
-  ['mammogram', 'NYNNNYYNNYY', 'r-mam'],
-  ['bone densitometry', 'NYNNNYYNNYN', 'r-bone'],
-  ['plain X-ray', 'NYNNNYYNNNY', 'r-xray'],
-  ['Holter', 'NYNNNYNNYYY', 'r-holter'],
-  ['ECG (provisional)', 'NYNNNYNNYYNY', 'r-ecg'],
-  ['other cardiology test', 'NYNNNYNNYYNN', 'r-cardtest'],
-  ['EEG', 'NYNNNYNNYNY', 'r-eeg'],
-  ['sleep study', 'NYNNNYNNYNNY', 'r-sleep'],
-  ['lung function (provisional)', 'NYNNNYNNYNNNY', 'r-spiro'],
-  ['hearing test', 'NYNNNYNNYNNNNY', 'r-audio'],
-  ['EMG goes to manual review', 'NYNNNYNNNNN', 'r-review'],
-  ['physiotherapy', 'NYNNNNNNYYY', 'r-physio'],
-  ['occupational therapy', 'NYNNNNNNYNY', 'r-ot'],
-  ['speech therapy', 'NYNNNNNNYNN', 'r-speech'],
-  ['radiotherapy', 'NYNNNNNNNYY', 'r-radio'],
-  ['dialysis', 'NYNNNNNNNYN', 'r-dialysis'],
-  ['acupuncture', 'NYNNNNNNNNYY', 'r-acu'],
-  ['chiropractic', 'NYNNNNNNNNYN', 'r-chiro'],
-  ['blood transfusion / oxygen therapy: manual review', 'NYNNNNNNNNN', 'r-review'],
+  ['facility bill, neither ER, surgery nor admission', 'NYNYNNN', 'r-review'],
+  ['ultrasound (provisional)', 'NYNNNNYYY', 'r-us'],
+  ['CT scan', 'NYNNNNYYNYNY', 'r-ct'],
+  ['PET scan', 'NYNNNNYYNYNN', 'r-pet'],
+  ['mammogram', 'NYNNNNYYNNYY', 'r-mam'],
+  ['bone densitometry', 'NYNNNNYYNNYN', 'r-bone'],
+  ['plain X-ray', 'NYNNNNYYNNNY', 'r-xray'],
+  ['Holter', 'NYNNNNYNNYYY', 'r-holter'],
+  ['ECG (provisional)', 'NYNNNNYNNYYNY', 'r-ecg'],
+  ['other cardiology test', 'NYNNNNYNNYYNN', 'r-cardtest'],
+  ['EEG', 'NYNNNNYNNYNY', 'r-eeg'],
+  ['sleep study', 'NYNNNNYNNYNNY', 'r-sleep'],
+  ['lung function (provisional)', 'NYNNNNYNNYNNNY', 'r-spiro'],
+  ['hearing test', 'NYNNNNYNNYNNNNY', 'r-audio'],
+  ['EMG goes to manual review', 'NYNNNNYNNNNN', 'r-review'],
+  ['physiotherapy', 'NYNNNNNNNYYY', 'r-physio'],
+  ['occupational therapy', 'NYNNNNNNNYNY', 'r-ot'],
+  ['speech therapy', 'NYNNNNNNNYNN', 'r-speech'],
+  ['radiotherapy', 'NYNNNNNNNNYY', 'r-radio'],
+  ['dialysis', 'NYNNNNNNNNYN', 'r-dialysis'],
+  ['acupuncture', 'NYNNNNNNNNNYY', 'r-acu'],
+  ['chiropractic', 'NYNNNNNNNNNYN', 'r-chiro'],
+  ['blood transfusion / oxygen therapy: manual review', 'NYNNNNNNNNNN', 'r-review'],
 ];
 
 describe('Global Code Finder scenarios', () => {
@@ -157,10 +168,14 @@ describe('Global Code Finder wording', () => {
     }
   });
 
-  it('only A01, B01, B00 and C12 appear as code numbers', () => {
+  it('only A00, A01, B00, B01, C12 and M00 appear as code numbers', () => {
     for (const n of flow.nodes)
-      for (const m of `${n.text} ${n.detail ?? ''}`.match(/[A-Z]\d{2}/g) ?? [])
-        expect(['A01', 'B01', 'B00', 'C12'], `${n.id}: ${m}`).toContain(m);
+      for (const m of `${n.text} ${n.detail ?? ''}`.match(/\b[A-Z]\d{2}\b/g) ?? [])
+        expect(['A00', 'A01', 'B00', 'B01', 'C12', 'M00'], `${n.id}: ${m}`).toContain(m);
+    expect(node('r-outpt').text.startsWith('A00 ·')).toBe(true);
+    expect(node('r-outpt').text).toBe('A00 · Outpatient Physician Fees');
+    expect(node('r-dentist').text.startsWith('M00 ·')).toBe(true);
+    expect(node('r-dentist').text).toBe('M00 · Dentist');
     expect(node('r-a01').text.startsWith('A01 ·')).toBe(true);
     expect(node('r-er').text.startsWith('B01 ·')).toBe(true);
     expect(node('r-b00').text.startsWith('B00 ·')).toBe(true);
@@ -196,6 +211,18 @@ describe('Global Code Finder wording', () => {
     expect(det('r-review')).toMatch(/no generic fallback/);
     expect(det('r-review')).toMatch(/team lead/);
     for (const w of ['EMG', 'blood transfusion', 'oxygen therapy']) expect(det('r-review')).toMatch(w);
+  });
+
+  it('A00 covers outpatient surgeon and separate ER doctor fees; M00 covers anything dental, even at the ER', () => {
+    expect(det('r-outpt')).toMatch(/outpatient surgeon/);
+    expect(det('r-outpt')).toMatch(/separate ER doctor/);
+    expect(det('r-b00')).toMatch(/admitted/);
+    expect(det('r-dentist')).toMatch(/[Aa]nything dental/);
+    expect(det('r-dentist')).toMatch(/dental emergency at a hospital ER/);
+    expect(det('r-dentist')).toMatch(/prosthes/);
+    expect(det('r-dentist')).toMatch(/orthodontics/);
+    expect(det('r-dentist').match(/Example:/g)).toHaveLength(1);
+    expect(det('r-er')).not.toMatch(/dental/i);
   });
 
   it('details stay short and use reference wording', () => {

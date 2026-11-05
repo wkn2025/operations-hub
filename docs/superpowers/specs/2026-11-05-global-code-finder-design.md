@@ -15,7 +15,11 @@ Non-goals: new engine, new UI, Copy button, numeric-code editor/importer, amount
 
 - One new `SeedFlow` "Global Code Finder (DEMO)" in `apps/server/src/seed/content/flows.ts` (or a sibling file imported by it), `articleSlug` = the Finance "Global codes for invoice processing" article. Existing engine (`@ops/shared` flow runner, 200-node limit, `FLOW_LIMITS`) unchanged.
 - Result nodes: `text` = `A01 · Consultation` / `Inpatient Treatment · code TBC`; `detail` = reason + rule applied (+ US check-up / certificate notes). `severity`: success for a code, warning for pending-rule and manual review, info for Free Choice.
-- Known numbers (from the Finance article): **A01** Consultation, **B01** ER, **B00** Inpatient Physician Fees (user ruling 2026-11-05), **C12** Inpatient Treatment (Hospitalization). All others "code TBC" — user fills later.
+- Known numbers (from the Finance article): **A00** Outpatient Physician Fees, **A01** Consultation, **B00** Inpatient Physician Fees, **B01** ER, **C12** Inpatient Treatment (Hospitalization), **M00** Dentist (user rulings 2026-11-05). All others "code TBC" — user fills later.
+
+**User rulings 2026-11-05:**
+1. Outpatient Physician Fees = **A00**, including a separately billed outpatient surgeon fee and a separate ER doctor fee. B00 is only for doctors treating or operating during an admission.
+2. Anything dental = **M00 Dentist**, including a dental emergency billed as a hospital ER facility bill (overrides reference §5 "dental ER facility bill → ER"). Asked once, right after `svc` Yes.
 - Footer wording in every result detail start/end is not repeated; the first question's `detail` states: classifies the invoice only, never coverage or necessity.
 - Tests (`apps/server/test/`): `validateFlow` clean; every question has exactly 2 options; every scenario row of the reference §5 walked as an answer sequence through `startRun/answer`, asserting the result node; unresolved-rule results name both codes.
 
@@ -30,7 +34,8 @@ Format: `id` "question" → Yes / No. Result ids start `r-`.
 - `r-free` Free Choice: "Pick any of the tied codes"; rule: highest-value wins, exact tie = free choice, never silently chosen.
 
 **Service or item**
-- `svc` "Is this a medical service for the patient?" → `fac` / `adm`
+- `svc` "Is this a medical service for the patient?" → `dental` / `adm`
+- `dental` "Is it dental (dentist, dental emergency, prosthesis, orthodontics)?" → `r-dentist` (M00) / `fac`
 - `adm` "Is it only a fee or tax, with no care or items?" → `r-admin` / `trans`
 - `trans` "Is it for transport?" → `air` / `equip`
 - `air` "Is it by air?" → `r-air` / `taxi`; `taxi` "Is it a taxi?" → `r-taxi` / `r-ambulance`
@@ -50,11 +55,11 @@ Format: `id` "question" → Yes / No. Result ids start `r-`.
 - `nurse` "Is it for nursing services?" → `r-medfees` / `read`
 - `read` "Is it only a radiologist or pathologist reading an image or sample?" → `readkind` / `inpt`
 - `readkind` "Is it reading an image or scan?" → `img` / `bxread`; `bxread` "Is the sample described as a biopsy?" → `r-biopsy` / `r-analysis`
-- `inpt` "Did the doctor treat or operate while the patient was admitted?" → `r-b00` (Inpatient Physician Fees) / `r-outpt` (Outpatient Physician Fees; includes outpatient surgeon and separate ER doctor)
+- `inpt` "Did the doctor treat or operate while the patient was admitted?" → `r-b00` (B00 Inpatient Physician Fees) / `r-outpt` (A00 Outpatient Physician Fees; includes outpatient surgeon and separate ER doctor)
 
 **Consultation**
-- `cons` "Is the main purpose to see a doctor?" → `dent` / `test`
-- `dent` "Is it with a dentist?" → `r-dentist` / `tele`; `tele` "Was it by video or phone?" → `r-tele` / `home`; `home` "Was it a house call?" → `r-home` / `spec`
+- `cons` "Is the main purpose to see a doctor?" → `tele` / `test`
+- `tele` "Was it by video or phone?" → `r-tele` / `home`; `home` "Was it a house call?" → `r-home` / `spec`
 - `spec` "Is the doctor a specialist (eye, heart, skin, psychiatry, dietitian…)?" → `r-spec` / `r-a01`
 - `r-a01` detail: general consult, follow-up, urgent care, walk-in, US routine check-up (flagged for later review), certificate billed separately, non-surgical joint injection or nerve block; extra tests/medicines do not change it. Specialist at urgent care: confirm with team lead (backlog item 10).
 
@@ -89,7 +94,7 @@ No dead ends: each unresolved pair gets a **provisional default**, shown as a `w
 - Ultrasound -> **Ultrasonography** (alternative: Ecography).
 - Electrocardiogram -> **ECG** (alternative: EKG).
 - Lung function test -> one catalog entry "Spirometry / Pulmonary Function Test"; detail says to use whichever matches the invoice wording if the master list has two codes.
-Cost if wrong: an invoice coded with the sibling code until the user supplies the rule; change is one node's text. Still open: all numeric codes except A01/B01/B00/C12; other-country check-ups; Check-up code.
+Cost if wrong: an invoice coded with the sibling code until the user supplies the rule; change is one node's text. Still open: all numeric codes except A00/A01/B00/B01/C12/M00; other-country check-ups; Check-up code.
 
 ## Left to builder
 

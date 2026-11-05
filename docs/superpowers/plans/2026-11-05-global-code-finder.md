@@ -14,7 +14,7 @@
 
 - Every `question` node has **exactly 2 options**, labels exactly `Yes` then `No` (index 0 = Yes, 1 = No).
 - `text` ≤ 400, `detail` ≤ 1000 chars (`FLOW_LIMITS`); ≤ 200 nodes; `validateFlow` returns `ok` with no errors.
-- Known numbers only: **A01** Consultation, **B01** ER, **B00** Inpatient Physician Fees, **C12** Inpatient Treatment. Result `text` = `"A01 · Consultation"`; all other codes `"<Name> · code TBC"`. Never invent another number.
+- Known numbers only: **A00** Outpatient Physician Fees, **A01** Consultation, **B00** Inpatient Physician Fees, **B01** ER, **C12** Inpatient Treatment, **M00** Dentist (A00/M00: user rulings 2026-11-05). Result `text` = `"A01 · Consultation"`; all other codes `"<Name> · code TBC"`. Never invent another number.
 - Unresolved rules use the spec's provisional defaults (`r-us` Ultrasonography, `r-ecg` ECG, `r-spiro` Spirometry / Pulmonary Function Test): `warning` severity, detail names the alternative code and says the rule is not yet defined.
 - Result `severity`: `success` for a code, `warning` for pending-rule and manual review, `info` for Free Choice.
 - Flow title exactly `Global Code Finder (DEMO)`; `articleSlug: 'global-codes-for-invoice-processing'`.
@@ -26,7 +26,7 @@
 - A node unreachable from `multi`, or a question path that can't reach a result (typo'd target id) → reachability test.
 - A result reachable that is just the placeholder name with no reason (Task 2) → every result has non-empty `detail`.
 - A provisional result that hides its alternative → test asserts the alternative name appears.
-- A made-up code number leaking into result text → regex test allows only A01/B01/B00/C12.
+- A made-up code number leaking into result text → regex test allows only A00/A01/B00/B01/C12/M00.
 - Re-running the seed twice must not duplicate or fail (4 flows) → existing idempotency tests updated, not skipped.
 
 ---

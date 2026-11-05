@@ -2,7 +2,7 @@ import type { SeedFlow, SeedFlowNode } from './flows'; // type-only: no import c
 
 /**
  * Global Code Finder: one binary (Yes/No) question per screen, one Global Code per invoice.
- * Tree = docs/superpowers/specs/2026-11-05-global-code-finder-design.md. Only A01, B01, B00 and C12 have known numbers;
+ * Tree = docs/superpowers/specs/2026-11-05-global-code-finder-design.md. Only A00, A01, B00, B01, C12 and M00 have known numbers;
  * every other code is "code TBC" until the master list is supplied. Never invent a number.
  */
 const q = (id: string, text: string, yesTo: string, noTo: string, detail?: string): SeedFlowNode => ({
@@ -28,7 +28,8 @@ export const GLOBAL_CODE_FLOW: SeedFlow = {
     r('r-free', 'Free Choice: pick any of the tied codes', 'No main service and no clear highest value. The highest-value service wins; on an exact tie any of the tied codes may be chosen. Never pick one silently. Example: wheelchair $100 and crutches $100: choose Wheelchair or Crutches.', 'info'),
 
     // Service or item
-    q('svc', 'Is this a medical service for the patient?', 'fac', 'adm', 'Answer No for transport, equipment or supplies, or a fee only.'),
+    q('svc', 'Is this a medical service for the patient?', 'dental', 'adm', 'Answer No for transport, equipment or supplies, or a fee only.'),
+    q('dental', 'Is it dental (dentist, dental emergency, prosthesis, orthodontics)?', 'r-dentist', 'fac'),
     q('adm', 'Is it only a fee or tax, with no care or items?', 'r-admin', 'trans'),
     q('trans', 'Is it for transport?', 'air', 'equip'),
     q('air', 'Is it by air?', 'r-air', 'taxi'),
@@ -53,8 +54,7 @@ export const GLOBAL_CODE_FLOW: SeedFlow = {
     q('inpt', 'Did the doctor treat or operate while the patient was admitted?', 'r-b00', 'r-outpt'),
 
     // Consultation
-    q('cons', 'Is the main purpose to see a doctor?', 'dent', 'test'),
-    q('dent', 'Is it with a dentist?', 'r-dentist', 'tele'),
+    q('cons', 'Is the main purpose to see a doctor?', 'tele', 'test'),
     q('tele', 'Was it by video or phone?', 'r-tele', 'home'),
     q('home', 'Was it a house call?', 'r-home', 'spec'),
     q('spec', 'Is the doctor a specialist (eye, heart, skin, psychiatry, dietitian…)?', 'r-spec', 'r-a01'),
@@ -103,10 +103,10 @@ export const GLOBAL_CODE_FLOW: SeedFlow = {
     r('r-b00', 'B00 · Inpatient Physician Fees', 'Separate doctor\'s fee for care while the patient was admitted, including the surgeon\'s own fee. A professional fee is never Forfait. Example: surgeon\'s separate fee for an inpatient operation.'),
     r('r-inpatient', 'C12 · Inpatient Treatment', 'Facility bill for an admitted stay: room and board, ICU, tests, psychiatric hospital stay. No surgery or delivery on this bill. Example: 4 days in ICU with tests, no surgery.'),
     tbc('r-forfait', 'Forfait', 'Facility bill with any surgery, minor or major, inpatient or outpatient, or a delivery (vaginal or C-section). Surgery and hospital days on the same bill are all Forfait. Example: cataract surgery facility bill.'),
-    tbc('r-outpt', 'Outpatient Physician Fees', 'Separate doctor\'s fee for outpatient care, including the surgeon\'s own fee and a separate ER doctor\'s bill. More specific codes (Anesthesiologist, imaging reads) come first. Example: separate ER doctor\'s bill.'),
+    r('r-outpt', 'A00 · Outpatient Physician Fees', 'Separate doctor\'s fee for outpatient care, including a separately billed outpatient surgeon fee and a separate ER doctor fee. B00 is only for doctors treating or operating during an admission. More specific codes (Anesthesiologist, imaging reads) come first. Example: separate ER doctor\'s bill.'),
     tbc('r-anes', 'Anesthesiologist', 'The anesthesiologist\'s separate fee, inpatient or outpatient. Example: anesthesiologist\'s own bill for a knee operation.'),
     tbc('r-medfees', 'Med Fees', 'Nursing service fees. Do not use a physician fee code for nursing. Example: nursing service bill.'),
-    tbc('r-dentist', 'Dentist', 'Dental consult or treatment: extractions, root canal, orthodontics, dental prosthetics. A hospital ER bill for a dental emergency stays ER. Example: tooth extraction at a dental clinic.'),
+    r('r-dentist', 'M00 · Dentist', 'Anything dental: consults, extractions, root canals, prostheses and orthodontics, including a dental emergency at a hospital ER (M00, not ER). Example: tooth extraction at a dental clinic.'),
     tbc('r-tele', 'Telemedicine', 'Consultation by video or phone, including remote follow-ups. The mode decides the code. Example: video follow-up with the doctor.'),
     tbc('r-home', 'Homevisit', 'Doctor\'s house call. The place decides the code. Example: doctor visits the patient at home.'),
     tbc('r-spec', 'Specialist Consultation', 'Consultation with any specialist, including follow-ups: eye, heart, skin, psychiatry, dietitian, podiatrist, optometrist. Tests in the same visit do not change the code. Example: ophthalmologist consult with a routine eye exam.'),
