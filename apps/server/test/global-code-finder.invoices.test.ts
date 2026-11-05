@@ -45,11 +45,6 @@ interface Invoice {
   hospitalBill?: true;
   expected: string;
   why: string;
-  /**
-   * The flow disagrees with the reference when its questions are read literally. `reaches` pins the
-   * current (wrong) result id in a normal test; the oracle assertion runs as expected-fail (it.fails).
-   */
-  knownIssue?: { reaches: string; note: string };
 }
 
 const tbc = (name: string) => `${name} · code TBC`;
@@ -137,8 +132,7 @@ const INVOICES: Invoice[] = [
     expected: tbc('Materials'), why: '§4 D Materials: eyeglasses, frames' },
   { id: 'INV-23', provider: 'CareAtHome Nursing, Dubai, AE', currency: 'AED',
     lines: [{ desc: 'Home nursing visits, post-discharge monitoring and personal care (x5)', amount: 1750, service: 'nursing-home' }],
-    expected: tbc('Med Fees'), why: '§5: nursing service bill is Med Fees',
-    knownIssue: { reaches: 'r-review', note: 'sep: a home nursing bill is not "billed apart from a facility bill" (there is none), so a literal reader answers No; nursing is only asked under sep, so it falls through to manual review.' } },
+    expected: tbc('Med Fees'), why: '§5: nursing service bill is Med Fees' },
   { id: 'INV-24', provider: 'Dr. A. Patel, Anesthesiology, Boston, US', currency: 'USD',
     lines: [{ desc: 'Anesthesia services, knee arthroscopy', amount: 980, service: 'anesthesiologist-fee' }],
     expected: tbc('Anesthesiologist'), why: '§5 / rule 5: separate anesthesiologist fee' },
@@ -240,8 +234,7 @@ const INVOICES: Invoice[] = [
   { id: 'INV-46', provider: 'Policlinico Gemelli (hospital outpatient radiology), Rome, IT', currency: 'EUR', hospitalBill: true,
     lines: [{ desc: 'Chest X-ray, PA and lateral', amount: 85, service: 'xray' },
       { desc: 'Thyroid ultrasound', amount: 140, service: 'ultrasound' }],
-    expected: tbc('Ultrasonography'), why: 'Rule 6 + §4 imaging: two independent scans, ultrasound higher; provisional Ultrasonography',
-    knownIssue: { reaches: 'r-review', note: 'fac: a hospital invoice is literally "a hospital or facility bill" → Yes; er/surg/admit all No → manual review. The facility branch has no exit for hospital outpatient services.' } },
+    expected: tbc('Ultrasonography'), why: 'Rule 6 + §4 imaging: two independent scans, ultrasound higher; provisional Ultrasonography' },
   { id: 'INV-47', provider: 'Ortho & Mobility Store, Lisbon, PT', currency: 'EUR',
     lines: [{ desc: 'Wheelchair rental, 1 month', amount: 100, service: 'wheelchair' },
       { desc: 'Forearm crutches, pair', amount: 100, service: 'crutches' }],
@@ -251,16 +244,14 @@ const INVOICES: Invoice[] = [
       { desc: 'Routine EEG', amount: 210, service: 'eeg' }],
     expected: FREE, why: 'Rule 7: Holter 210 = EEG 210, independent tests, no principal: Free Choice' },
 
-  // ---- known gaps (reference vs literal reading of the flow) ----
+  // ---- former flow gaps (fixed by the user approved fixes 2026-11-05) ----
   { id: 'INV-49', provider: 'NutriBalance, Sydney, AU', currency: 'USD',
     lines: [{ desc: 'Dietitian consultation, initial', amount: 120, service: 'dietitian' }],
-    expected: tbc('Specialist Consultation'), why: '§4 Specialist Consultation includes nutritionist/dietitian',
-    knownIssue: { reaches: 'r-review', note: 'cons asks "to see a doctor?"; a dietitian is not a doctor, so a literal reader answers No and ends in manual review. "dietitian" only appears in spec, after cons Yes.' } },
+    expected: tbc('Specialist Consultation'), why: '§4 Specialist Consultation includes nutritionist/dietitian' },
   { id: 'INV-50', provider: 'Hospital da Luz, oncology day unit, Lisbon, PT', currency: 'EUR', hospitalBill: true,
     lines: [{ desc: 'Docetaxel (drug)', amount: 1900, service: 'chemo' },
       { desc: 'Day-unit chemotherapy administration', amount: 380, service: 'chemo' }],
-    expected: tbc('Chemotherapy'), why: '§4 / rule 4: chemotherapy session overrides Medicines; billed by the hospital',
-    knownIssue: { reaches: 'r-review', note: 'fac Yes (hospital bill) then er/surg/admit all No ends in manual review: the facility branch has no exit for hospital outpatient treatment (chemo, infusion, dialysis day units).' } },
+    expected: tbc('Chemotherapy'), why: '§4 / rule 4: chemotherapy session overrides Medicines; billed by the hospital' },
 
   // ---- more reference §5 rows and remaining codes ----
   { id: 'INV-51', provider: 'Allergy & Asthma Clinic, Boston, US', currency: 'USD',
@@ -328,12 +319,10 @@ const INVOICES: Invoice[] = [
     expected: tbc('Analysis'), why: '§4 B: colposcopy is Analysis' },
   { id: 'INV-71', provider: 'Centro de Hemoterapia, Lisbon, PT', currency: 'EUR',
     lines: [{ desc: 'Outpatient red cell transfusion, 2 units', amount: 780, service: 'transfusion' }],
-    expected: REVIEW, why: '§7.8 / rule 8: blood transfusion code not mapped, manual review',
-    knownIssue: { reaches: 'r-medicines', note: 'med lists "infusion": a transfusion is an infusion of a blood product, so a literal reader answers Yes → vac No → chemo No → Medicines, a mapping §7.8 forbids inventing.' } },
+    expected: REVIEW, why: '§7.8 / rule 8: blood transfusion code not mapped, manual review' },
   { id: 'INV-72', provider: 'Respiratory Care Clinic, Dubai, AE', currency: 'AED',
     lines: [{ desc: 'Oxygen therapy sessions, medical oxygen by mask (x6)', amount: 900, service: 'oxygen' }],
-    expected: REVIEW, why: '§7.8 / rule 8: oxygen therapy code not mapped, manual review',
-    knownIssue: { reaches: 'r-medicines', note: 'med "give ... a medicine": medical oxygen is a prescription medicinal gas given to the patient, so a literal reader answers Yes → Medicines, a mapping §7.8 forbids inventing. (Borderline reading.)' } },
+    expected: REVIEW, why: '§7.8 / rule 8: oxygen therapy code not mapped, manual review' },
   { id: 'INV-73', provider: 'Hospitalist Associates, Charlotte, US', currency: 'USD',
     lines: [{ desc: 'Hospitalist daily inpatient visits, days 1-4', amount: 1120, service: 'inpatient-physician-visit' }],
     expected: B00, why: '§4 A + ruling 1: separately billed physician services during hospitalization are B00' },
@@ -377,12 +366,14 @@ const NOT_MEDICAL = new Set<Service>([...FEE_ONLY, ...TRANSPORT, ...EQUIPMENT]);
 /**
  * sep "a separate fee from a doctor, nurse or anesthesiologist, billed apart from a facility bill?": Yes only when the
  * care itself happened at a facility that bills on its own invoice (surgery, ER, admission, scan, specimen). An office
- * consult or a home nursing visit has no facility bill to be "apart from", so a literal reader answers No.
+ * consult or a home nursing visit has no facility bill to be "apart from", so a literal reader answers No
+ * (home nursing is then caught by nursebill).
  */
 const SEPARATE_FEE = set('surgeon-fee-inpatient', 'surgeon-fee-outpatient', 'er-doctor-fee', 'inpatient-physician-visit', 'anesthesiologist-fee',
   'nursing-in-hospital', 'radiologist-read-mri', 'pathologist-read-biopsy', 'pathologist-read-specimen');
 const READ = set('radiologist-read-mri', 'pathologist-read-biopsy', 'pathologist-read-specimen');
-const SEE_DOCTOR = set('consultation-gp', 'consultation-specialist', 'urgent-care', 'checkup-us', 'medical-certificate', 'telemedicine', 'house-call');
+/** cons "a consultation with a doctor or other health professional (dietitian, podiatrist, optometrist…)?"; detail: therapy sessions answer No. */
+const CONSULTATION = set('consultation-gp', 'consultation-specialist', 'urgent-care', 'checkup-us', 'medical-certificate', 'telemedicine', 'house-call', 'dietitian');
 const SCOPE = set('gastroscopy', 'colonoscopy', 'cystoscopy');
 const HEART = set('holter', 'ecg', 'cardio-other');
 const ORGAN = new Set<Service>([...HEART, 'eeg', 'sleep-study', 'spirometry', 'audiometry']);
@@ -391,8 +382,8 @@ const LAB = set('lab', 'colposcopy');
 const modality = (s: Service): Service => (s === 'radiologist-read-mri' ? 'mri' : s);
 const IMAGING = set('mri', 'ct', 'pet', 'ultrasound', 'mammogram', 'bone-density', 'xray');
 const TEST = new Set<Service>([...IMAGING, ...SCOPE, ...ORGAN, 'colposcopy', 'emg', 'biopsy', 'lab', 'eye-exam']);
-/** med lists "pharmacy, injection, infusion, vaccine": a transfusion is an infusion; medical oxygen is a prescribed medicinal gas. */
-const MEDICINE = set('pharmacy', 'injection', 'vaccine', 'chemo', 'transfusion', 'oxygen');
+/** med lists "pharmacy, injection, infusion, vaccine"; its detail sends blood transfusion and oxygen therapy to No. */
+const MEDICINE = set('pharmacy', 'injection', 'vaccine', 'chemo');
 const THERAPY = set('physio', 'psychotherapy', 'occupational-therapy', 'speech-therapy');
 
 const kinds = (inv: Invoice) => [...new Set(inv.lines.map((l) => l.service))];
@@ -429,16 +420,17 @@ const ANSWERS: Record<string, Ask> = {
   surg: (_s, inv) => billHas(inv, 'surgery-facility', 'delivery-facility'), // "does this bill include"
   admit: (_s, inv) => billHas(inv, 'inpatient-room', 'icu'),
   sep: (s) => SEPARATE_FEE.has(s),
+  nursebill: (s) => s.startsWith('nursing-'), // "a nursing bill (for example home nursing)"
   anes: (s) => s === 'anesthesiologist-fee',
   nurse: (s) => s.startsWith('nursing-'),
   read: (s) => READ.has(s),
   readkind: (s) => s.startsWith('radiologist-'),
   bxread: (s) => s === 'pathologist-read-biopsy',
   inpt: (s) => s === 'surgeon-fee-inpatient' || s === 'inpatient-physician-visit',
-  cons: (s) => SEE_DOCTOR.has(s), // "to see a doctor"
+  cons: (s) => CONSULTATION.has(s), // therapies (physio, psychotherapy, OT, speech, acupuncture, chiropractic) answer No
   tele: (s) => s === 'telemedicine',
   home: (s) => s === 'house-call',
-  spec: (s) => s === 'consultation-specialist',
+  spec: (s) => s === 'consultation-specialist' || s === 'dietitian', // "eye, heart, skin, psychiatry, dietitian, podiatrist, optometrist…"
   test: (s) => TEST.has(s),
   imgq: (s) => IMAGING.has(s),
   img: (s) => modality(s) === 'ultrasound',
@@ -461,7 +453,7 @@ const ANSWERS: Record<string, Ask> = {
   aud: (s) => s === 'audiometry',
   bx: (s) => s === 'biopsy',
   lab: (s) => LAB.has(s), // detail: colposcopy and urodynamic tests count
-  med: (s) => MEDICINE.has(s),
+  med: (s) => MEDICINE.has(s), // detail: transfusion and oxygen therapy answer No
   vac: (s) => s === 'vaccine',
   chemo: (s) => s === 'chemo',
   wound: (s) => s === 'wound-care',
@@ -496,8 +488,7 @@ const money = (inv: Invoice, n: number) => `${SYM[inv.currency]}${n.toLocaleStri
 const title = (inv: Invoice) => `${inv.id} ${inv.lines.map((l) => `${l.desc} ${money(inv, l.amount)}`).join(' + ')} → ${inv.expected}`;
 const explain = (inv: Invoice, r: ReturnType<typeof run>) =>
   `${inv.id} (${inv.provider})\n${inv.lines.map((l) => `  - ${l.desc}: ${money(inv, l.amount)} [${l.service}]`).join('\n')}\n` +
-  `main: ${inv.main ?? 'none'}\ntrail:\n  ${r.trail.join('\n  ')}\nreached: ${r.id} "${r.text}"\nexpected: ${inv.expected}\nwhy: ${inv.why}` +
-  (inv.knownIssue ? `\nknown issue: ${inv.knownIssue.note}` : '');
+  `main: ${inv.main ?? 'none'}\ntrail:\n  ${r.trail.join('\n  ')}\nreached: ${r.id} "${r.text}"\nexpected: ${inv.expected}\nwhy: ${inv.why}`;
 
 /** Result nodes no invoice reaches on purpose (none today). */
 const UNCOVERED: string[] = [];
@@ -513,28 +504,14 @@ describe('Global Code Finder: invoices', () => {
     }
   });
 
-  for (const inv of INVOICES) {
-    if (!inv.knownIssue) {
-      it(title(inv), () => {
-        const r = run(inv);
-        expect(r.text, explain(inv, r)).toBe(inv.expected);
-      });
-      continue;
-    }
-    // Pin today's wrong result, so a throw or a drift to another code fails loudly...
-    it(`${inv.id} currently reaches ${inv.knownIssue.reaches} [known issue]`, () => {
-      const r = run(inv);
-      expect(r.id, explain(inv, r)).toBe(inv.knownIssue!.reaches);
-    });
-    // ...and keep the oracle as expected-fail: it starts failing (as a reminder) once the flow is fixed.
-    it.fails(`${title(inv)} [known issue: oracle]`, () => {
+  for (const inv of INVOICES)
+    it(title(inv), () => {
       const r = run(inv);
       expect(r.text, explain(inv, r)).toBe(inv.expected);
     });
-  }
 
   it('every result node is reached by a passing invoice, except the deliberate UNCOVERED list', () => {
-    const reached = new Set(INVOICES.filter((i) => !i.knownIssue).map((i) => run(i).id));
+    const reached = new Set(INVOICES.map((i) => run(i).id));
     const missing = flow.nodes.filter((n) => n.kind === 'result' && !reached.has(n.id) && !UNCOVERED.includes(n.id)).map((n) => n.id);
     expect(missing).toEqual([]);
     for (const id of ['r-outpt', 'r-a01', 'r-b00', 'r-er', 'r-inpatient', 'r-dentist', 'r-free', 'r-review', 'r-us', 'r-ecg', 'r-spiro'])
