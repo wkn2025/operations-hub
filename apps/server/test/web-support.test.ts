@@ -64,7 +64,7 @@ describe('seedBase', () => {
     expect(top.sort()).toEqual(CATEGORY_TREE.map((t) => t.name).sort());
     expect(top).toHaveLength(8);
     expect(cats.length).toBe(8 + CATEGORY_TREE.reduce((n, t) => n + t.children.length, 0));
-    for (const t of CATEGORY_TREE) expect(t.children.length).toBeGreaterThanOrEqual(2);
+    for (const t of CATEGORY_TREE.filter((x) => x.name !== 'Clients & Terms and Conditions')) expect(t.children.length).toBeGreaterThanOrEqual(2); // clients: one A–Z directory
 
     const users = c.app.sqlite.prepare('select email, role from users').all() as { email: string; role: string }[];
     expect(users).toEqual(expect.arrayContaining([

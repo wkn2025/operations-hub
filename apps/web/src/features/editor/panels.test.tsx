@@ -64,6 +64,10 @@ describe('MetaPanel validation', () => {
     expect(screen.queryByRole('option', { name: /Old/ })).toBeNull(); // archived categories excluded
     fireEvent.change(screen.getByLabelText('Client name'), { target: { value: 'Acme' } });
     expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ fields: expect.objectContaining({ client: 'Acme' }) }));
+    fireEvent.change(screen.getByLabelText('Line'), { target: { value: 'travel' } });
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ fields: expect.objectContaining({ line: 'travel' }) }));
+    fireEvent.change(screen.getByLabelText('Document'), { target: { value: 'summary' } });
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ fields: expect.objectContaining({ docKind: 'summary' }) }));
   });
 
   it('adds a tag on Enter', async () => {

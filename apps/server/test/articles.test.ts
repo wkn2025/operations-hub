@@ -130,6 +130,14 @@ describe('articles', () => {
     await c.req(c.editor, 'PATCH', `/api/articles/${src.id}`, { baseRevision: 1, content: doc('none') });
     expect(c.app.sqlite.prepare('select count(*) n from article_links').get()).toEqual({ n: 0 });
   });
+  it('client terms: line and document kind validated, and listed with the client for the directory', async () => {
+    const fields = { client: 'Acme (fictional)', line: 'travel', docKind: 'summary' };
+    const a = await create({ type: 'client_terms', fields });
+    const list = (await c.req(c.editor, 'GET', '/api/articles?type=client_terms&limit=10')).body.articles;
+    expect(list.find((x: any) => x.id === a.id)).toMatchObject(fields);
+    expect((await c.req(c.editor, 'POST', '/api/articles', { title: 'Bad', fields: { line: 'cruise' } })).status).toBe(400);
+    expect((await c.req(c.editor, 'POST', '/api/articles', { title: 'Bad', fields: { docKind: 'brochure' } })).status).toBe(400);
+  });
   it('tags are saved and returned', async () => {
     const a = await create({ tags: ['EDI', 'edi', ' 837 '] });
     expect((await c.req(c.editor, 'GET', `/api/articles/${a.id}`)).body.tags).toEqual(['837', 'edi']);

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router';
 import clsx from 'clsx';
 import { FileQuestion, Plus } from 'lucide-react';
@@ -10,6 +10,7 @@ import { IconTile, Skeleton, StatusBadge, TEMPLATE_ICON, categoryIcon } from '..
 import { fmtDate } from '../lib/text';
 import { NotFound } from './NotFound';
 import { ErrorState } from '../components/ui/ErrorState';
+import { ClientDirectory } from './ClientDirectory';
 
 export function CategoryPage() {
   const { slug = '' } = useParams();
@@ -20,6 +21,13 @@ export function CategoryPage() {
   const all = cats.data ?? [];
   const cat = all.find((c) => c.slug === slug || c.id === slug);
   const arts = useArticlePages({ within: filter ?? cat?.id, sort: 'title' }, !!cat);
+  const clientDirectory = cat?.name === 'Clients & Terms and Conditions';
+  // the directory groups by client, so a half-loaded list would show false gaps: load every page
+  // ponytail: one request per 50 articles; add a server-side client index if this grows to hundreds
+  const { hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage } = arts;
+  useEffect(() => {
+    if (clientDirectory && hasNextPage && !isFetchingNextPage && !isFetchNextPageError) fetchNextPage(); // a failed page waits for Retry
+  }, [clientDirectory, hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage]);
   const subs = useMemo(() => (cat ? all.filter((c) => c.parentId === cat.id).sort((a, b) => a.sortOrder - b.sortOrder) : []), [all, cat]);
 
   if (cats.isPending) return <Skeleton className="mt-8 h-24 w-1/2" />;
@@ -50,7 +58,13 @@ export function CategoryPage() {
         )}
       </header>
 
-      {subs.length > 0 && (
+      {clientDirectory && arts.isSuccess && (isFetchNextPageError
+        ? <ErrorState title="Couldn’t load all client documents" onRetry={() => fetchNextPage()} retrying={isFetchingNextPage} />
+        : hasNextPage
+          ? <div className="panel mt-8 space-y-3 p-5">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-6 w-1/2" />)}</div>
+          : <ClientDirectory articles={list} />)}
+
+      {!clientDirectory && subs.length > 0 && (
         <div role="tablist" aria-label="Filter by subcategory" className="mt-8 flex flex-wrap gap-1.5">
           {[{ id: null as string | null, name: 'All' }, ...subs].map((s) => {
             const on = filter === s.id;
@@ -66,6 +80,7 @@ export function CategoryPage() {
         </div>
       )}
 
+      {!(clientDirectory && arts.isSuccess) && (
       <div className="panel mt-5 overflow-hidden">
         {arts.isPending && <div className="space-y-3 p-5">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-6 w-3/4" />)}</div>}
         {arts.isError && <ErrorState title="Couldn’t load articles" onRetry={() => arts.refetch()} retrying={arts.isFetching} />}
@@ -99,7 +114,8 @@ export function CategoryPage() {
           })}
         </ul>
       </div>
-      <LoadMore q={arts} />
+      )}
+      {!clientDirectory && <LoadMore q={arts} />}
     </div>
   );
 }

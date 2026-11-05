@@ -2,7 +2,7 @@ import { useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { Hash, Lock, Paperclip, Plus, Trash2, Upload, X } from 'lucide-react';
-import { ARTICLE_TYPES, LIST_ITEM_MAX, TEMPLATE_FIELD_MAX, TEMPLATE_LABELS, type ArticleType, type PmNode, type TemplateFields } from '@ops/shared';
+import { ARTICLE_TYPES, CLIENT_DOC_KINDS, CLIENT_DOC_LABELS, CLIENT_LINES, CLIENT_LINE_LABELS, LIST_ITEM_MAX, TEMPLATE_FIELD_MAX, TEMPLATE_LABELS, type ArticleType, type PmNode, type TemplateFields } from '@ops/shared';
 import { api, HttpError, useCategories, type Category, type FileRef } from '../../api/client';
 import { LinkPicker } from './LinkPicker';
 import { uploadFile } from './extensions/ImageUpload';
@@ -18,7 +18,7 @@ type MaxField = keyof typeof TEMPLATE_FIELD_MAX;
 /** Labels of template fields, for messages ("Purpose wasn’t saved: …"). */
 export const FIELD_LABELS: Record<string, string> = {
   summary: 'Summary', purpose: 'Purpose', scope: 'Scope', audience: 'Who uses this', verification: 'How to verify',
-  client: 'Client name', contractRef: 'Contract reference', validFrom: 'Valid from', validTo: 'Valid to', region: 'Territory', keyLimits: 'Key limits',
+  client: 'Client name', contractRef: 'Contract reference', validFrom: 'Valid from', validTo: 'Valid to', region: 'Territory', line: 'Line', docKind: 'Document', keyLimits: 'Key limits',
   systems: 'Systems', version: 'Version', symptom: 'Symptom', cause: 'Likely cause', fix: 'Quick fix', flowId: 'Guided flow',
   term: 'Term', acronym: 'Acronym', definition: 'Definition', aliases: 'Also known as', relatedTerms: 'Related terms',
   title: 'Title', tags: 'Tags', reviewDate: 'Review by', related: 'Related articles', categoryId: 'Category', ownerId: 'Owner', type: 'Template',
@@ -85,6 +85,21 @@ function Text({ label, value, onChange, multiline, type = 'text', error, hint, p
         ? <textarea id={id} rows={3} value={value ?? ''} disabled={disabled} placeholder={placeholder} maxLength={max} onChange={(e) => onChange(e.target.value)} className={clsx(inputCls, 'resize-y leading-relaxed')} aria-invalid={!!error} />
         : <input id={id} type={type} value={value ?? ''} disabled={disabled} placeholder={placeholder} maxLength={max} onChange={(e) => onChange(e.target.value)} className={inputCls} aria-invalid={!!error} />}
       {counter && <p className="mt-1 text-xs">{counter}&nbsp;</p>}
+    </Field>
+  );
+}
+
+/** Optional choice from a fixed list; empty clears the field. */
+function Choice<T extends string>({ label, value, options, labels, onChange, disabled, hint }: {
+  label: string; value: T | undefined; options: readonly T[]; labels: Record<T, string>; onChange: (v: T | undefined) => void; disabled?: boolean; hint?: ReactNode;
+}) {
+  const id = useId();
+  return (
+    <Field label={label} id={id} hint={hint}>
+      <select id={id} className={inputCls} value={value ?? ''} disabled={disabled} onChange={(e) => onChange((e.target.value || undefined) as T | undefined)}>
+        <option value="">Not set</option>
+        {options.map((o) => <option key={o} value={o}>{labels[o]}</option>)}
+      </select>
     </Field>
   );
 }
@@ -223,6 +238,11 @@ function TemplateFieldsForm({ draft, setF, errors, disabled }: { draft: Draft; s
     </>);
     case 'client_terms': return (<>
       <Text label="Client name" value={f.client} max={TEMPLATE_FIELD_MAX.client} error={errors.client} disabled={d} onChange={(v) => setF({ client: v })} placeholder="Fictional client (DEMO)" />
+      <div className="grid grid-cols-2 gap-3">
+        <Choice label="Line" value={f.line} options={CLIENT_LINES} labels={CLIENT_LINE_LABELS} disabled={d} onChange={(v) => setF({ line: v })} />
+        <Choice label="Document" value={f.docKind} options={CLIENT_DOC_KINDS} labels={CLIENT_DOC_LABELS} disabled={d} onChange={(v) => setF({ docKind: v })} />
+      </div>
+      <p className="text-xs text-ink-muted">Client name, Line and Document place this article in the client list.</p>
       <Text label="Contract reference" value={f.contractRef} max={TEMPLATE_FIELD_MAX.contractRef} error={errors.contractRef} disabled={d} onChange={(v) => setF({ contractRef: v })} />
       <div className="grid grid-cols-2 gap-3">
         <Text label="Valid from" type="date" value={f.validFrom} disabled={d} onChange={(v) => setF({ validFrom: v || undefined })} />

@@ -25,7 +25,7 @@ const OLD_EDI_DESCRIPTION = 'Electronic claim exchange, acknowledgements and the
 /** The eight top-level categories with their demo subcategories (restructured 2026-10-30, was nine). */
 export const CATEGORY_TREE: { name: string; description: string; children: string[] }[] = [
   { name: 'EDI & Automation', description: EDI_DESCRIPTION, children: ['EDI 101', 'Import & web.transformer', 'Adjudication & adjustments', 'EDI issues'] },
-  { name: 'Clients & Terms and Conditions', description: 'Who our clients are and what each contract lets us authorise.', children: ['Travel insurance clients', 'Corporate clients', 'Coverage summaries'] },
+  { name: 'Clients & Terms and Conditions', description: 'Who our clients are and what each contract lets us authorise.', children: [] },
   { name: 'Work Instructions', description: 'Step-by-step procedures for recurring operational tasks.', children: ['Case handling', 'Invoice processing', 'Reimbursements'] },
   { name: 'Quality Assurance', description: 'Checks, sampling and sign-offs that keep claims and payments right first time.', children: ['Quality checks', 'Audit & sampling'] },
   { name: 'Provider Networks & Partners', description: 'Hospitals, clinics and assistance partners we work with.', children: ['Hospital network', 'Assistance partners'] },
@@ -48,13 +48,16 @@ const LEGACY_MOVES: [string, string, string][] = [
 const LEGACY_ARCHIVE: [string | null, string][] = [
   ['Claims & Reimbursements', 'Claim intake'], ['Claims & Reimbursements', 'Medical records'],
   [null, 'Claims & Reimbursements'], [null, 'Troubleshooting Center'],
+  // Clients & T&C is one A–Z client directory (2026-11-05); its articles move to the top category first
+  ['Clients & Terms and Conditions', 'Travel insurance clients'], ['Clients & Terms and Conditions', 'Corporate clients'], ['Clients & Terms and Conditions', 'Coverage summaries'],
   ['EDI & Automation', 'Inbound claims (837)'], ['EDI & Automation', 'Acknowledgements (999/277)'], ['EDI & Automation', 'Automation scripts'],
 ];
-/** Demo articles retired by merges or removals: archived, never deleted, so their history stays. */
+/** Demo articles retired by merges or removals: archived, never deleted, so their history stays.
+ * (Bluefin's coverage summary was retired too; the client directory brings it back, restored with its history.) */
 const RETIRED_SLUGS = [
   'approve-a-claim-for-payment', 'process-a-member-reimbursement', 'send-a-medical-records-request',
   'invoice-denial-reasons-and-how-to-explain-them', 'handling-medical-records-requests',
-  'bluefin-corporate-health-coverage-summary', 'atlas-student-travel-cover-coverage-summary', 'harbor-cruise-assist-coverage-summary',
+  'atlas-student-travel-cover-coverage-summary', 'harbor-cruise-assist-coverage-summary',
 ];
 
 /**

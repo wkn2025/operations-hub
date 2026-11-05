@@ -266,6 +266,14 @@ test('every top-level category (and the sidebar entry for it) has published cont
     expect(arts.filter((a) => topOf(a.categoryId) === t.id).length, t.name).toBeGreaterThan(0);
     await page.goto(`/category/${t.slug}`);
     await expect(page.getByRole('heading', { level: 1, name: t.name })).toBeVisible();
+    if (t.name === 'Clients & Terms and Conditions') { // A–Z client directory: client -> line -> document
+      const main = page.getByRole('main');
+      await main.getByRole('button', { name: 'Bluefin Corporate Health' }).click();
+      await main.getByRole('button', { name: 'Travel', exact: true }).click();
+      await main.getByRole('link', { name: 'Coverage summary' }).click();
+      await expect(page.getByRole('heading', { level: 1, name: 'Bluefin Business Travel: coverage summary' })).toBeVisible();
+      continue;
+    }
     await expect(page.getByRole('main').locator('a[href^="/article/"]').first(), t.name).toBeVisible();
   }
 });
