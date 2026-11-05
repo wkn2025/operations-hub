@@ -7,6 +7,8 @@ import { setup, type Ctx } from './helpers';
 import { seedDemo, CATEGORY_TREE } from '../src/seed/base';
 import { SEED_ARTICLES } from '../src/seed/content/articles';
 import { AMERICAS_BANKS } from '../src/seed/content/bank-americas';
+import { indexArticle } from '../src/services/search';
+import { safeHref } from '../../web/src/lib/text';
 
 const REIMB = 'Reimbursement: from document intake to proof of payment';
 const RETIRED = ['Approve a claim for payment', 'Process a member reimbursement', 'Send a medical records request',
@@ -421,8 +423,26 @@ describe('Bank details for international wires: Americas', () => {
       const hrefs: string[] = [];
       walk(s.node, (n) => n.marks?.forEach((m) => { if (m.type === 'link') hrefs.push(String(m.attrs!.href)); }));
       expect(hrefs.length, s.title).toBeGreaterThan(0);
-      for (const h of hrefs) expect(h, s.title).toMatch(/^https:\/\//);
+      for (const h of hrefs) {
+        expect(new URL(h).protocol, `${s.title} ${h}`).toBe('https:');
+        expect(safeHref(h), `${s.title} ${h}`).toBe(h);
+      }
     }
+  });
+
+  it('matches an independent golden for spot-checked countries (rendered article)', () => {
+    const r = (s: string, label: string) => sec(s).rows.find((x) => x[0] === label);
+    expect(r('Mexico', 'CLABE')?.slice(1, 3)).toEqual(['18 digits', 'Required']);
+    expect(r('Brazil', 'IBAN')?.[2]).toBe('Required');
+    expect(r('Brazil', 'CPF / CNPJ (beneficiary tax ID)')?.slice(1, 3)).toEqual(['CPF 11 digits (individuals); CNPJ 14 digits (companies)', 'Required']);
+    expect(r('Costa Rica', 'IBAN')?.slice(1, 3)).toEqual(['CR + 20 chars (22 total)', 'Required']);
+    expect(r('Costa Rica', 'IBAN')?.[3]).toMatch(/ask for both the IBAN and the account number/);
+    expect(r('Venezuela', 'Account number format')?.slice(1, 3)).toEqual(['20 digits (first 4 = bank code)', 'Unconfirmed — ask if available']);
+    expect(r('Venezuela', 'RIF / Cedula (beneficiary tax ID)')?.[2]).toBe('Unconfirmed — ask if available');
+    expect(r('Greenland', 'IBAN')?.slice(1, 3)).toEqual(['GL + 16 chars (18 total)', 'Required']);
+    expect(sec('Cuba').text).toMatch(/Cuba is subject to US sanctions.*Check compliance before any payment/);
+    expect(r('Canada', 'Bank transit (branch) number')?.slice(1, 3)).toEqual(['5 digits', 'Required']);
+    expect(r('Canada', 'Institution number')?.slice(1, 3)).toEqual(['3 digits', 'Required']);
   });
 
   it('search finds it by CLABE and by Brazil', async () => {
@@ -431,5 +451,33 @@ describe('Bank details for international wires: Americas', () => {
       const titles = (r.body.groups as { hits: { title: string }[] }[]).flatMap((g) => g.hits.map((h) => h.title));
       expect(titles, q).toContain(TITLE);
     }
+  });
+});
+
+describe('re-seed refreshes a stale search index without new revisions', () => {
+  const TITLE = 'Bank details for international wires: Americas';
+  let u: Ctx;
+  const one = <T>(sql: string, ...args: unknown[]) => u.app.sqlite.prepare(sql).get(...args) as T;
+  const found = async (q: string) => {
+    const r = await u.req(u.viewer, 'GET', `/api/search?q=${encodeURIComponent(q)}`);
+    return (r.body.groups as { hits: { title: string }[] }[]).flatMap((g) => g.hits.map((h) => h.title)).includes(TITLE);
+  };
+  beforeAll(async () => {
+    u = await setup(mkdtempSync(join(tmpdir(), 'ops-seed-fts-')));
+    await seedDemo(u.app);
+  });
+
+  it('re-indexes an article whose content_text predates the extractor change; revision counts unchanged', async () => {
+    const { id } = one<{ id: string }>('select id from articles where title = ?', TITLE);
+    const revs = () => one<{ n: number }>('select count(*) n from revisions').n;
+    const mine = () => one<{ n: number }>('select count(*) n from revisions where article_id = ?', id).n;
+    const before = [revs(), mine()];
+    u.app.sqlite.prepare("update articles set content_text = 'stale' where id = ?").run(id);
+    indexArticle(u.app.sqlite, id);
+    expect(await found('Brazil')).toBe(false);
+    await seedDemo(u.app);
+    expect(await found('Brazil')).toBe(true);
+    await seedDemo(u.app);
+    expect([revs(), mine()]).toEqual(before);
   });
 });

@@ -8,6 +8,8 @@ import { createFlow, transitionFlow, updateFlow } from '../services/flows';
 import { SEED_FLOWS } from './content/flows';
 import { createArticle, reindexCategorySubtree, slugify, transition, uniqueSlug, updateArticle } from '../services/articles';
 import { storeFile } from '../services/files';
+import { extractText } from '../services/pm-text';
+import { indexArticle } from '../services/search';
 import { DEMO_USERS } from '../auth/dev';
 import { SEED_ARTICLES } from './content/articles';
 import { ediMonitorSvg } from './screenshots/edi-monitor.svg';
@@ -147,6 +149,19 @@ export async function seedBase(app: App) {
   }
   retireLegacy(app, byRole.admin);
   seedFlows(app, byRole.admin);
+  refreshSearchText(app);
+}
+
+/** Unchanged articles are skipped above, so after an extractor change their content_text/FTS would stay stale. No new revision. */
+function refreshSearchText(app: App) {
+  const rows = app.sqlite.prepare('select id, content, content_text from articles').all() as { id: string; content: string; content_text: string }[];
+  const set = app.sqlite.prepare('update articles set content_text = ? where id = ?');
+  app.sqlite.transaction(() => {
+    for (const r of rows) {
+      const t = extractText(JSON.parse(r.content));
+      if (t !== r.content_text) { set.run(t, r.id); indexArticle(app.sqlite, r.id); }
+    }
+  })();
 }
 
 /** Active category by (parent name or null for top level, name). */

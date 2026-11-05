@@ -6,7 +6,7 @@ function walk(n: PmNode | undefined | null, out: string[]) {
   if (!n || typeof n !== 'object') return;
   if (n.type === PM_NODES.text && typeof n.text === 'string') out.push(n.text);
   if (n.type === PM_NODES.internalLink && typeof n.attrs?.label === 'string' && !n.content?.length) out.push(n.attrs.label);
-  if ((n.type === 'collapsible' || n.type === 'step') && typeof n.attrs?.title === 'string') out.push(n.attrs.title, '\n');
+  if ((n.type === PM_NODES.collapsible || n.type === PM_NODES.step) && typeof n.attrs?.title === 'string') out.push(n.attrs.title, '\n');
   if (n.type === PM_NODES.image) for (const k of ['alt', 'title'] as const) if (typeof n.attrs?.[k] === 'string') out.push(n.attrs[k] as string);
   if (Array.isArray(n.content)) for (const c of n.content) walk(c, out);
   if (BLOCK.has(n.type)) out.push('\n');

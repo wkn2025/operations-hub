@@ -51,7 +51,7 @@ const LETTER: Record<BankLanguage, { open: string; ask: string; close: string; o
   pt: { open: 'Prezados senhores,', ask: 'Para pagarmos a sua fatura por transferência bancária internacional, pedimos a gentileza de nos enviar os seguintes dados bancários:', close: 'Muito obrigado pela sua ajuda.\n\nAtenciosamente,', optional: 'se houver' },
   fr: { open: 'Madame, Monsieur,', ask: 'Afin de régler votre facture par virement bancaire international, merci de bien vouloir nous communiquer les coordonnées bancaires suivantes :', close: 'Nous vous remercions de votre aide.\n\nCordialement,', optional: 'si disponible' },
   nl: { open: 'Geachte heer, mevrouw,', ask: 'Om uw factuur per internationale bankoverschrijving te betalen, vragen wij u ons de volgende bankgegevens te sturen:', close: 'Hartelijk dank voor uw hulp.\n\nMet vriendelijke groet,', optional: 'indien beschikbaar' },
-  da: { open: 'Kære modtager,', ask: 'For at kunne betale jeres faktura via international bankoverførsel beder vi jer venligst sende os følgende bankoplysninger:', close: 'Mange tak for hjælpen.\n\nMed venlig hilsen,', optional: 'hvis muligt' },
+  da: { open: 'Kære modtager,', ask: 'For at kunne betale jeres faktura via international bankoverførsel beder vi jer venligst sende os følgende bankoplysninger:', close: 'Mange tak for hjælpen.\n\nMed venlig hilsen,', optional: 'hvis tilgængelig' },
 };
 
 /** Controller ruling (D2): sources conflict on IBAN vs account number here, so ask the provider for both. */
@@ -84,7 +84,7 @@ const THE = new Set(['United States', 'United Kingdom', 'Netherlands']);
 const title = (e: BankEntry) => (e.kind === 'territory' ? `${e.name} (territory of ${THE.has(e.sovereign!) ? 'the ' : ''}${e.sovereign})` : e.name);
 
 function section(e: BankEntry): PmNode {
-  const links = e.sources.flatMap((s, i) => [...(i ? [', '] : []), a(new URL(s).hostname, s)]);
+  const links = e.sources.flatMap((s, i) => [...(i ? [', '] : []), a(new URL(s).hostname, encodeURI(s))]);
   return collapsible(title(e),
     p(b('Language: '), e.languageName, '. ', b('Currency: '), e.currency, '.'),
     table(['Field', 'Format', 'Required', 'Notes'],
