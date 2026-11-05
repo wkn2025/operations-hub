@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router';
 import clsx from 'clsx';
 import { FileQuestion, Plus } from 'lucide-react';
@@ -21,6 +21,10 @@ export function CategoryPage() {
   const all = cats.data ?? [];
   const cat = all.find((c) => c.slug === slug || c.id === slug);
   const arts = useArticlePages({ within: filter ?? cat?.id, sort: 'title' }, !!cat);
+  const clientDirectory = cat?.name === 'Clients & Terms and Conditions';
+  // the directory groups by client, so a half-loaded list would show false gaps: load every page
+  // ponytail: one request per 50 articles; add a server-side client index if this grows to hundreds
+  useEffect(() => { if (clientDirectory && arts.hasNextPage && !arts.isFetchingNextPage) arts.fetchNextPage(); }, [clientDirectory, arts]);
   const subs = useMemo(() => (cat ? all.filter((c) => c.parentId === cat.id).sort((a, b) => a.sortOrder - b.sortOrder) : []), [all, cat]);
 
   if (cats.isPending) return <Skeleton className="mt-8 h-24 w-1/2" />;
@@ -32,7 +36,6 @@ export function CategoryPage() {
   if (cat.name === 'Bank information' && list.length > 0) return <Navigate to={`/article/${list[0].slug}`} replace />;
   const parent = cat.parentId ? all.find((c) => c.id === cat.parentId) : null;
   const top = parent ?? cat;
-  const clientDirectory = cat.name === 'Clients & Terms and Conditions';
 
   return (
     <div key={cat.id}>

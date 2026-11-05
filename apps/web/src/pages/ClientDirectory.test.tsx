@@ -43,4 +43,33 @@ describe('Clients & Terms and Conditions directory', () => {
     expect(screen.queryByRole('link', { name: 'Coverage summary' })).toBeNull();
     expect(screen.getByText('Coverage summary: not available yet')).toBeInTheDocument();
   });
+
+  it('skips archived, merges name variants, surfaces duplicates and untagged articles, and loads every page', async () => {
+    const big = Array.from({ length: 55 }, (_, i) => ({ ...doc(`filler-${i}`, `Client ${String(i).padStart(2, '0')}`, 'travel', 'full') }));
+    const rows = [
+      ...big,
+      { ...doc('old-sum', 'Gone Ltd', 'travel', 'summary'), status: 'archived' },
+      doc('acme-full', 'Acme  Ltd (fictional)', 'travel', 'full'),
+      doc('acme-sum', 'acme ltd', 'travel', 'summary'),
+      { ...doc('acme-full-v2', 'Acme Ltd', 'travel', 'full'), title: 'Acme full v2' },
+      { ...doc('loose', 'Acme Ltd', 'travel', 'full'), title: 'Untagged note', line: null },
+      doc('last-page', 'Zulu Co', 'corporate', 'full'),
+    ];
+    const pages = (url: string) => {
+      const q = new URL(url, 'http://x').searchParams; const off = Number(q.get('offset') ?? 0), lim = Number(q.get('limit'));
+      return { articles: rows.slice(off, off + lim), total: rows.length };
+    };
+    mockFetch({ '/api/me': me, '/api/categories': cats, '/api/articles/counts': { counts: [] }, '/api/articles?': pages });
+    renderApp(<Routes><Route path="category/:slug" element={<CategoryPage />} /></Routes>, '/category/clients');
+
+    expect(await screen.findByRole('button', { name: 'Zulu Co' })).toBeInTheDocument(); // on page 2, loaded without clicking
+    expect(screen.queryByRole('button', { name: 'Gone Ltd' })).toBeNull();
+    expect(screen.getAllByRole('button', { name: /^acme/i })).toHaveLength(1);
+    await userEvent.click(screen.getByRole('button', { name: /^acme/i }));
+    await userEvent.click(screen.getByRole('button', { name: 'Travel' }));
+    expect(screen.getByRole('link', { name: 'Full T&C' })).toHaveAttribute('href', '/article/acme-full');
+    expect(screen.getByRole('link', { name: 'Coverage summary' })).toHaveAttribute('href', '/article/acme-sum');
+    expect(screen.getByRole('link', { name: 'Acme full v2' })).toHaveAttribute('href', '/article/acme-full-v2');
+    expect(screen.getByRole('link', { name: 'Untagged note' })).toBeInTheDocument();
+  });
 });
