@@ -11,7 +11,7 @@ Requires Node.js 22 and npm 10+.
 ```bash
 npm install
 cp .env.example .env          # defaults are fine for the demo
-npm run seed                  # demo users, 8 categories, 35 DEMO articles, 3 flows, screenshots
+npm run seed                  # demo users, 8 categories, 36 DEMO articles, 3 flows, screenshots
 npm run dev                   # API on :3001, web app on :5173
 ```
 

@@ -23,7 +23,7 @@ export const CATEGORY_TREE: { name: string; description: string; children: strin
   { name: 'Work Instructions', description: 'Step-by-step procedures for recurring operational tasks.', children: ['Case handling', 'Invoice processing', 'Reimbursements'] },
   { name: 'Quality Assurance', description: 'Checks, sampling and sign-offs that keep claims and payments right first time.', children: ['Quality checks', 'Audit & sampling'] },
   { name: 'Provider Networks & Partners', description: 'Hospitals, clinics and assistance partners we work with.', children: ['Hospital network', 'Assistance partners'] },
-  { name: 'Finance & Payment Processing', description: 'Payment runs, currencies, fees and reconciliation.', children: ['Payment runs', 'Currency & fees', 'Reconciliation', 'Payment issues'] },
+  { name: 'Finance & Payment Processing', description: 'Payment runs, currencies, fees and reconciliation.', children: ['Payment runs', 'Currency & fees', 'Reconciliation', 'Payment issues', 'Global codes', 'Bank information'] },
   { name: 'Internal Systems', description: 'Globo, ECNet and the other tools we run on.', children: ['Globo', 'ECNet', 'Access & permissions'] },
   { name: 'Glossary & Acronyms', description: 'The terms and abbreviations used across operations.', children: ['EDI terms', 'Medical terms'] },
 ];

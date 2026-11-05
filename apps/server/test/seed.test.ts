@@ -133,6 +133,7 @@ describe('category restructure', () => {
     expect(tree['Finance & Payment Processing']).toContain('Payment issues');
     expect(tree['Work Instructions']).toEqual(['Case handling', 'Invoice processing', 'Reimbursements']);
     expect(tree['Quality Assurance']).toEqual(['Quality checks', 'Audit & sampling']);
+    expect(tree['Finance & Payment Processing']).toEqual(['Payment runs', 'Currency & fees', 'Reconciliation', 'Payment issues', 'Global codes', 'Bank information']);
   });
 
   it('merges the claims articles into one DEMO work instruction covering intake to proof of payment', () => {
@@ -231,6 +232,13 @@ describe('seed upgrades a database seeded with the old 9-category tree', () => {
     expect(reimb.n).toBe(1);
   });
 
+  it('gives an existing Finance category the Global codes and Bank information subcategories', () => {
+    const active = cats().filter((x) => !x.archived);
+    const kids = active.filter((x) => x.parent_id === ids.get('Finance & Payment Processing')).map((x) => x.name);
+    expect(kids).toEqual(expect.arrayContaining(['Global codes', 'Bank information']));
+    expect(kids.filter((n) => n === 'Global codes' || n === 'Bank information')).toHaveLength(2);
+  });
+
   it('search shows the new category path for moved articles', async () => {
     const r = await u.req(u.viewer, 'GET', `/api/search?q=${encodeURIComponent('failed to import')}`);
     const hit = (r.body.groups as { hits: { title: string; categoryPath: string }[] }[]).flatMap((g) => g.hits).find((h) => h.title === 'EDI claim failed to import');
@@ -278,5 +286,32 @@ describe('seed contract dates', () => {
     const ends = SEED_ARTICLES.map((a) => (a.fields as { validTo?: string } | undefined)?.validTo).filter((v): v is string => !!v);
     expect(ends.length).toBeGreaterThanOrEqual(3);
     expect(ends.filter((d) => d < '2027-01-01')).toEqual([]);
+  });
+});
+
+describe('Global codes for invoice processing', () => {
+  const TITLE = 'Global codes for invoice processing';
+  it('is a published DEMO article in Finance / Global codes with every code and the TBC rows', () => {
+    const a = SEED_ARTICLES.find((x) => x.title === TITLE);
+    expect(a).toBeDefined();
+    expect(a!.category).toBe('Finance & Payment Processing / Global codes');
+    const row = all<{ content: string; status: string; category_id: string }>('select content, status, category_id from articles where title = ?', TITLE)[0]!;
+    expect(row.status).toBe('published');
+    const cat = all<{ name: string; parent: string }>('select c.name, p.name parent from categories c join categories p on p.id = c.parent_id where c.id = ?', row.category_id)[0];
+    expect(cat).toEqual({ name: 'Global codes', parent: 'Finance & Payment Processing' });
+    expect(row.content).toContain('DEMO content');
+    for (const s of ['A01', 'B01', 'B00', 'C12', 'purpose of the visit']) expect(row.content, s).toContain(s);
+    const rows: string[][] = [];
+    walk(JSON.parse(row.content), (n) => { if (n.type === 'tableRow') rows.push(n.content!.map((cell) => JSON.stringify(cell).match(/"text":"([^"]*)"/)?.[1] ?? '')); });
+    for (const name of ['Specialist consultation', 'Dentist', 'Laboratory examinations', 'MRI', 'CT scan', 'X-ray'])
+      expect(rows.some((r) => r[0] === 'TBC' && r[1] === name), name).toBe(true);
+  });
+
+  it('search finds it by title and by code', async () => {
+    for (const q of ['global codes', 'B01', 'C12']) {
+      const r = await c.req(c.viewer, 'GET', `/api/search?q=${encodeURIComponent(q)}`);
+      const titles = (r.body.groups as { hits: { title: string }[] }[]).flatMap((g) => g.hits.map((h) => h.title));
+      expect(titles, q).toContain(TITLE);
+    }
   });
 });
