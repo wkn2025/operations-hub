@@ -223,6 +223,7 @@ describe('seed upgrades a database seeded with the old 9-category tree', () => {
     ['ISA/GS interchange envelope', 'Glossary & Acronyms / EDI terms'],
   ];
   const oldIds: string[] = [];
+  const keptIds: string[] = []; // retired titles that a real user wrote or edited: must survive the re-seed
   let snapshot = '';
   const state = () => JSON.stringify([cats().sort((a, b) => a.id.localeCompare(b.id)),
     u.app.sqlite.prepare('select id, status, category_id, revision from articles order by id').all(),
@@ -248,6 +249,19 @@ describe('seed upgrades a database seeded with the old 9-category tree', () => {
     expect((await u.req(u.admin, 'PATCH', `/api/articles/${first}`, { baseRevision: cur.revision, content: linkDoc(second!), tags: ['edi', 'old'] })).status).toBe(200);
     expect((await u.req(u.admin, 'POST', '/api/articles', { title: 'User note linking old EDI', categoryId: ids.get('Glossary & Acronyms / EDI terms'), content: linkDoc(first!) })).status).toBe(201);
     expect(oldIds).toHaveLength(EDI_OLD.length);
+    // the old seed wrote them as the demo admin: make them seed-owned (owner and every revision author)
+    const demoAdmin = crypto.randomUUID();
+    u.app.sqlite.prepare("insert into users(id, email, name, role, role_set_by_admin, created_at) values (?, 'admin@demo.test', 'Demo Admin', 'admin', 1, ?)").run(demoAdmin, new Date().toISOString());
+    const marks = oldIds.map(() => '?').join(',');
+    u.app.sqlite.prepare(`update articles set owner_id = ? where id in (${marks})`).run(demoAdmin, ...oldIds);
+    u.app.sqlite.prepare(`update revisions set author_id = ? where article_id in (${marks})`).run(demoAdmin, ...oldIds);
+    // negatives: a seed-owned one later edited by a real user, and a user's own article with a retired title
+    const edited = oldIds.pop()!;
+    const e = (await u.req(u.admin, 'GET', `/api/articles/${edited}`)).body;
+    expect((await u.req(u.admin, 'PATCH', `/api/articles/${edited}`, { baseRevision: e.revision, content: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'our own notes' }] }] } })).status).toBe(200);
+    const own = await u.req(u.admin, 'POST', '/api/articles', { title: EDI_OLD[0], categoryId: ids.get('Glossary & Acronyms / EDI terms') });
+    expect(own.status).toBe(201);
+    keptIds.push(edited, own.body.id);
     await seedDemo(u.app);
     snapshot = state();
     await seedDemo(u.app);
@@ -302,7 +316,8 @@ describe('seed upgrades a database seeded with the old 9-category tree', () => {
     const marks = oldIds.map(() => '?').join(',');
     const n = (sql: string) => (u.app.sqlite.prepare(sql.replace('IDS', marks)).get(...oldIds) as { n: number }).n;
     expect(n('select count(*) n from articles where id in (IDS)')).toBe(0);
-    expect((u.app.sqlite.prepare(`select count(*) n from articles where title in (${EDI_OLD.map(() => '?').join(',')})`).get(...EDI_OLD) as { n: number }).n).toBe(0);
+    const left = u.app.sqlite.prepare(`select id from articles where title in (${EDI_OLD.map(() => '?').join(',')})`).all(...EDI_OLD) as { id: string }[];
+    expect(left.map((r) => r.id).sort()).toEqual([...keptIds].sort()); // only the user-written / user-edited ones survive
     expect(n('select count(*) n from revisions where article_id in (IDS)')).toBe(0);
     expect(n('select count(*) n from article_tags where article_id in (IDS)')).toBe(0);
     expect(n('select count(*) n from article_fts where article_id in (IDS)')).toBe(0);
@@ -321,9 +336,18 @@ describe('seed upgrades a database seeded with the old 9-category tree', () => {
       expect(cats().find((x) => x.id === ids.get(k))!.archived, k).toBe(1);
     for (const q of ['segment-by-segment', 'IK5', 'MacroHealth 837P', 'interchange envelope']) {
       const r = await u.req(u.viewer, 'GET', `/api/search?q=${encodeURIComponent(q)}`);
-      const titles = (r.body.groups as { hits: { title: string }[] }[]).flatMap((g) => g.hits.map((h) => h.title));
-      expect(titles.filter((x) => EDI_OLD.includes(x)), q).toEqual([]);
+      const hits = (r.body.groups as { hits: { id: string }[] }[]).flatMap((g) => g.hits.map((h) => h.id));
+      expect(hits.filter((x) => oldIds.includes(x)), q).toEqual([]);
     }
+  });
+
+  it('a surviving article that linked to a deleted one still opens; the dead target is a plain 404 (the renderer shows it as unavailable)', async () => {
+    const note = u.app.sqlite.prepare('select id, content from articles where title = ?').get('User note linking old EDI') as { id: string; content: string };
+    expect(note.content).toContain(oldIds[0]!); // the ProseMirror link node is left as is
+    const r = await u.req(u.admin, 'GET', `/api/articles/${note.id}`);
+    expect(r.status).toBe(200);
+    expect(r.body.linkTargets[oldIds[0]!]).toBeUndefined(); // link row cascaded away
+    expect((await u.req(u.admin, 'GET', `/api/articles/${oldIds[0]}`)).status).toBe(404);
   });
 });
 
@@ -635,6 +659,20 @@ describe('EDI & Automation: real procedure from the EDI 101 reference', () => {
     expect(t).toMatch(/Reprocess Invoice.*UHAP ID.*Reprocess/);
     expect(t).toMatch(/Cancelled.*claim replacement ID/);
     expect(images(d).map((n) => n.attrs!.alt)).toEqual([expect.stringMatching(/182.*Not covered.*0\.00.*120\.00/)]);
+  });
+
+  it('no seed article still describes the retired fictional EDI pipeline; the missing-GOP work instruction points at the real page', () => {
+    for (const a of published()) expect(a.content, a.title).not.toMatch(/E-112|NO_GOP|Retry match|EDI Gateway|EDI Monitor|from quarantine|quarantined (EDI )?claim|999 within/);
+    const gop = text(doc('Request a missing GOP'));
+    expect(gop).toContain('web.transformer: Missing GOP');
+  });
+
+  it('matches the reference screenshots: Reductions tab rows, Reprocess Invoice wording', () => {
+    expect(text(doc('Adjudicating an EDI invoice: reductions, denials and MRR'))).toContain(
+      'Initial amount, Other, Number of Treatments, Deductible (in %), Deductible (in % with max amount), Co Payment, Deductible, Co Insurance, Maximum amount and Pay');
+    const t = text(doc('Changing a coverage decision on an EDI invoice'));
+    expect(t).toMatch(/Go to Reprocess Invoice, search the UHAP ID/);
+    expect(t).not.toMatch(/In web\.transformer go to/);
   });
 
   it('headings never skip a level in the EDI articles', () => {

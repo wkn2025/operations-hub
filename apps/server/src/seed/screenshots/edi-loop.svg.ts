@@ -17,7 +17,7 @@ export const ediLoopSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="1000" 
   </defs>
   <rect width="1000" height="476" rx="18" fill="#F7F8FC"/>
   <g stroke="#C9CDD9" stroke-width="1.5" stroke-dasharray="3 7"><line x1="335" y1="76" x2="335" y2="430"/><line x1="665" y1="76" x2="665" y2="430"/></g>
-  <g font-size="9.5" letter-spacing="1.3" fill="#6B7080" text-anchor="middle"><text x="335" y="68">SHARED FOLDER</text><text x="665" y="68">SHARED FOLDER</text></g>
+  <g font-size="11" font-weight="600" letter-spacing="1.3" fill="#4A4F5E" text-anchor="middle"><text x="335" y="68">SHARED FOLDER</text><text x="665" y="68">SHARED FOLDER</text></g>
   ${lane(95, 'UHCG', '#E2E6F1', '#26408F')}${lane(425, 'MACROHEALTH', '#EEF0C5', '#5B6008')}${lane(755, 'EURO-CENTER', '#DCEEF8', '#00699F')}
   <g font-size="12.5" fill="#565B6B" text-anchor="middle"><text x="170" y="88">Patient treated · invoice issued</text><text x="170" y="456">Payment reaches the provider</text></g>
   <g stroke-width="2" fill="none">

@@ -22,7 +22,7 @@ export const claimLifecycleSvg = `<svg xmlns="http://www.w3.org/2000/svg" width=
   ${box(592, 'Approved', 'medical + 4-eyes', '#fff')}${arrow(746)}
   ${box(776, 'Paid', 'ECNet · Wednesday run', '#E3F4EA')}
   <g font-size="12" fill="#5B6478">
-    <text x="224" y="330">Day 0: 999 within minutes</text>
+    <text x="224" y="330">Day 0: invoice received</text>
     <text x="408" y="330">Within 1 working day</text>
     <text x="592" y="330">Target: 5 working days</text>
     <text x="776" y="330">Next Wednesday run</text>

@@ -132,7 +132,7 @@ export function SearchDialog() {
             {empty && (
               <div className="px-4 py-10 text-center">
                 <p className="text-[15px] font-medium text-neutral-800">No matches for “{term}”</p>
-                <p className="mt-1.5 text-sm text-ink-muted">Try a client name, an acronym like GOP, or an error code such as E-112.</p>
+                <p className="mt-1.5 text-sm text-ink-muted">Try a client name, an acronym like GOP, or a denial code such as 947.</p>
               </div>
             )}
             <div id={`${baseId}-list`} role="listbox" aria-label="Search results" aria-busy={loading || undefined}>

@@ -237,7 +237,7 @@ export const EDI_ARTICLES: SeedArticle[] = [
     },
     content: [
       h(2, 'Reductions'),
-      p('Reductions are added through the ', b('Reductions'), ' tab, which lists Initial amount, Other, Number of Treatments, Deductible in percent, Co Payment, Deductible, Co Insurance, Maximum amount and Pay. Three are used here:'),
+      p('Reductions are added through the ', b('Reductions'), ' tab, which lists Initial amount, Other, Number of Treatments, Deductible (in %), Deductible (in % with max amount), Co Payment, Deductible, Co Insurance, Maximum amount and Pay. Three are used here:'),
       table(['Reduction', 'How it is used'],
         ['Co-payment', 'Can be applied multiple times within the same case. Most common in Swedish policies.'],
         ['Deductible', 'Usually once per case, but high annual deductibles may need it applied repeatedly until met.'],
@@ -345,7 +345,7 @@ export const EDI_ARTICLES: SeedArticle[] = [
       ),
       callout('warning', 'Different batches in this direction', p('Negative and positive go in different batches in this direction.')),
       h(2, 'Reprocessing'),
-      p('In web.transformer go to ', b('Reprocess Invoice'), ', search the UHAP ID and click ', b('Reprocess'), '. It is the same page for both directions. If the page is not accessible to you, contact your supervisor.'),
+      p('Go to ', b('Reprocess Invoice'), ', search the UHAP ID and click ', b('Reprocess'), '. It is the same page for both directions. If the page is not accessible to you, contact your supervisor.'),
       h(2, 'Verification'),
       p('Confirm after a couple of days: search the UHAP ID in the portal with bill search. If it went through, the status reads ', b('Cancelled'), '. Open it, find the claim replacement ID, and the new coverage decision will be there.'),
     ],

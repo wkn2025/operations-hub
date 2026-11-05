@@ -12,7 +12,7 @@ export const SYSTEMS_ARTICLES: SeedArticle[] = [
     reviewDate: '2027-02-28',
     fields: {
       summary: 'How Globo organises a case, its guarantees and its invoices, and which statuses move an invoice towards payment.',
-      systems: ['Globo', 'ECNet', 'EDI Gateway'], version: 'Globo 11.2 (DEMO)',
+      systems: ['Globo', 'ECNet', 'web.transformer'], version: 'Globo 11.2 (DEMO)',
     },
     content: [
       p('Globo is our case management system. Everything that happens for a patient lives on one ', b('case'), ': the policy check, the guarantees, the medical documents, the invoices and the correspondence.'),
@@ -32,7 +32,7 @@ export const SYSTEMS_ARTICLES: SeedArticle[] = [
         ['Paid', 'Included in a sent payment file', 'Reconciliation'],
         ['Duplicate', 'Same as an earlier invoice', 'None']),
       h(2, 'Interfaces'),
-      ul('EDI Gateway creates invoices from matched 837 claims.', 'ECNet receives approved invoices every 30 minutes and posts payments back nightly.', 'Provider and policy master data sync from ECNet overnight.'),
+      ul([p('The EDI import creates invoices from 837 files that pass the three import checks; see ', ref('Importing EDI invoices into Globo: the three checks'), '.')], 'ECNet receives approved invoices every 30 minutes and posts payments back nightly.', 'Provider and policy master data sync from ECNet overnight.'),
       callout('info', 'Related', p(ref('ECNet: postings and payment files'), ' and ', ref('Register an incoming provider invoice'), '.')),
       demo(),
     ],

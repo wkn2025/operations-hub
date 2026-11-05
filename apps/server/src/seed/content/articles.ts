@@ -136,7 +136,7 @@ const CORE_ARTICLES: SeedArticle[] = [
     content: [
       p('A GOP is issued per case and per provider. It states the patient, the treatment, the maximum amount and how long it is valid. Invoices above the GOP amount are not paid until the GOP is increased.'),
       h(2, 'In practice'),
-      ul('Issued from the Guarantees tab in Globo.', 'Sent to the provider by fax or e-mail; providers reference it in their invoice.', 'Required before an EDI claim can be matched.'),
+      ul('Issued from the Guarantees tab in Globo.', 'Sent to the provider by fax or e-mail; providers reference it in their invoice.', 'An EDI invoice needs an open GOP with the same service dates and a provider registered under the invoice Tax ID; otherwise it lands on the Missing GOP page in web.transformer.'),
       p('See also ', ref('EDI claim failed to import'), '.'),
       demo(),
     ],

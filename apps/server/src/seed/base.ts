@@ -59,7 +59,9 @@ const RETIRED_SLUGS = [
 
 /**
  * The fictional EDI articles replaced by the real EDI 101 procedure (user ruling 2026-11-05). Unlike RETIRED_SLUGS these
- * are DELETED by title, so they leave lists, search and history; revisions, tags, links and attachments cascade.
+ * are DELETED, so they leave lists, search and history; revisions, tags, links and attachments cascade. Only seed-owned
+ * rows go: owner and every revision author are demo seed accounts. A real user's article (or edit) keeps it.
+ * Surviving articles that linked to one keep the link node; it renders as "not available".
  */
 export const DELETED_TITLES = [
   'UHCG Direct EDI: inbound 837I pipeline', 'MacroHealth EDI: 837P and 837I exchange', '837 claim file: segment-by-segment guide',
@@ -200,7 +202,12 @@ function moveLegacyCategories(app: App) {
 function retireLegacy(app: App, admin: User) {
   app.sqlite.transaction(() => {
     for (const title of DELETED_TITLES) {
-      for (const { id } of app.sqlite.prepare('select id from articles where title = ?').all(title) as { id: string }[]) {
+      const seedOwned = app.sqlite.prepare(`select a.id from articles a where a.title = ?
+        and a.owner_id in (select id from users where email in (${DEMO_USERS.map(() => '?').join(',')}))
+        and not exists (select 1 from revisions r where r.article_id = a.id
+          and (r.author_id is null or r.author_id not in (select id from users where email in (${DEMO_USERS.map(() => '?').join(',')}))))`);
+      const demo = DEMO_USERS.map((u) => u.email);
+      for (const { id } of seedOwned.all(title, ...demo, ...demo) as { id: string }[]) {
         app.sqlite.prepare('delete from article_fts where article_id = ?').run(id);
         app.sqlite.prepare('delete from articles where id = ?').run(id); // FK cascade: revisions, tags, links, attachments; flows -> null
         audit(app.db, { actorId: admin.id, action: 'article.delete', entity: 'article', entityId: id, summary: `Seed deleted retired EDI article "${title}"` });

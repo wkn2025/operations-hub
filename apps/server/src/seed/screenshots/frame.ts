@@ -1,4 +1,4 @@
-/** Shared window chrome for the illustrative DEMO screenshots (same look as edi-monitor.svg). Static markup, no scripts. */
+/** Shared window chrome for the illustrative DEMO app screenshots (Globo, ECNet). Static markup, no scripts. */
 export const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 export const frame = (app: string, body: string) => `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540" font-family="Inter, Segoe UI, sans-serif">

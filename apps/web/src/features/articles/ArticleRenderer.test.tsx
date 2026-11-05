@@ -98,6 +98,14 @@ describe('ArticleRenderer', () => {
     expect(screen.getByTitle('This article is not available')).toBeInTheDocument();
   });
 
+  it('a link to a deleted article (404, not in the map) renders as unavailable text, not a link', async () => {
+    mockFetch({});
+    const d = { type: 'doc', content: [p({ type: 'internalLink', attrs: { articleId: 'gone', label: 'Retired EDI guide' } })] };
+    renderApp(<ArticleRenderer doc={d} />);
+    expect(await screen.findByTitle('This article is not available')).toHaveTextContent('Retired EDI guide');
+    expect(screen.queryByRole('link', { name: /Retired EDI guide/ })).toBeNull();
+  });
+
   it('fetches link targets that are not in the provided map', async () => {
     mockFetch({ '/api/articles/zz': { id: 'zz', slug: 'zz-slug', title: 'Fetched title', status: 'published' } });
     const d = { type: 'doc', content: [p({ type: 'internalLink', attrs: { articleId: 'zz', label: 'x' } })] };

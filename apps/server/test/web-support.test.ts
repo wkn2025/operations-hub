@@ -76,8 +76,12 @@ describe('seedBase', () => {
     expect(arts.length).toBeGreaterThanOrEqual(8);
     expect(arts.every((a) => a.status === 'published')).toBe(true);
     expect(new Set(arts.map((a) => a.type)).size).toBe(6);
-    // everything is DEMO-labelled except the real EDI procedure (EDI 101 rework; full golden list in seed.test.ts)
-    expect(arts.filter((a) => !a.content.includes('DEMO')).length).toBe(13);
+    // everything is DEMO-labelled except the real EDI procedure (EDI 101 rework)
+    expect(arts.filter((a) => !a.content.includes('DEMO')).map((a) => a.title).sort()).toEqual([
+      '835 payment file', '837 Health Care Claim', 'Adjudicating an EDI invoice: reductions, denials and MRR', 'Changing a coverage decision on an EDI invoice',
+      'EDI 101: the three files and the loop', 'EDI claim failed to import', 'EDI denial codes', 'Importing EDI invoices into Globo: the three checks',
+      'PCF file', 'web.transformer: All Entries', 'web.transformer: Manual Handling', 'web.transformer: Missing Claim', 'web.transformer: Missing GOP',
+    ]);
     // second run must not create extra revisions
     const revs = (c.app.sqlite.prepare('select count(*) n from revisions').get() as { n: number }).n;
     await seedBase(c.app);
