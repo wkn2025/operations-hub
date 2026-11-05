@@ -52,7 +52,7 @@ describe('seedDemo (Task 9)', () => {
   it('is idempotent: second run adds no articles, revisions, flows or files', () => {
     expect((c.app.sqlite.prepare('select count(*) n from revisions').get() as { n: number }).n).toBe(revsAfterFirst);
     expect(all('select id from articles')).toHaveLength(SEED_ARTICLES.length);
-    expect(all('select id from flows')).toHaveLength(3);
+    expect(all('select id from flows')).toHaveLength(4);
     const dupFiles = all("select name from files group by name having count(*) > 1");
     expect(dupFiles).toEqual([]);
   });
@@ -401,21 +401,30 @@ describe('Global codes for invoice processing', () => {
     const cat = all<{ name: string; parent: string }>('select c.name, p.name parent from categories c join categories p on p.id = c.parent_id where c.id = ?', row.category_id)[0];
     expect(cat).toEqual({ name: 'Global codes', parent: 'Finance & Payment Processing' });
     expect(row.content).toContain('DEMO content');
-    for (const s of ['A01', 'B01', 'B00', 'C12', 'purpose of the visit']) expect(row.content, s).toContain(s);
+    for (const s of ['A00', 'A01', 'B01', 'B00', 'C12', 'M00', 'purpose of the visit']) expect(row.content, s).toContain(s);
     const text = (n: PmNode) => { let t = ''; walk(n, (x) => { if (x.text) t += x.text; }); return t; };
     const doc = JSON.parse(row.content) as PmNode;
     const rows: string[][] = [];
     walk(doc, (n) => { if (n.type === 'tableRow') rows.push(n.content!.map(text)); });
     const byCode = (k: string) => rows.find((r) => r[0] === k)!;
+    expect(byCode('A00')[1]).toBe('Outpatient physician fees');
+    expect(byCode('A00')[2]).toMatch(/outpatient surgeon.*separate ER doctor/i);
     expect(byCode('A01')[1]).toBe('Consultation');
     expect(byCode('A01')[2]).toMatch(/urgent care/i);
     expect(byCode('B01')[1]).toMatch(/Emergency department \(ER\)/);
-    expect(byCode('B00')[1]).toBe('Medical fees');
-    expect(byCode('B00')[2]).toMatch(/only surgeries and operations/i);
-    expect(byCode('B00')[3]).toMatch(/any other doctor fee.*MRI.*not B00/i);
+    expect(byCode('B01')[2]).toMatch(/except dental: M00/);
+    expect(byCode('B00')[1]).toBe('Inpatient physician fees');
+    expect(byCode('B00')[2]).toMatch(/doctor fees during a hospital stay/i);
+    expect(byCode('B00')[2]).toMatch(/inpatient surgery.*routine daily doctor fees/i);
+    expect(byCode('B00')[2]).not.toMatch(/outpatient/i);
+    expect(byCode('B00')[3]).toMatch(/outpatient.*A00/i);
+    expect(byCode('B00')[3]).toMatch(/MRI.*not B00/i);
+    expect(byCode('M00')[1]).toBe('Dentist');
+    expect(byCode('M00')[2]).toMatch(/anything dental.*dental emergency at the ER/i);
     expect(byCode('C12')[1]).toBe('Hospitalization');
     expect(byCode('C12')[3]).toMatch(/routine daily doctor fees.*B00/i);
-    for (const name of ['Specialist consultation', 'Dentist', 'Laboratory examinations', 'MRI', 'CT scan', 'X-ray']) {
+    expect(rows.find((x) => x[0] === 'TBC' && x[1] === 'Dentist')).toBeUndefined();
+    for (const name of ['Specialist consultation', 'Laboratory examinations', 'MRI', 'CT scan', 'X-ray']) {
       const r = rows.find((x) => x[0] === 'TBC' && x[1] === name);
       expect(r, name).toBeDefined();
       expect(r!.slice(2).every((cell) => cell === '—'), name).toBe(true);
@@ -427,11 +436,12 @@ describe('Global codes for invoice processing', () => {
     expect(ex(/urgent care.*X-ray/i)).toMatch(/A01/);
     expect(ex(/MRI/)).toMatch(/not B00/);
     expect(ex(/daily doctor visits/)).toMatch(/B00.*C12/);
+    expect(ex(/ER doctor's bill/)).toMatch(/A00.*Dental emergency at the ER: M00, not B01/);
     expect(text(doc)).toContain('codes marked TBC are not yet confirmed');
   });
 
   it('search finds it by title and by code', async () => {
-    for (const q of ['global codes', 'B01', 'C12']) {
+    for (const q of ['global codes', 'B01', 'C12', 'A00', 'M00']) {
       const r = await c.req(c.viewer, 'GET', `/api/search?q=${encodeURIComponent(q)}`);
       const titles = (r.body.groups as { hits: { title: string }[] }[]).flatMap((g) => g.hits.map((h) => h.title));
       expect(titles, q).toContain(TITLE);
@@ -708,5 +718,24 @@ describe('re-seed refreshes a stale search index without new revisions', () => {
     expect(await found('Brazil')).toBe(true);
     await seedDemo(u.app);
     expect([revs(), mine()]).toEqual(before);
+  });
+});
+
+describe('re-seed updates the Global codes article in an existing database', () => {
+  const TITLE = 'Global codes for invoice processing';
+  let u: Ctx;
+  beforeAll(async () => {
+    u = await setup(mkdtempSync(join(tmpdir(), 'ops-seed-gc-')));
+    await seedDemo(u.app);
+  });
+
+  it('replaces older seeded content (before A00/M00) with the current rows', async () => {
+    const content = () => (u.app.sqlite.prepare('select content from articles where title = ?').get(TITLE) as { content: string }).content;
+    // simulate a database seeded before the A00/M00 rulings
+    u.app.sqlite.prepare('update articles set content = ? where title = ?').run(content().replaceAll('M00', 'TBC').replaceAll('A00', 'TBC'), TITLE);
+    expect(content()).not.toContain('M00');
+    await seedDemo(u.app);
+    expect(content()).toContain('M00');
+    expect(content()).toContain('A00');
   });
 });
