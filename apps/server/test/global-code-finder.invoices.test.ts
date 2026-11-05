@@ -3,7 +3,7 @@ import { start, step, type Flow } from '@ops/shared';
 import { GLOBAL_CODE_FLOW } from '../src/seed/content/global-code-finder';
 
 /**
- * 50 realistic invoices walked through the Global Code Finder by a simulated staff member.
+ * Realistic invoices (started with 50) walked through the Global Code Finder by a simulated staff member.
  * `expected` was written from the reference rules (GLOBAL_CODE_FINDER_IMPLEMENTATION.md §2/§4/§5/§7)
  * plus the user rulings in docs/superpowers/specs/2026-11-05-global-code-finder-design.md,
  * never from the flow's output. The simulator answers each question from the invoice facts only.
@@ -16,14 +16,14 @@ type Service =
   | 'er-facility' | 'er-observation' | 'surgery-facility' | 'delivery-facility' | 'inpatient-room' | 'icu'
   // professional fees billed apart from a facility bill
   | 'surgeon-fee-inpatient' | 'surgeon-fee-outpatient' | 'er-doctor-fee' | 'inpatient-physician-visit'
-  | 'anesthesiologist-fee' | 'nursing' | 'radiologist-read-mri' | 'radiologist-read-ct' | 'pathologist-read-biopsy' | 'pathologist-read-specimen'
+  | 'anesthesiologist-fee' | 'nursing-home' | 'nursing-in-hospital' | 'radiologist-read-mri' | 'pathologist-read-biopsy' | 'pathologist-read-specimen'
   // seeing a clinician
   | 'consultation-gp' | 'consultation-specialist' | 'urgent-care' | 'checkup-us' | 'medical-certificate'
   | 'telemedicine' | 'house-call' | 'dietitian'
   // dental
   | 'dental-treatment' | 'dental-orthodontics' | 'dental-emergency'
   // tests and scans
-  | 'mri' | 'ct' | 'pet' | 'ultrasound' | 'mammogram' | 'bone-density' | 'xray'
+  | 'mri' | 'ct' | 'pet' | 'ultrasound' | 'mammogram' | 'bone-density' | 'xray' | 'eye-exam'
   | 'gastroscopy' | 'colonoscopy' | 'cystoscopy' | 'colposcopy'
   | 'holter' | 'ecg' | 'cardio-other' | 'eeg' | 'sleep-study' | 'spirometry' | 'audiometry' | 'emg' | 'biopsy' | 'lab'
   // medicines and treatment
@@ -37,7 +37,7 @@ interface Line { desc: string; amount: number; service: Service }
 interface Invoice {
   id: string;
   provider: string;
-  currency: 'USD' | 'EUR' | 'GBP' | 'BRL' | 'CHF' | 'AED' | 'THB';
+  currency: 'USD' | 'EUR' | 'GBP' | 'BRL' | 'CHF' | 'AED' | 'THB' | 'SGD';
   lines: Line[];
   /** Index of the line that is the invoice's main purpose (reference rule 3/6); only when there clearly is one. */
   main?: number;
@@ -45,8 +45,11 @@ interface Invoice {
   hospitalBill?: true;
   expected: string;
   why: string;
-  /** Set when the flow disagrees with the reference: the case runs as expected-fail (it.fails). */
-  knownIssue?: string;
+  /**
+   * The flow disagrees with the reference when its questions are read literally. `reaches` pins the
+   * current (wrong) result id in a normal test; the oracle assertion runs as expected-fail (it.fails).
+   */
+  knownIssue?: { reaches: string; note: string };
 }
 
 const tbc = (name: string) => `${name} · code TBC`;
@@ -133,8 +136,9 @@ const INVOICES: Invoice[] = [
       { desc: 'Prescription lenses, pair', amount: 210, service: 'materials' }],
     expected: tbc('Materials'), why: '§4 D Materials: eyeglasses, frames' },
   { id: 'INV-23', provider: 'CareAtHome Nursing, Dubai, AE', currency: 'AED',
-    lines: [{ desc: 'Home nursing visits, wound and IV line care (x5)', amount: 1750, service: 'nursing' }],
-    expected: tbc('Med Fees'), why: '§5: nursing service bill is Med Fees' },
+    lines: [{ desc: 'Home nursing visits, post-discharge monitoring and personal care (x5)', amount: 1750, service: 'nursing-home' }],
+    expected: tbc('Med Fees'), why: '§5: nursing service bill is Med Fees',
+    knownIssue: { reaches: 'r-review', note: 'sep: a home nursing bill is not "billed apart from a facility bill" (there is none), so a literal reader answers No; nursing is only asked under sep, so it falls through to manual review.' } },
   { id: 'INV-24', provider: 'Dr. A. Patel, Anesthesiology, Boston, US', currency: 'USD',
     lines: [{ desc: 'Anesthesia services, knee arthroscopy', amount: 980, service: 'anesthesiologist-fee' }],
     expected: tbc('Anesthesiologist'), why: '§5 / rule 5: separate anesthesiologist fee' },
@@ -233,10 +237,11 @@ const INVOICES: Invoice[] = [
     lines: [{ desc: 'Physiotherapy, 8 sessions', amount: 480, service: 'physio' },
       { desc: 'Acupuncture, 4 sessions', amount: 300, service: 'acupuncture' }],
     expected: tbc('Physiotherapy'), why: 'Rule 6: independent therapies, higher value (physio) wins' },
-  { id: 'INV-46', provider: 'Policlinico Gemelli, Rome, IT', currency: 'EUR',
+  { id: 'INV-46', provider: 'Policlinico Gemelli (hospital outpatient radiology), Rome, IT', currency: 'EUR', hospitalBill: true,
     lines: [{ desc: 'Chest X-ray, PA and lateral', amount: 85, service: 'xray' },
       { desc: 'Thyroid ultrasound', amount: 140, service: 'ultrasound' }],
-    expected: tbc('Ultrasonography'), why: 'Rule 6 + §4 imaging: two independent scans, ultrasound higher; provisional Ultrasonography' },
+    expected: tbc('Ultrasonography'), why: 'Rule 6 + §4 imaging: two independent scans, ultrasound higher; provisional Ultrasonography',
+    knownIssue: { reaches: 'r-review', note: 'fac: a hospital invoice is literally "a hospital or facility bill" → Yes; er/surg/admit all No → manual review. The facility branch has no exit for hospital outpatient services.' } },
   { id: 'INV-47', provider: 'Ortho & Mobility Store, Lisbon, PT', currency: 'EUR',
     lines: [{ desc: 'Wheelchair rental, 1 month', amount: 100, service: 'wheelchair' },
       { desc: 'Forearm crutches, pair', amount: 100, service: 'crutches' }],
@@ -250,12 +255,115 @@ const INVOICES: Invoice[] = [
   { id: 'INV-49', provider: 'NutriBalance, Sydney, AU', currency: 'USD',
     lines: [{ desc: 'Dietitian consultation, initial', amount: 120, service: 'dietitian' }],
     expected: tbc('Specialist Consultation'), why: '§4 Specialist Consultation includes nutritionist/dietitian',
-    knownIssue: 'cons asks "to see a doctor?"; a dietitian is not a doctor, so a literal reader answers No and ends in manual review. The dietitian example only appears in spec, after cons Yes.' },
+    knownIssue: { reaches: 'r-review', note: 'cons asks "to see a doctor?"; a dietitian is not a doctor, so a literal reader answers No and ends in manual review. "dietitian" only appears in spec, after cons Yes.' } },
   { id: 'INV-50', provider: 'Hospital da Luz, oncology day unit, Lisbon, PT', currency: 'EUR', hospitalBill: true,
     lines: [{ desc: 'Docetaxel (drug)', amount: 1900, service: 'chemo' },
       { desc: 'Day-unit chemotherapy administration', amount: 380, service: 'chemo' }],
     expected: tbc('Chemotherapy'), why: '§4 / rule 4: chemotherapy session overrides Medicines; billed by the hospital',
-    knownIssue: 'fac Yes (hospital bill) then er/surg/admit all No ends in manual review: the facility branch has no exit for hospital outpatient treatment (chemo, infusion, dialysis day units).' },
+    knownIssue: { reaches: 'r-review', note: 'fac Yes (hospital bill) then er/surg/admit all No ends in manual review: the facility branch has no exit for hospital outpatient treatment (chemo, infusion, dialysis day units).' } },
+
+  // ---- more reference §5 rows and remaining codes ----
+  { id: 'INV-51', provider: 'Allergy & Asthma Clinic, Boston, US', currency: 'USD',
+    lines: [{ desc: 'Omalizumab 300 mg injection, visit for administration only', amount: 2900, service: 'injection' }],
+    expected: tbc('Medicines'), why: '§5: clinic visit solely for an expensive injection is Medicines' },
+  { id: 'INV-52', provider: 'Labor Dr. Wisplinghoff, Cologne, DE', currency: 'EUR',
+    lines: [{ desc: 'Full blood count and lipid panel', amount: 48, service: 'lab' },
+      { desc: 'Specimen collection fee (venipuncture)', amount: 8, service: 'lab' }],
+    expected: tbc('Analysis'), why: '§5: independent lab test with a specimen collection fee is Analysis' },
+  { id: 'INV-53', provider: 'Cellular Pathology Services, Leeds, UK', currency: 'GBP',
+    lines: [{ desc: 'Histology of gallbladder removed at surgery (not a biopsy)', amount: 95, service: 'pathologist-read-specimen' }],
+    expected: tbc('Analysis'), why: '§5: lab analysis of a surgical specimen not described as biopsy is Analysis' },
+  { id: 'INV-54', provider: 'Clínica Psiquiátrica São Vicente, Rio de Janeiro, BR', currency: 'BRL', main: 0,
+    lines: [{ desc: 'Psychiatric ward accommodation, 10 days', amount: 9800, service: 'inpatient-room' },
+      { desc: 'Inpatient medications', amount: 640, service: 'pharmacy' }],
+    expected: C12, why: '§5: psychiatric inpatient facility accommodation is Inpatient Treatment' },
+  { id: 'INV-55', provider: 'Moorfields Private Eye Centre, London, UK', currency: 'GBP', main: 0,
+    lines: [{ desc: 'Ophthalmology consultation', amount: 250, service: 'consultation-specialist' },
+      { desc: 'Routine eye examination (refraction, tonometry)', amount: 60, service: 'eye-exam' }],
+    expected: tbc('Specialist Consultation'), why: '§5: ophthalmologist consult with routine eye exam is Specialist Consultation' },
+  { id: 'INV-56', provider: 'Riverside Ambulatory Surgery Center, Portland, US', currency: 'USD',
+    lines: [{ desc: 'Facility fee, excision of lipoma (outpatient)', amount: 1850, service: 'surgery-facility' }],
+    expected: tbc('Forfait'), why: '§5: facility bill for minor outpatient surgery is Forfait' },
+  { id: 'INV-57', provider: 'CityMD Urgent Care, New York, US', currency: 'USD',
+    lines: [{ desc: 'Urgent care evaluation, sore throat', amount: 195, service: 'urgent-care' }],
+    expected: A01, why: '§5: general urgent care / walk-in evaluation is Consultation' },
+  { id: 'INV-58', provider: 'Taxis G7, Paris, FR', currency: 'EUR',
+    lines: [{ desc: 'Taxi hotel to hospital appointment and back', amount: 46, service: 'taxi' }],
+    expected: tbc('Taxi'), why: '§4 D: taxi for medically related transport' },
+  { id: 'INV-59', provider: 'Ambulancias Ayuda, Málaga, ES', currency: 'EUR',
+    lines: [{ desc: 'Ground ambulance transfer, hotel to hospital', amount: 320, service: 'ambulance' }],
+    expected: tbc('Ambulance'), why: '§4 D: ground ambulance transportation' },
+  { id: 'INV-60', provider: 'Nuclear Imaging Partners, Houston, US', currency: 'USD',
+    lines: [{ desc: 'PET scan, whole body (FDG)', amount: 4200, service: 'pet' }],
+    expected: tbc('PET Scan'), why: '§4 B: positron emission tomography' },
+  { id: 'INV-61', provider: 'Breast Screening Centre, Toronto, CA', currency: 'USD',
+    lines: [{ desc: 'Screening mammogram, bilateral', amount: 230, service: 'mammogram' }],
+    expected: tbc('Mammography'), why: '§4 B: mammogram' },
+  { id: 'INV-62', provider: 'Centre d\'Ostéodensitométrie, Nice, FR', currency: 'EUR',
+    lines: [{ desc: 'DEXA bone densitometry, hip and spine', amount: 75, service: 'bone-density' }],
+    expected: tbc('Bone Densitometry'), why: '§4 B: DEXA / bone density scanning' },
+  { id: 'INV-63', provider: 'Sleep Disorders Center, Phoenix, US', currency: 'USD',
+    lines: [{ desc: 'Overnight polysomnography', amount: 1900, service: 'sleep-study' }],
+    expected: tbc('Sleep Study'), why: '§4 B: polysomnography is Sleep Study' },
+  { id: 'INV-64', provider: 'HNO-Praxis Dr. Klein, Frankfurt, DE', currency: 'EUR',
+    lines: [{ desc: 'Pure tone audiometry', amount: 55, service: 'audiometry' }],
+    expected: tbc('Audiometry'), why: '§4 B: hearing / audiometry testing' },
+  { id: 'INV-65', provider: 'HandWorks Therapy, Melbourne, AU', currency: 'USD',
+    lines: [{ desc: 'Occupational therapy, hand rehabilitation (x6)', amount: 540, service: 'occupational-therapy' }],
+    expected: tbc('Occupational Therapy'), why: '§4 C: occupational therapy' },
+  { id: 'INV-66', provider: 'Clínica de Fonoaudiologia, Curitiba, BR', currency: 'BRL',
+    lines: [{ desc: 'Speech therapy after stroke (x8)', amount: 1280, service: 'speech-therapy' }],
+    expected: tbc('Speech Therapy'), why: '§4 C: speech / language therapy' },
+  { id: 'INV-67', provider: 'Proton Therapy Center, Prague, CZ', currency: 'EUR',
+    lines: [{ desc: 'Radiotherapy fractions (x15)', amount: 9600, service: 'radiotherapy' }],
+    expected: tbc('Radiotherapy'), why: '§4 C: radiation therapy session' },
+  { id: 'INV-68', provider: 'DaVita Dialysis Center, Orlando, US', currency: 'USD',
+    lines: [{ desc: 'Hemodialysis, holiday sessions (x3)', amount: 1350, service: 'dialysis' }],
+    expected: tbc('Dialysis'), why: '§4 C: renal dialysis (standalone dialysis centre)' },
+  { id: 'INV-69', provider: 'Spine Align Chiropractic, Denver, US', currency: 'USD',
+    lines: [{ desc: 'Chiropractic adjustment (x4)', amount: 260, service: 'chiropractic' }],
+    expected: tbc('Chiropractic'), why: '§4 C: chiropractic treatment' },
+  { id: 'INV-70', provider: 'Gynäkologie am Dom, Cologne, DE', currency: 'EUR',
+    lines: [{ desc: 'Colposcopy', amount: 110, service: 'colposcopy' }],
+    expected: tbc('Analysis'), why: '§4 B: colposcopy is Analysis' },
+  { id: 'INV-71', provider: 'Centro de Hemoterapia, Lisbon, PT', currency: 'EUR',
+    lines: [{ desc: 'Outpatient red cell transfusion, 2 units', amount: 780, service: 'transfusion' }],
+    expected: REVIEW, why: '§7.8 / rule 8: blood transfusion code not mapped, manual review',
+    knownIssue: { reaches: 'r-medicines', note: 'med lists "infusion": a transfusion is an infusion of a blood product, so a literal reader answers Yes → vac No → chemo No → Medicines, a mapping §7.8 forbids inventing.' } },
+  { id: 'INV-72', provider: 'Respiratory Care Clinic, Dubai, AE', currency: 'AED',
+    lines: [{ desc: 'Oxygen therapy sessions, medical oxygen by mask (x6)', amount: 900, service: 'oxygen' }],
+    expected: REVIEW, why: '§7.8 / rule 8: oxygen therapy code not mapped, manual review',
+    knownIssue: { reaches: 'r-medicines', note: 'med "give ... a medicine": medical oxygen is a prescription medicinal gas given to the patient, so a literal reader answers Yes → Medicines, a mapping §7.8 forbids inventing. (Borderline reading.)' } },
+  { id: 'INV-73', provider: 'Hospitalist Associates, Charlotte, US', currency: 'USD',
+    lines: [{ desc: 'Hospitalist daily inpatient visits, days 1-4', amount: 1120, service: 'inpatient-physician-visit' }],
+    expected: B00, why: '§4 A + ruling 1: separately billed physician services during hospitalization are B00' },
+  { id: 'INV-74', provider: 'Ortodontia Sorriso, Belo Horizonte, BR', currency: 'BRL',
+    lines: [{ desc: 'Orthodontic braces, maintenance visit', amount: 350, service: 'dental-orthodontics' }],
+    expected: M00, why: '§4 Dentist / ruling 2: orthodontics is M00' },
+  { id: 'INV-75', provider: 'HeartCare Clinic, Sydney, AU', currency: 'USD',
+    lines: [{ desc: 'Exercise treadmill stress test', amount: 380, service: 'cardio-other' }],
+    expected: tbc('Cardiological Test'), why: '§4 B: other cardiology test (not ECG, EKG or Holter)' },
+  { id: 'INV-76', provider: 'Golden Needle Acupuncture, Vancouver, CA', currency: 'USD',
+    lines: [{ desc: 'Acupuncture, 5 sessions', amount: 375, service: 'acupuncture' }],
+    expected: tbc('Acupuncture'), why: '§4 C: acupuncture' },
+  { id: 'INV-77', provider: 'Farmácia Ortopédica, Porto, PT', currency: 'EUR',
+    lines: [{ desc: 'Axillary crutches, pair', amount: 45, service: 'crutches' }],
+    expected: tbc('Crutches'), why: '§4 D: crutches, own code, not Materials' },
+  { id: 'INV-78', provider: 'Instituto de Radiologia, São Paulo, BR', currency: 'BRL',
+    lines: [{ desc: 'Ankle X-ray, 3 views', amount: 180, service: 'xray' }],
+    expected: tbc('X-ray'), why: '§4 B: radiography' },
+  { id: 'INV-79', provider: 'Herzpraxis Basel, CH', currency: 'CHF',
+    lines: [{ desc: '24 h Holter ECG recording and report', amount: 260, service: 'holter' }],
+    expected: tbc('Holter'), why: '§4 B: Holter monitoring' },
+  { id: 'INV-80', provider: 'Neurology Clinic Bangkok, TH', currency: 'THB',
+    lines: [{ desc: 'Routine EEG, 30 min', amount: 4500, service: 'eeg' }],
+    expected: tbc('EEG'), why: '§4 B: electroencephalogram' },
+  { id: 'INV-81', provider: 'Nurses On Call agency, Singapore, SG', currency: 'SGD',
+    lines: [{ desc: 'Private-duty nurse, night shifts during admission at Mount Elizabeth Hospital (x3)', amount: 1260, service: 'nursing-in-hospital' }],
+    expected: tbc('Med Fees'), why: '§5: nursing service bill is Med Fees (billed apart from the hospital bill)' },
+  { id: 'INV-82', provider: 'NewYork-Presbyterian Hospital, New York, US', currency: 'USD',
+    lines: [{ desc: 'NY HCRA surcharge on invoice 88213', amount: 62, service: 'admin-fee' }],
+    expected: tbc('Administrative Fees'), why: '§5: separate US surcharge is Administrative Fees' },
 ];
 
 // ---------------- simulated staff member ----------------
@@ -266,20 +374,25 @@ const FEE_ONLY = set('admin-fee', 'tax', 'medical-report-fee');
 const TRANSPORT = set('air-ambulance', 'taxi', 'ambulance');
 const EQUIPMENT = set('wheelchair', 'crutches', 'materials');
 const NOT_MEDICAL = new Set<Service>([...FEE_ONLY, ...TRANSPORT, ...EQUIPMENT]);
-/** Fees from a doctor, nurse or anesthesiologist that go with care billed on someone else's (facility) invoice. */
+/**
+ * sep "a separate fee from a doctor, nurse or anesthesiologist, billed apart from a facility bill?": Yes only when the
+ * care itself happened at a facility that bills on its own invoice (surgery, ER, admission, scan, specimen). An office
+ * consult or a home nursing visit has no facility bill to be "apart from", so a literal reader answers No.
+ */
 const SEPARATE_FEE = set('surgeon-fee-inpatient', 'surgeon-fee-outpatient', 'er-doctor-fee', 'inpatient-physician-visit', 'anesthesiologist-fee',
-  'nursing', 'radiologist-read-mri', 'radiologist-read-ct', 'pathologist-read-biopsy', 'pathologist-read-specimen');
-const READ = set('radiologist-read-mri', 'radiologist-read-ct', 'pathologist-read-biopsy', 'pathologist-read-specimen');
+  'nursing-in-hospital', 'radiologist-read-mri', 'pathologist-read-biopsy', 'pathologist-read-specimen');
+const READ = set('radiologist-read-mri', 'pathologist-read-biopsy', 'pathologist-read-specimen');
 const SEE_DOCTOR = set('consultation-gp', 'consultation-specialist', 'urgent-care', 'checkup-us', 'medical-certificate', 'telemedicine', 'house-call');
 const SCOPE = set('gastroscopy', 'colonoscopy', 'cystoscopy');
 const HEART = set('holter', 'ecg', 'cardio-other');
 const ORGAN = new Set<Service>([...HEART, 'eeg', 'sleep-study', 'spirometry', 'audiometry']);
-const LAB = set('lab', 'colposcopy', 'pathologist-read-specimen');
+const LAB = set('lab', 'colposcopy');
 /** The imaging modality behind a scan or a radiologist's read. */
-const modality = (s: Service): Service => (s === 'radiologist-read-mri' ? 'mri' : s === 'radiologist-read-ct' ? 'ct' : s);
+const modality = (s: Service): Service => (s === 'radiologist-read-mri' ? 'mri' : s);
 const IMAGING = set('mri', 'ct', 'pet', 'ultrasound', 'mammogram', 'bone-density', 'xray');
-const TEST = new Set<Service>([...IMAGING, ...SCOPE, ...ORGAN, 'colposcopy', 'emg', 'biopsy', 'lab']);
-const MEDICINE = set('pharmacy', 'injection', 'vaccine', 'chemo');
+const TEST = new Set<Service>([...IMAGING, ...SCOPE, ...ORGAN, 'colposcopy', 'emg', 'biopsy', 'lab', 'eye-exam']);
+/** med lists "pharmacy, injection, infusion, vaccine": a transfusion is an infusion; medical oxygen is a prescribed medicinal gas. */
+const MEDICINE = set('pharmacy', 'injection', 'vaccine', 'chemo', 'transfusion', 'oxygen');
 const THERAPY = set('physio', 'psychotherapy', 'occupational-therapy', 'speech-therapy');
 
 const kinds = (inv: Invoice) => [...new Set(inv.lines.map((l) => l.service))];
@@ -307,13 +420,17 @@ const ANSWERS: Record<string, Ask> = {
   equip: (s) => EQUIPMENT.has(s),
   chair: (s) => s === 'wheelchair' || s === 'crutches',
   chair2: (s) => s === 'wheelchair',
-  fac: (s, inv) => FACILITY.has(s) || inv.hospitalBill === true, // hospital/facility bill, not a doctor's own fee
+  // fac "hospital or facility bill, not a doctor's own fee?": Yes for any invoice issued by a hospital (hospitalBill) and for
+  // facility charges (ER, operating room or surgery centre, delivery suite, room, ICU). Standalone outpatient centres
+  // (imaging, endoscopy, lab, dialysis, therapy, clinic) answer No: they are not a hospital, and the follow-ups
+  // (ER, surgery, admission) show the question means hospital-type facility charges.
+  fac: (s, inv) => FACILITY.has(s) || inv.hospitalBill === true,
   er: (s) => s === 'er-facility' || s === 'er-observation',
   surg: (_s, inv) => billHas(inv, 'surgery-facility', 'delivery-facility'), // "does this bill include"
   admit: (_s, inv) => billHas(inv, 'inpatient-room', 'icu'),
   sep: (s) => SEPARATE_FEE.has(s),
   anes: (s) => s === 'anesthesiologist-fee',
-  nurse: (s) => s === 'nursing',
+  nurse: (s) => s.startsWith('nursing-'),
   read: (s) => READ.has(s),
   readkind: (s) => s.startsWith('radiologist-'),
   bxread: (s) => s === 'pathologist-read-biopsy',
@@ -374,14 +491,21 @@ function run(inv: Invoice) {
   throw new Error(`${inv.id}: no result after 100 steps`);
 }
 
-const SYM: Record<Invoice['currency'], string> = { USD: '$', EUR: '€', GBP: '£', BRL: 'R$', CHF: 'CHF ', AED: 'AED ', THB: '฿' };
+const SYM: Record<Invoice['currency'], string> = { USD: '$', EUR: '€', GBP: '£', BRL: 'R$', CHF: 'CHF ', AED: 'AED ', THB: '฿', SGD: 'S$' };
 const money = (inv: Invoice, n: number) => `${SYM[inv.currency]}${n.toLocaleString('en-US')}`;
 const title = (inv: Invoice) => `${inv.id} ${inv.lines.map((l) => `${l.desc} ${money(inv, l.amount)}`).join(' + ')} → ${inv.expected}`;
+const explain = (inv: Invoice, r: ReturnType<typeof run>) =>
+  `${inv.id} (${inv.provider})\n${inv.lines.map((l) => `  - ${l.desc}: ${money(inv, l.amount)} [${l.service}]`).join('\n')}\n` +
+  `main: ${inv.main ?? 'none'}\ntrail:\n  ${r.trail.join('\n  ')}\nreached: ${r.id} "${r.text}"\nexpected: ${inv.expected}\nwhy: ${inv.why}` +
+  (inv.knownIssue ? `\nknown issue: ${inv.knownIssue.note}` : '');
 
-describe('Global Code Finder: 50 invoices', () => {
-  it('has exactly 50 invoices with unique ids and positive amounts', () => {
-    expect(INVOICES).toHaveLength(50);
-    expect(new Set(INVOICES.map((i) => i.id)).size).toBe(50);
+/** Result nodes no invoice reaches on purpose (none today). */
+const UNCOVERED: string[] = [];
+
+describe('Global Code Finder: invoices', () => {
+  it('has 82 invoices with unique ids and positive amounts', () => {
+    expect(INVOICES).toHaveLength(82);
+    expect(new Set(INVOICES.map((i) => i.id)).size).toBe(INVOICES.length);
     for (const inv of INVOICES) {
       expect(inv.lines.length, inv.id).toBeGreaterThan(0);
       for (const l of inv.lines) expect(l.amount, `${inv.id} ${l.desc}`).toBeGreaterThan(0);
@@ -390,17 +514,30 @@ describe('Global Code Finder: 50 invoices', () => {
   });
 
   for (const inv of INVOICES) {
-    (inv.knownIssue ? it.fails : it)(title(inv) + (inv.knownIssue ? ' [known issue]' : ''), () => {
+    if (!inv.knownIssue) {
+      it(title(inv), () => {
+        const r = run(inv);
+        expect(r.text, explain(inv, r)).toBe(inv.expected);
+      });
+      continue;
+    }
+    // Pin today's wrong result, so a throw or a drift to another code fails loudly...
+    it(`${inv.id} currently reaches ${inv.knownIssue.reaches} [known issue]`, () => {
       const r = run(inv);
-      const lines = inv.lines.map((l) => `  - ${l.desc}: ${money(inv, l.amount)} [${l.service}]`).join('\n');
-      expect(r.text, `${inv.id} (${inv.provider})\n${lines}\nmain: ${inv.main ?? 'none'}\ntrail:\n  ${r.trail.join('\n  ')}\nreached: ${r.id} "${r.text}"\nexpected: ${inv.expected}\nwhy: ${inv.why}`).toBe(inv.expected);
+      expect(r.id, explain(inv, r)).toBe(inv.knownIssue!.reaches);
+    });
+    // ...and keep the oracle as expected-fail: it starts failing (as a reminder) once the flow is fixed.
+    it.fails(`${title(inv)} [known issue: oracle]`, () => {
+      const r = run(inv);
+      expect(r.text, explain(inv, r)).toBe(inv.expected);
     });
   }
 
-  it('covers every numbered code, Free Choice, manual review, the 3 provisional codes and 25+ results', () => {
+  it('every result node is reached by a passing invoice, except the deliberate UNCOVERED list', () => {
     const reached = new Set(INVOICES.filter((i) => !i.knownIssue).map((i) => run(i).id));
+    const missing = flow.nodes.filter((n) => n.kind === 'result' && !reached.has(n.id) && !UNCOVERED.includes(n.id)).map((n) => n.id);
+    expect(missing).toEqual([]);
     for (const id of ['r-outpt', 'r-a01', 'r-b00', 'r-er', 'r-inpatient', 'r-dentist', 'r-free', 'r-review', 'r-us', 'r-ecg', 'r-spiro'])
       expect(reached.has(id), id).toBe(true);
-    expect(reached.size).toBeGreaterThanOrEqual(25);
   });
 });
