@@ -61,15 +61,15 @@ Format: `id` "question" → Yes / No. Result ids start `r-`.
 **Test or scan**
 - `test` "Is the main purpose a test or scan?" → `imgq` / `med`
 - `imgq` "Is it an imaging scan?" → `img` / `scope`
-- `img` "Is it an ultrasound?" → `r-us` (pending: Ultrasonography or Ecography) / `mag`
+- `img` "Is it an ultrasound?" → `r-us` (provisional: Ultrasonography) / `mag`
 - `mag` "Is it a scanner with magnets or a ring (MRI, CT, PET)?" → `mri` / `bb`
 - `mri` "Is it an MRI?" → `r-mri` / `ct`; `ct` "Is it a CT?" → `r-ct` / `r-pet`
 - `bb` "Is it a breast or bone scan?" → `mam` / `xr`; `mam` "Is it a mammogram?" → `r-mam` / `r-bone`; `xr` "Is it a plain X-ray?" → `r-xray` / `r-review`
 - `scope` "Is it a scope (a camera inside the body)?" → `gastro` / `org`
 - `gastro` "Is it a gastroscopy (stomach)?" → `r-gastro` (biopsy on same invoice included) / `cysto`; `cysto` "Is it a cystoscopy (bladder)?" → `r-analysis-cysto` (Analysis, flagged for review) / `r-scopies` (colonoscopy incl. biopsy, other scopes)
 - `org` "Is it a heart, brain, lung, sleep or hearing test?" → `heart` / `bx`
-- `heart` "Is it a heart test?" → `holter` / `brain`; `holter` "Is it a Holter (wearable 24 h monitor)?" → `r-holter` / `ecg`; `ecg` "Is it an electrocardiogram tracing?" → `r-ecg` (pending: ECG or EKG) / `r-cardtest`
-- `brain` "Is it an EEG (brain)?" → `r-eeg` / `lung`; `lung` "Is it a sleep study?" → `r-sleep` / `lung2`; `lung2` "Is it a lung function test?" → `r-spiro` (pending: Spirometry / Pulmonary Function Test) / `aud`; `aud` "Is it a hearing test?" → `r-audio` / `r-review`
+- `heart` "Is it a heart test?" → `holter` / `brain`; `holter` "Is it a Holter (wearable 24 h monitor)?" → `r-holter` / `ecg`; `ecg` "Is it an electrocardiogram tracing?" → `r-ecg` (provisional: ECG) / `r-cardtest`
+- `brain` "Is it an EEG (brain)?" → `r-eeg` / `lung`; `lung` "Is it a sleep study?" → `r-sleep` / `lung2`; `lung2` "Is it a lung function test?" → `r-spiro` (Spirometry / Pulmonary Function Test, one entry) / `aud`; `aud` "Is it a hearing test?" → `r-audio` / `r-review`
 - `bx` "Is it a biopsy (tissue sample)?" → `r-biopsy` / `lab`; `lab` "Is it a lab analysis of a sample (blood, urine, Pap smear…)?" → `r-analysis` / `r-review`
 
 **Medicine or treatment**
@@ -83,9 +83,13 @@ Format: `id` "question" → Yes / No. Result ids start `r-`.
 **Review**
 - `r-review` "Needs manual review": no matching code, no generic fallback; send to team lead. Also covers EMG, blood transfusion, oxygen therapy (backlog 8/9).
 
-## Pending (not decided, kept visible)
+## Pending rules — Ruling (mine, user delegated 2026-11-05)
 
-Ultrasonography vs Ecography; ECG vs EKG; Spirometry vs PFT; all numeric codes except A01/B01/B00/C12; other-country check-ups; Check-up code. Each pending result names both candidate codes and says the rule is not yet defined.
+No dead ends: each unresolved pair gets a **provisional default**, shown as a `warning` result that names the alternative and says the business rule is not yet defined, so staff can confirm with their team lead.
+- Ultrasound -> **Ultrasonography** (alternative: Ecography).
+- Electrocardiogram -> **ECG** (alternative: EKG).
+- Lung function test -> one catalog entry "Spirometry / Pulmonary Function Test"; detail says to use whichever matches the invoice wording if the master list has two codes.
+Cost if wrong: an invoice coded with the sibling code until the user supplies the rule; change is one node's text. Still open: all numeric codes except A01/B01/B00/C12; other-country check-ups; Check-up code.
 
 ## Left to builder
 

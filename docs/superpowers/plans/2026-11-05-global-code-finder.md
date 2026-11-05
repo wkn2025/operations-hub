@@ -15,7 +15,7 @@
 - Every `question` node has **exactly 2 options**, labels exactly `Yes` then `No` (index 0 = Yes, 1 = No).
 - `text` ≤ 400, `detail` ≤ 1000 chars (`FLOW_LIMITS`); ≤ 200 nodes; `validateFlow` returns `ok` with no errors.
 - Known numbers only: **A01** Consultation, **B01** ER, **B00** Inpatient Physician Fees, **C12** Inpatient Treatment. Result `text` = `"A01 · Consultation"`; all other codes `"<Name> · code TBC"`. Never invent another number.
-- Unresolved rules (Ultrasonography/Ecography, ECG/EKG, Spirometry/PFT) are `warning` results naming **both** codes, never a silent pick.
+- Unresolved rules use the spec's provisional defaults (`r-us` Ultrasonography, `r-ecg` ECG, `r-spiro` Spirometry / Pulmonary Function Test): `warning` severity, detail names the alternative code and says the rule is not yet defined.
 - Result `severity`: `success` for a code, `warning` for pending-rule and manual review, `info` for Free Choice.
 - Flow title exactly `Global Code Finder (DEMO)`; `articleSlug: 'global-codes-for-invoice-processing'`.
 - Do not touch the pre-existing uncommitted change in `apps/server/test/seed.test.ts` other than the one count assertion in Task 1; stage with `git add -p` / only your hunks.
@@ -25,7 +25,7 @@
 
 - A node unreachable from `multi`, or a question path that can't reach a result (typo'd target id) → reachability test.
 - A result reachable that is just the placeholder name with no reason (Task 2) → every result has non-empty `detail`.
-- A pending-rule result naming only one candidate code → test asserts both names.
+- A provisional result that hides its alternative → test asserts the alternative name appears.
 - A made-up code number leaking into result text → regex test allows only A01/B01/B00/C12.
 - Re-running the seed twice must not duplicate or fail (4 flows) → existing idempotency tests updated, not skipped.
 
@@ -73,7 +73,7 @@
 **Interfaces:**
 - Consumes: Task 1 `GLOBAL_CODE_FLOW` (result ids as in the spec).
 
-- [ ] **Step 1: Failing tests:** (a) every `r-` node has non-empty `detail` and `text`/`detail` within `FLOW_LIMITS`; (b) the only `/\b[A-Z]\d{2}\b/` matches in any result text/detail are within {A01, B01, B00, C12}; `r-a01` text starts `A01 ·`, `r-er` `B01 ·`, `r-b00` `B00 ·`, `r-inpatient` `C12 ·`; (c) `r-us`, `r-ecg`, `r-spiro` have severity `warning` and `detail` containing both names (`Ultrasonography`+`Ecography`, `ECG`+`EKG`, `Spirometry`+`Pulmonary Function Test`); `r-review` is `warning`, `r-free` is `info`, all others `success`; (d) `r-a01` detail mentions US routine check-up and medical certificate; `r-analysis-cysto` detail says cystoscopy is Analysis and flagged for review; `r-er` detail mentions ER-with-surgery rule and that included tests/dressings stay ER.
+- [ ] **Step 1: Failing tests:** (a) every `r-` node has non-empty `detail` and `text`/`detail` within `FLOW_LIMITS`; (b) the only `/\b[A-Z]\d{2}\b/` matches in any result text/detail are within {A01, B01, B00, C12}; `r-a01` text starts `A01 ·`, `r-er` `B01 ·`, `r-b00` `B00 ·`, `r-inpatient` `C12 ·`; (c) `r-us`, `r-ecg`, `r-spiro` have severity `warning`; `r-us` text starts `Ultrasonography` and detail names `Ecography`; `r-ecg` starts `ECG` and names `EKG`; `r-spiro` text is `Spirometry / Pulmonary Function Test · code TBC`; all three details say the rule is not yet defined; `r-review` is `warning`, `r-free` is `info`, all others `success`; (d) `r-a01` detail mentions US routine check-up and medical certificate; `r-analysis-cysto` detail says cystoscopy is Analysis and flagged for review; `r-er` detail mentions ER-with-surgery rule and that included tests/dressings stay ER.
 - [ ] **Step 2: Run** → FAIL.
 - [ ] **Step 3: Write each result's `detail`** (reason + rule applied + one example) from reference §4 tables and §5 rows; plain, short sentences; one example per result. `r-review` detail: no matching code, no generic fallback, send to team lead (EMG, blood transfusion, oxygen therapy are unmapped).
 - [ ] **Step 4: Run** `npm test -w apps/server` → pass.
@@ -82,7 +82,7 @@
 ### Task 3: Verify, look, hand off
 
 **Files:**
-- Modify: `HANDOFF.md` (status, tests, next action, branch `feat/global-code-finder`, open items: numeric codes TBC, 3 pending rules)
+- Modify: `HANDOFF.md` (status, tests, next action, branch `feat/global-code-finder`, open items: numeric codes TBC, 3 provisional rules)
 - Modify: `.superpowers/sdd/…/progress.md` ledger line (git-ignored)
 
 - [ ] **Step 1:** `npm test` → exit 0, record counts. `npm run build` → exit 0. `npx playwright test` → all pass (22 expected).
