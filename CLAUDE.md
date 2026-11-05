@@ -58,7 +58,7 @@ Run the relevant suite before every completion claim. Full `npm test` + `npm run
 - **Files:** uuid names under `DATA_DIR/uploads`, magic-byte sniffing, allowlist, no SVG/HTML upload, 15 MB, nosniff + restrictive CSP.
 - **Errors:** non-`ApiError` → `{error:'internal'}` 500, never a stack.
 - **DB:** never edit an existing migration; generate a new one. Migrations auto-apply on boot.
-- **Seed:** extend `seed/base.ts` + `seed/content/*`, never replace; idempotent; refuses production/OIDC without `--force-demo`. All sample content clearly labelled DEMO.
+- **Seed:** extend `seed/base.ts` + `seed/content/*`, never replace; idempotent; refuses production/OIDC without `--force-demo`. Sample content clearly labelled DEMO. Exception (user ruling 2026-11-05): the EDI & Automation articles are real procedure, not DEMO; the seed may delete retired seed-owned articles by title (`DELETED_TITLES`).
 
 ## UI conventions
 
