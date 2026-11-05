@@ -189,12 +189,26 @@ describe('Global Code Finder wording', () => {
     expect(det('r-a01')).toMatch(/medical certificate/);
     expect(det('r-analysis-cysto')).toMatch(/[Cc]ystoscopy is Analysis/);
     expect(det('r-analysis-cysto')).toMatch(/flagged for review/);
-    expect(det('r-er')).toMatch(/surgery/);
+    expect(det('r-er')).toMatch(/surgery[^.]*stays ER/i);
+    expect(det('r-er')).not.toMatch(/Forfait/);
     expect(det('r-er')).toMatch(/tests.*dressings|dressings.*tests/);
     expect(det('r-er')).toMatch(/stay ER/);
     expect(det('r-review')).toMatch(/no generic fallback/);
     expect(det('r-review')).toMatch(/team lead/);
     for (const w of ['EMG', 'blood transfusion', 'oxygen therapy']) expect(det('r-review')).toMatch(w);
+  });
+
+  it('details stay short and use reference wording', () => {
+    const sentencesBeforeExample = (id: string) => det(id).split('Example:')[0].trim().split(/(?<=\.)\s+/).length;
+    for (const id of ['r-er', 'r-a01']) expect(sentencesBeforeExample(id), id).toBeLessThanOrEqual(3);
+    expect(det('r-cardtest')).not.toMatch(/stress/);
+    expect(det('r-cardtest')).toMatch(/Example: a heart test that is not an ECG, EKG or Holter/);
+    expect(det('r-medfees')).toMatch(/Example: nursing service bill/);
+    expect(det('r-medfees')).not.toMatch(/home/);
+    for (const id of ['r-bone', 'r-sleep']) {
+      expect(det(id), id).toMatch(/confirm the exact name with your team lead/);
+      expect(det(id), id).not.toMatch(/master-list/);
+    }
   });
 
   it('question details guide bundled invoices and edge cases', () => {
@@ -205,6 +219,9 @@ describe('Global Code Finder wording', () => {
       expect(det(id), id).toMatch(/surgery/);
       expect(det(id), id).toMatch(/highest value/);
     }
+    expect(det('multi')).toMatch(/one visit or stay/);
+    expect(det('multi')).toMatch(/answer Yes here and Yes to "main reason"/);
+    expect(det('main')).toMatch(/one visit or stay/);
     expect(det('svc')).toMatch(/transport/);
     expect(det('svc')).toMatch(/fee only/);
     for (const id of ['scope', 'lab']) {
