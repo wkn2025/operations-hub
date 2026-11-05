@@ -6,6 +6,7 @@ import { ARTICLE_TYPES, PM_NODES, PM_MARKS, type PmNode } from '@ops/shared';
 import { setup, type Ctx } from './helpers';
 import { seedDemo, CATEGORY_TREE } from '../src/seed/base';
 import { SEED_ARTICLES } from '../src/seed/content/articles';
+import { AMERICAS_BANKS } from '../src/seed/content/bank-americas';
 
 const REIMB = 'Reimbursement: from document intake to proof of payment';
 const RETIRED = ['Approve a claim for payment', 'Process a member reimbursement', 'Send a medical records request',
@@ -331,6 +332,101 @@ describe('Global codes for invoice processing', () => {
 
   it('search finds it by title and by code', async () => {
     for (const q of ['global codes', 'B01', 'C12']) {
+      const r = await c.req(c.viewer, 'GET', `/api/search?q=${encodeURIComponent(q)}`);
+      const titles = (r.body.groups as { hits: { title: string }[] }[]).flatMap((g) => g.hits.map((h) => h.title));
+      expect(titles, q).toContain(TITLE);
+    }
+  });
+});
+
+describe('Bank details for international wires: Americas', () => {
+  const TITLE = 'Bank details for international wires: Americas';
+  const text = (n: PmNode) => { let t = ''; walk(n, (x) => { if (x.text) t += x.text; }); return t; };
+  type Sec = { title: string; node: PmNode; rows: string[][]; request: string; text: string };
+  let row: { content: string; status: string; category_id: string; content_text: string };
+  let secs: Sec[] = [];
+  const sec = (start: string) => secs.find((s) => s.title.startsWith(start))!;
+  beforeAll(() => {
+    row = all<typeof row>('select content, status, category_id, content_text from articles where title = ?', TITLE)[0]!;
+    const doc = JSON.parse(row.content) as PmNode;
+    secs = doc.content!.filter((n) => n.type === 'collapsible').map((node) => {
+      const rows: string[][] = [];
+      walk(node, (n) => { if (n.type === 'tableRow') rows.push(n.content!.map(text)); });
+      let request = '';
+      walk(node, (n) => { if (n.type === 'codeBlock') request = text(n); });
+      return { title: String(node.attrs!.title), node, rows, request, text: text(node) };
+    });
+  });
+
+  it('is published and DEMO-labelled in Finance / Bank information', () => {
+    expect(row.status).toBe('published');
+    const cat = all<{ name: string; parent: string }>('select c.name, p.name parent from categories c join categories p on p.id = c.parent_id where c.id = ?', row.category_id)[0];
+    expect(cat).toEqual({ name: 'Bank information', parent: 'Finance & Payment Processing' });
+    expect(row.content).toContain('DEMO content');
+    expect(row.content).toContain('Last checked: 2026-11-04');
+    expect(row.content_text.length).toBeLessThan(500_000);
+  });
+
+  it('has one collapsible per entry, A to Z, territories labelled', () => {
+    expect(AMERICAS_BANKS).toHaveLength(55);
+    expect(secs).toHaveLength(55);
+    const titles = secs.map((s) => s.title);
+    expect(titles).toEqual([...titles].sort((x, y) => x.localeCompare(y, 'en')));
+    for (const t of ['Brazil', 'Mexico', 'Barbados', 'Puerto Rico (territory of the United States)', 'Curaçao (territory of the Netherlands)', 'Greenland (territory of Denmark)'])
+      expect(titles, t).toContain(t);
+  });
+
+  it('Brazil, Mexico and Barbados carry their key fields and a request in the local language', () => {
+    const br = sec('Brazil');
+    expect(br.rows.some((r) => r[0] === 'IBAN')).toBe(true);
+    expect(br.rows.some((r) => r[0]!.startsWith('CPF / CNPJ'))).toBe(true);
+    expect(br.request).toMatch(/Prezados/);
+    expect(br.request).toMatch(/dados bancários/);
+    const mx = sec('Mexico');
+    expect(mx.rows.find((r) => r[0] === 'CLABE')?.[1]).toBe('18 digits');
+    expect(mx.request).toMatch(/Estimados/);
+    expect(mx.request).toMatch(/datos bancarios/);
+    expect(sec('Barbados').request).toMatch(/Dear .*\n[\s\S]*bank details/);
+    expect(sec('Haiti').request).toMatch(/coordonnées bancaires/);
+    expect(sec('Suriname').request).toMatch(/bankgegevens/);
+    expect(sec('Greenland').request).toMatch(/bankoplysninger/);
+  });
+
+  it('lists every field in the table and in the request; unconfirmed fields are never "Required"', () => {
+    for (const e of AMERICAS_BANKS) {
+      const s = secs.find((x) => x.title.startsWith(e.name))!;
+      expect(s, e.name).toBeDefined();
+      expect(s.rows.length - 1, e.name).toBe(e.fields.length);
+      expect(s.request.split('\n').filter((l) => l.startsWith('- ')).length, e.name).toBe(e.fields.length);
+      for (const f of e.fields) {
+        const r = s.rows.find((x) => x[0] === f.label)!;
+        expect(r, `${e.name} ${f.label}`).toBeDefined();
+        if (f.confidence === 'unconfirmed') { expect(r[2]).toBe('Unconfirmed — ask if available'); expect(r[3]).not.toBe(''); }
+        else expect(r[2]).toBe({ required: 'Required', recommended: 'Recommended', 'if available': 'If available' }[f.required]);
+      }
+    }
+  });
+
+  it('applies the controller rulings: ask for both IBAN and account number where sources conflict; sanctions note kept', () => {
+    for (const n of ['Costa Rica', 'Dominican Republic', 'Honduras', 'Nicaragua', 'Saint Lucia']) {
+      const s = sec(n);
+      for (const label of ['IBAN', 'Beneficiary account number']) expect(s.rows.find((r) => r[0] === label)?.[3], `${n} ${label}`).toMatch(/ask for both the IBAN and the account number/i);
+    }
+    expect(sec('Cuba').text).toMatch(/Check compliance before any payment/);
+    expect(sec('Venezuela').text).toMatch(/check compliance before any payment/);
+  });
+
+  it('links every source over https', () => {
+    for (const s of secs) {
+      const hrefs: string[] = [];
+      walk(s.node, (n) => n.marks?.forEach((m) => { if (m.type === 'link') hrefs.push(String(m.attrs!.href)); }));
+      expect(hrefs.length, s.title).toBeGreaterThan(0);
+      for (const h of hrefs) expect(h, s.title).toMatch(/^https:\/\//);
+    }
+  });
+
+  it('search finds it by CLABE and by Brazil', async () => {
+    for (const q of ['CLABE', 'Brazil']) {
       const r = await c.req(c.viewer, 'GET', `/api/search?q=${encodeURIComponent(q)}`);
       const titles = (r.body.groups as { hits: { title: string }[] }[]).flatMap((g) => g.hits.map((h) => h.title));
       expect(titles, q).toContain(TITLE);

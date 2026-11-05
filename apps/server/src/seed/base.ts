@@ -138,7 +138,7 @@ export async function seedBase(app: App) {
     const cur = app.db.select().from(articles).where(eq(articles.id, id)).get()!;
     const tags = (app.sqlite.prepare('select t.name from article_tags x join tags t on t.id = x.tag_id where x.article_id = ? order by t.name').all(id) as { name: string }[]).map((t) => t.name);
     const same = cur.content === JSON.stringify(content) && cur.fields === JSON.stringify(fields) && cur.type === d.type
-      && cur.categoryId === categoryId && (cur.reviewDate ?? undefined) === d.reviewDate && tags.join() === [...d.tags].sort().join();
+      && cur.categoryId === categoryId && (cur.reviewDate ?? undefined) === d.reviewDate && tags.join() === d.tags.map((t) => t.toLowerCase()).sort().join(); // tags are stored lowercased
     if (!same) {
       updateArticle(app, byRole.admin, id, { baseRevision: cur.revision, content, fields, type: d.type, categoryId, tags: d.tags, reviewDate: d.reviewDate ?? null, note: 'seed' });
     }

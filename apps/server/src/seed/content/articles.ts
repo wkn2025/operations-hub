@@ -8,6 +8,7 @@ import { QA_ARTICLES } from './articles-qa';
 import { NETWORK_FINANCE_ARTICLES } from './articles-network-finance';
 import { SYSTEMS_ARTICLES } from './articles-systems';
 import { GLOSSARY_ARTICLES } from './articles-glossary';
+import { BANK_ARTICLES } from './articles-bank';
 
 /**
  * Seed article definitions. Extension point: add entries to a domain file (articles-*.ts) or a new file listed in SEED_ARTICLES.
@@ -231,5 +232,5 @@ const CORE_ARTICLES: SeedArticle[] = [
 
 export const SEED_ARTICLES: SeedArticle[] = [
   ...CORE_ARTICLES, ...EDI_ARTICLES, ...CLIENT_ARTICLES, ...CLIENT_TERMS_ARTICLES, ...CLAIMS_ARTICLES,
-  ...QA_ARTICLES, ...NETWORK_FINANCE_ARTICLES, ...SYSTEMS_ARTICLES, ...GLOSSARY_ARTICLES,
+  ...QA_ARTICLES, ...NETWORK_FINANCE_ARTICLES, ...SYSTEMS_ARTICLES, ...GLOSSARY_ARTICLES, ...BANK_ARTICLES,
 ];

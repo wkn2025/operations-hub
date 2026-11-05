@@ -19,6 +19,14 @@ describe('pm-text', () => {
     expect(extractLinkIds(d)).toEqual(['x']);
     expect(extractText(null as any)).toBe('');
   });
+  it('indexes collapsible and step titles', () => {
+    const t = extractText({ type: 'doc', content: [
+      { type: 'collapsible', attrs: { title: 'Brazil' }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }] },
+      { type: 'steps', content: [{ type: 'step', attrs: { title: 'Verify by phone' }, content: [{ type: 'paragraph' }] }] },
+    ] });
+    expect(t).toContain('Brazil');
+    expect(t).toContain('Verify by phone');
+  });
 });
 
 describe('articles', () => {
