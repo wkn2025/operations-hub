@@ -42,4 +42,5 @@ export const table = (head: string[], ...rows: Inline[][]): PmNode => ({
 export const shot = (seedFile: string, alt: string, caption?: string): PmNode =>
   ({ type: 'image', attrs: { seedFile, alt, ...(caption ? { title: caption } : {}) } });
 
-export const demo = () => callout('info', 'DEMO content', p('Illustrative example for the Operations Hub demo. Names, clients, limits and figures are fictional.'));
+export const demo = (text = 'Illustrative example for the Operations Hub demo. Names, clients, limits and figures are fictional.') =>
+  callout('info', 'DEMO content', p(text));

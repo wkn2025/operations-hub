@@ -301,10 +301,32 @@ describe('Global codes for invoice processing', () => {
     expect(cat).toEqual({ name: 'Global codes', parent: 'Finance & Payment Processing' });
     expect(row.content).toContain('DEMO content');
     for (const s of ['A01', 'B01', 'B00', 'C12', 'purpose of the visit']) expect(row.content, s).toContain(s);
+    const text = (n: PmNode) => { let t = ''; walk(n, (x) => { if (x.text) t += x.text; }); return t; };
+    const doc = JSON.parse(row.content) as PmNode;
     const rows: string[][] = [];
-    walk(JSON.parse(row.content), (n) => { if (n.type === 'tableRow') rows.push(n.content!.map((cell) => JSON.stringify(cell).match(/"text":"([^"]*)"/)?.[1] ?? '')); });
-    for (const name of ['Specialist consultation', 'Dentist', 'Laboratory examinations', 'MRI', 'CT scan', 'X-ray'])
-      expect(rows.some((r) => r[0] === 'TBC' && r[1] === name), name).toBe(true);
+    walk(doc, (n) => { if (n.type === 'tableRow') rows.push(n.content!.map(text)); });
+    const byCode = (k: string) => rows.find((r) => r[0] === k)!;
+    expect(byCode('A01')[1]).toBe('Consultation');
+    expect(byCode('A01')[2]).toMatch(/urgent care/i);
+    expect(byCode('B01')[1]).toMatch(/Emergency department \(ER\)/);
+    expect(byCode('B00')[1]).toBe('Medical fees');
+    expect(byCode('B00')[2]).toMatch(/only surgeries and operations/i);
+    expect(byCode('B00')[3]).toMatch(/any other doctor fee.*MRI.*not B00/i);
+    expect(byCode('C12')[1]).toBe('Hospitalization');
+    expect(byCode('C12')[3]).toMatch(/routine daily doctor fees.*B00/i);
+    for (const name of ['Specialist consultation', 'Dentist', 'Laboratory examinations', 'MRI', 'CT scan', 'X-ray']) {
+      const r = rows.find((x) => x[0] === 'TBC' && x[1] === name);
+      expect(r, name).toBeDefined();
+      expect(r!.slice(2).every((cell) => cell === '—'), name).toBe(true);
+    }
+    const examples: string[] = [];
+    walk(doc, (n) => { if (n.type === 'listItem') examples.push(text(n)); });
+    const ex = (re: RegExp) => examples.find((e) => re.test(e)) ?? '';
+    expect(ex(/USD 500 ER.*USD 1,500 CT/)).toMatch(/B01/);
+    expect(ex(/urgent care.*X-ray/i)).toMatch(/A01/);
+    expect(ex(/MRI/)).toMatch(/not B00/);
+    expect(ex(/daily doctor visits/)).toMatch(/B00.*C12/);
+    expect(text(doc)).toContain('codes marked TBC are not yet confirmed');
   });
 
   it('search finds it by title and by code', async () => {
