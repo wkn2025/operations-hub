@@ -207,4 +207,18 @@ describe('guided flow builder', () => {
       expect(JSON.parse(String(last![1]!.body)).nodes[1]).toEqual({ id: 'r1', kind: 'result', text: 'Restart the printer', detail: 'Switch off\nWait 10 seconds', severity: 'success', articleId: 'a1' });
     });
   });
+
+  it('an ending linked to an article outside the list still shows that link instead of "No article"', async () => {
+    mockFetch({ '/api/me': me, '/api/flows/f1': { ...view, nodes: [
+      { id: 'q1', kind: 'question', text: 'Is it on?', options: [{ label: 'Yes', to: 'r1' }, { label: 'No', to: 'r1' }] },
+      { id: 'r1', kind: 'result', text: 'Restart', severity: 'success', articleId: 'old' },
+    ] }, '/api/articles/old': { id: 'old', slug: 'old', title: 'Old procedure', type: 'standard', status: 'archived', fields: {}, content: { type: 'doc' } },
+    '/api/articles?': { articles: [], total: 0 } });
+    renderApp(<Routes><Route path="/flows/:id/build" element={<BuildFlow />} /></Routes>, '/flows/f1/build');
+    const map = await screen.findByRole('region', { name: 'Your flow so far' });
+    await userEvent.click(within(map).getAllByRole('button', { name: /Map: change ending Restart/ })[0]!);
+    const pick = await screen.findByLabelText('Related article (optional)');
+    expect(await within(pick).findByRole('option', { name: 'Old procedure (not in the list)' })).toBeInTheDocument();
+    expect(pick).toHaveValue('old');
+  });
 });

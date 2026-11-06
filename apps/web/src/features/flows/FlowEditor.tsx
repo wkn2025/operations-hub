@@ -303,7 +303,7 @@ function Workspace({ initial }: { initial: FlowView }) {
               {tab === 'test' && (
                 <div>
                   <p className="mb-4 text-[13px] text-ink-muted">Runs the flow as readers will see it, using your unsaved edits.</p>
-                  <FlowRunner flow={{ title: draft.title, startId: draft.startId, nodes: saveable(draft).nodes }} keyboard={false} />
+                  <FlowRunner flow={{ title: draft.title, startId: draft.startId, nodes: saveable(draft).nodes, articles: view.articles }} keyboard={false} />
                 </div>
               )}
             </div>
@@ -392,6 +392,7 @@ function NodeCard(c: CardProps) {
           )}
 
           {n.kind === 'article' && <ArticleStepField node={n} onPick={() => { pickTarget.current = n.id; c.onPickArticle(); }} />}
+          {n.kind === 'result' && <ArticleStepField node={n} optional onPick={() => { pickTarget.current = n.id; c.onPickArticle(); }} onClear={() => c.onPatch({ articleId: undefined })} />}
 
           {n.kind === 'question' && (
             <div>
@@ -436,12 +437,14 @@ function NodeCard(c: CardProps) {
   );
 }
 
-function ArticleStepField({ node, onPick }: { node: FlowNode; onPick: () => void }) {
+/** The article a step links to: required for article steps, an optional "related article" for endings. */
+function ArticleStepField({ node, onPick, optional, onClear }: { node: FlowNode; onPick: () => void; optional?: boolean; onClear?: () => void }) {
   const a = useArticle(node.articleId ?? '');
   return (
     <div className="flex items-center gap-3 rounded-[14px] bg-neutral-50 p-3 ring-1 ring-inset ring-neutral-200/70">
       <FileText size={16} className="text-neutral-400" aria-hidden />
-      <span className="min-w-0 flex-1 truncate text-[14px] text-neutral-800">{node.articleId ? (a.data?.title ?? (a.isError ? 'This article is unavailable' : '…')) : 'No article chosen yet'}</span>
+      <span className="min-w-0 flex-1 truncate text-[14px] text-neutral-800">{node.articleId ? (a.data?.title ?? (a.isError ? 'This article is unavailable' : '…')) : optional ? 'No related article (optional)' : 'No article chosen yet'}</span>
+      {node.articleId && onClear && <button type="button" onClick={onClear} className="rounded-[10px] px-2.5 py-1.5 text-[13px] font-medium text-neutral-600 hover:bg-neutral-100">Remove</button>}
       <button type="button" onClick={onPick} className="rounded-[10px] px-2.5 py-1.5 text-[13px] font-medium text-primary hover:bg-primary-soft">{node.articleId ? 'Change article' : 'Choose article'}</button>
     </div>
   );

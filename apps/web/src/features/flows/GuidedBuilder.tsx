@@ -5,7 +5,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import clsx from 'clsx';
 import { ArrowLeft, ArrowRight, CircleHelp, Undo2, Lock, FileText, Flag, Info, Play, Plus, Send, Sparkles, TriangleAlert, Trophy, Upload, X, CircleCheck } from 'lucide-react';
 import { validateFlow, type Flow, type FlowNode, type FlowNodeKind, type FlowOption, type FlowSeverity } from '@ops/shared';
-import { api, fetchArticles, HttpError, isEditorRole, useSession, type ArticleSummary, type FlowView } from '../../api/client';
+import { api, fetchArticles, HttpError, isEditorRole, useArticle, useSession, type ArticleSummary, type FlowView } from '../../api/client';
 import { Button } from '../../components/ui/primitives';
 import { ErrorState } from '../../components/ui/ErrorState';
 import { NotFound } from '../../pages/NotFound';
@@ -409,6 +409,8 @@ function Ending({ node, editing, onDone, extra }: { node: FlowNode; editing?: bo
 function ArticleSelect({ value, onChange }: { value: string; onChange: (id: string) => void }) {
   // ponytail: first 200 published articles (API page cap); a search picker if the hub outgrows that
   const q = useQuery({ queryKey: ['articles', 'flow-links'], queryFn: () => fetchArticles({ status: 'published', sort: 'title', limit: 200 }), staleTime: 60_000 });
+  // a link to an article outside the list (archived, draft, beyond the first 200) stays visible and can be removed
+  const current = useArticle(value && q.data && !q.data.articles.some((a) => a.id === value) ? value : '');
   const groups = new Map<string, ArticleSummary[]>();
   for (const a of q.data?.articles ?? []) {
     const top = a.categoryPath.split(' / ')[0] || 'Uncategorised';
@@ -419,11 +421,12 @@ function ArticleSelect({ value, onChange }: { value: string; onChange: (id: stri
       <label htmlFor="ending-article" className="text-[13px] font-medium text-neutral-700">Related article (optional)</label>
       <select id="ending-article" value={value} onChange={(e) => onChange(e.target.value)} className={clsx(field, 'mt-1.5 text-[15px]')}>
         <option value="">{q.isPending ? 'Loading articles…' : 'No article'}</option>
+        {value && !q.data?.articles.some((a) => a.id === value) && <option value={value}>{current.data?.title ?? 'Current article'} (not in the list)</option>}
         {[...groups].sort(([a], [b]) => a.localeCompare(b)).map(([top, list]) => (
           <optgroup key={top} label={top}>{list.map((a) => <option key={a.id} value={a.id}>{a.title}</option>)}</optgroup>
         ))}
       </select>
-      {q.isError && <p role="alert" className="mt-1.5 text-xs text-danger">Couldn’t load the article list. You can link one later.</p>}
+      {q.isError && <p role="alert" className="mt-1.5 text-xs text-danger">Couldn’t load the article list. Any article already linked stays linked.</p>}
     </div>
   );
 }
