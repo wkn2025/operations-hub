@@ -12,7 +12,7 @@ export interface PathStep { nodeId: string; answer?: string }
 
 const missing = (n: FlowNode): Task['kind'] | null =>
   !n.text.trim() ? (n.kind === 'question' ? 'question' : n.kind) // a blank result/article: write it
-  : n.kind === 'question' && (n.options ?? []).length < 2 ? 'answers'
+  : n.kind === 'question' && ((n.options ?? []).length < 2 || n.options!.some((o) => !o.label.trim())) ? 'answers'
   : n.kind === 'article' && !n.articleId ? 'article'
   : null;
 
@@ -45,13 +45,33 @@ export function chooseNext(flow: Flow, nodeId: string, option: number, kind: Flo
   return { id, flow: kind === 'result' ? { ...r.flow, nodes: r.flow.nodes.map((n) => (n.id === id ? { ...n, severity: 'success' as const } : n)) } : r.flow };
 }
 
-/** Finished endings vs. paths still open (answers going nowhere + steps not filled in), for the progress bar. */
+/** Steps reachable from the start (the only ones a reader can ever see). */
+function reachable(flow: Flow) {
+  const byId = new Map(flow.nodes.map((n) => [n.id, n])), seen = new Set<string>(), stack = [flow.startId];
+  while (stack.length) {
+    const id = stack.pop()!;
+    if (seen.has(id) || !byId.has(id)) continue;
+    seen.add(id);
+    for (const o of byId.get(id)!.options ?? []) if (o.to) stack.push(o.to);
+  }
+  return [...seen].map((id) => byId.get(id)!);
+}
+
+/** Finished endings vs. things still to do on reachable steps (blank steps + answers going nowhere), for the progress bar. */
 export function progress(flow: Flow) {
   let done = 0, open = 0;
-  for (const n of flow.nodes) {
+  for (const n of reachable(flow)) {
     open += (n.options ?? []).filter((o) => !o.to).length;
-    if (n.kind === 'question') continue;
-    if (missing(n)) open++; else done++;
+    if (missing(n)) open++;
+    else if (n.kind !== 'question') done++;
   }
   return { done, open };
+}
+
+/** "Choose something else": drop a step that has nothing after it and reopen the answers that led to it. */
+export function undoChoice(flow: Flow, id: string): Flow {
+  return {
+    ...flow,
+    nodes: flow.nodes.filter((n) => n.id !== id).map((n) => (n.options?.some((o) => o.to === id) ? { ...n, options: n.options.map((o) => (o.to === id ? { ...o, to: '' } : o)) } : n)),
+  };
 }

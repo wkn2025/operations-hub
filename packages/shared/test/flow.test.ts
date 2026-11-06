@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { back, goTo, restart, start, step, validateFlow, EDI_EXAMPLE, MAX_STEPS, type Flow } from '../src/flow';
+import { back, goTo, restart, start, step, validateFlow, EDI_EXAMPLE, INCOMPLETE_CODES, MAX_STEPS, type Flow } from '../src/flow';
 
 const q = (id: string, ...to: string[]) => ({ id, kind: 'question' as const, text: `Question ${id}?`, options: to.map((t, i) => ({ label: `Option ${i + 1}`, to: t })) });
 const res = (id: string) => ({ id, kind: 'result' as const, text: `Result ${id}` });
@@ -24,6 +24,11 @@ describe('validateFlow', () => {
     expect(errs(flow([q('a', 'b'), res('b')]))).toMatch(/at least 2/i);
     expect(errs(flow([{ ...q('a', 'b', 'b'), options: [{ label: ' ', to: 'b' }, { label: 'x', to: 'b' }] }, res('b')]))).toMatch(/empty label/i);
     expect(errs(flow([{ id: 'a', kind: 'question', text: 'x' }, res('b')]))).toMatch(/dead end/i);
+  });
+  it('an answer that does not lead anywhere yet is an "incomplete" error (draft may keep it), not an unknown target', () => {
+    const v = validateFlow(flow([q('a', 'b', ''), res('b')]));
+    expect(v.issues.map((i) => i.code)).toEqual(['open_answer']);
+    expect(INCOMPLETE_CODES).toContain('open_answer');
   });
   it('rejects options on results/articles and articles without articleId', () => {
     expect(errs(flow([{ ...res('a'), options: [{ label: 'x', to: 'a' }] }]))).toMatch(/must not have options/i);

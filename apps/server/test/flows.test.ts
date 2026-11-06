@@ -69,13 +69,18 @@ describe('flows API', () => {
     const ok = await c.req(c.editor, 'PATCH', `/api/flows/${f.id}`, { baseRevision: 1, nodes: wip, startId: 'a' });
     expect(ok.status).toBe(200);
     expect(ok.body.validation.ok).toBe(false); // one answer only: flagged, not blocked
+    const open = [{ id: 'a', kind: 'question', text: 'Start?', options: [{ label: 'Yes', to: 'r' }, { label: 'No', to: '' }] }, { id: 'r', kind: 'result', text: 'Done' }];
+    const kept = await c.req(c.editor, 'PATCH', `/api/flows/${f.id}`, { baseRevision: 2, nodes: open, startId: 'a' });
+    expect(kept.status).toBe(200); // an answer not routed yet survives a reload (guided builder)
+    expect(kept.body.nodes[0].options).toEqual([{ label: 'Yes', to: 'r' }, { label: 'No', to: '' }]);
+    expect((await c.req(c.editor, 'POST', `/api/flows/${f.id}/publish`)).status).toBe(422);
     const dangling = [{ id: 'a', kind: 'question', text: 'Q?', options: [{ label: 'x', to: 'nope' }, { label: 'y', to: 'r' }] }, { id: 'r', kind: 'result', text: 'Done' }];
-    const bad = await c.req(c.editor, 'PATCH', `/api/flows/${f.id}`, { baseRevision: 2, nodes: dangling, startId: 'a' });
+    const bad = await c.req(c.editor, 'PATCH', `/api/flows/${f.id}`, { baseRevision: 3, nodes: dangling, startId: 'a' });
     expect(bad.status).toBe(422);
     expect(bad.body.errors.join()).toMatch(/nope/);
     const loop = [{ id: 'a', kind: 'question', text: 'A?', options: [{ label: 'x', to: 'b' }, { label: 'y', to: 'b' }] }, { id: 'b', kind: 'question', text: 'B?', options: [{ label: 'x', to: 'a' }, { label: 'y', to: 'a' }] }];
-    expect((await c.req(c.editor, 'PATCH', `/api/flows/${f.id}`, { baseRevision: 2, nodes: loop, startId: 'a' })).status).toBe(422);
-    expect((await c.req(c.editor, 'PATCH', `/api/flows/${f.id}`, { baseRevision: 2, nodes: [{ id: 'a', kind: 'bogus', text: 'x' }] })).status).toBe(400);
+    expect((await c.req(c.editor, 'PATCH', `/api/flows/${f.id}`, { baseRevision: 3, nodes: loop, startId: 'a' })).status).toBe(422);
+    expect((await c.req(c.editor, 'PATCH', `/api/flows/${f.id}`, { baseRevision: 3, nodes: [{ id: 'a', kind: 'bogus', text: 'x' }] })).status).toBe(400);
     expect((await c.req(c.editor, 'POST', '/api/flows', { title: 'dup', nodes: [{ id: 'a', kind: 'result', text: 'x' }, { id: 'a', kind: 'result', text: 'y' }], startId: 'a' })).status).toBe(422);
   });
 

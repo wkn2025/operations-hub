@@ -65,12 +65,44 @@ describe('guided flow builder', () => {
       { id: 'r1', kind: 'result', text: 'Fine', severity: 'success' },
     ] } });
     renderApp(<Routes><Route path="/flows/:id/build" element={<BuildFlow />} /></Routes>, '/flows/f1/build');
-    await userEvent.click(await screen.findByRole('button', { name: 'Is it on?' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Change question: Is it on?' }));
     const input = await screen.findByLabelText('Question');
     await userEvent.clear(input);
     await userEvent.type(input, 'Is the printer on?');
     await userEvent.click(screen.getByRole('button', { name: /Done/ }));
     expect(await screen.findByRole('heading', { name: /When they answer No/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Is the printer on?' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Change question: Is the printer on?' })).toBeInTheDocument();
+  });
+
+  it('a reloaded half-built flow carries on where it stopped, and a wrong choice can be taken back', async () => {
+    const fetch = mockFetch({ '/api/me': me, '/api/flows/f1': { ...view, nodes: [
+      { id: 'q1', kind: 'question', text: 'Laser or inkjet?', options: [{ label: 'Laser', to: 'r1' }, { label: 'Inkjet', to: '' }] },
+      { id: 'r1', kind: 'result', text: 'Replace toner', severity: 'success' },
+    ] } });
+    renderApp(<Routes><Route path="/flows/:id/build" element={<BuildFlow />} /></Routes>, '/flows/f1/build');
+    expect(await screen.findByRole('heading', { name: /When they answer Inkjet/ })).toBeInTheDocument(); // not asked for answers again
+    await userEvent.click(screen.getByRole('button', { name: /Send them to an article/ }));
+    expect(await screen.findByRole('heading', { name: /Which article/ })).toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    await userEvent.click(screen.getByRole('button', { name: /Choose something else/ }));
+    expect(await screen.findByRole('heading', { name: /When they answer Inkjet/ })).toBeInTheDocument();
+    await waitFor(() => {
+      const last = fetch.mock.calls.filter(([u, i]) => String(u) === '/api/flows/f1' && i?.method === 'PATCH').at(-1);
+      expect(JSON.parse(String(last![1]!.body)).nodes).toEqual([
+        { id: 'q1', kind: 'question', text: 'Laser or inkjet?', options: [{ label: 'Laser', to: 'r1' }, { label: 'Inkjet', to: '' }] },
+        { id: 'r1', kind: 'result', text: 'Replace toner', severity: 'success' },
+      ]); // the open answer is saved, not dropped
+    });
+  });
+
+  it('when every path ends but something else is wrong, it says what instead of hiding Publish', async () => {
+    mockFetch({ '/api/me': me, '/api/flows/f1': { ...view, nodes: [
+      { id: 'q1', kind: 'question', text: 'On?', options: [{ label: 'Yes', to: 'r1' }, { label: 'No', to: 'r1' }] },
+      { id: 'r1', kind: 'result', text: 'Fine', severity: 'success', options: [{ label: 'x', to: 'q1' }] },
+    ] } });
+    renderApp(<Routes><Route path="/flows/:id/build" element={<BuildFlow />} /></Routes>, '/flows/f1/build');
+    expect(await screen.findByRole('heading', { name: /still need fixing/ })).toBeInTheDocument();
+    expect(screen.getByText(/must not have options/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Fix in the advanced editor/ })).toBeInTheDocument();
   });
 });

@@ -35,12 +35,12 @@ export const flowPatchBody = z.object({
 // ---- validation ----
 export type IssueCode =
   | 'no_start' | 'unknown_start' | 'duplicate_id' | 'unknown_target' | 'few_options' | 'empty_label' | 'dead_end' | 'terminal_options'
-  | 'missing_article' | 'empty_text' | 'no_exit' | 'unreachable' | 'limit';
+  | 'missing_article' | 'empty_text' | 'no_exit' | 'unreachable' | 'limit' | 'open_answer';
 export interface FlowIssue { level: 'error' | 'warning'; code: IssueCode; nodeId?: string; message: string }
 export interface FlowValidation { ok: boolean; errors: string[]; warnings: string[]; issues: FlowIssue[] }
 
 /** Errors a draft may still carry ("work in progress"); every other error is rejected even when saving a draft. */
-export const INCOMPLETE_CODES: readonly IssueCode[] = ['no_start', 'few_options', 'empty_label', 'dead_end', 'missing_article', 'empty_text'];
+export const INCOMPLETE_CODES: readonly IssueCode[] = ['no_start', 'few_options', 'empty_label', 'dead_end', 'missing_article', 'empty_text', 'open_answer'];
 
 /** Pure structural + graph validation. Never throws. */
 export function validateFlow(flow: Flow): FlowValidation {
@@ -75,7 +75,8 @@ export function validateFlow(flow: Flow): FlowValidation {
         const label = (o.label ?? '').trim();
         if (!label) add('error', 'empty_label', `${name(n)} has an answer with an empty label.`, n.id);
         else if (label.length > FLOW_LIMITS.label) add('error', 'limit', `An answer label in ${name(n)} is longer than ${FLOW_LIMITS.label} characters.`, n.id);
-        if (!ids.has(o.to)) add('error', 'unknown_target', `Answer "${label || '(empty)'}" of ${name(n)} points to a node that does not exist ("${o.to}").`, n.id);
+        if (!o.to) add('error', 'open_answer', `Answer "${label || '(empty)'}" of ${name(n)} doesn’t lead anywhere yet.`, n.id);
+        else if (!ids.has(o.to)) add('error', 'unknown_target', `Answer "${label || '(empty)'}" of ${name(n)} points to a node that does not exist ("${o.to}").`, n.id);
       }
     } else {
       if (opts.length) add('error', 'terminal_options', `${n.kind === 'result' ? 'Result' : 'Article'} ${name(n)} must not have options.`, n.id);

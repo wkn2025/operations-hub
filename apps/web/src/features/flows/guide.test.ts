@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Flow } from '@ops/shared';
-import { chooseNext, nextTask, progress } from './guide';
+import { chooseNext, nextTask, progress, undoChoice } from './guide';
 
 const base = (nodes: Flow['nodes'], title = 'Printer broken'): Flow => ({ title, startId: 'q1', nodes });
 
@@ -58,5 +58,28 @@ describe('guided builder: progress', () => {
       { id: 'r2', kind: 'result', text: '' },
     ]);
     expect(progress(f)).toEqual({ done: 1, open: 2 });
+  });
+  it('a brand-new flow is not "finished", and steps nobody can reach do not count', () => {
+    expect(progress(base([{ id: 'q1', kind: 'question', text: '' }]))).toEqual({ done: 0, open: 1 });
+    expect(progress(base([
+      { id: 'q1', kind: 'question', text: 'On?', options: [{ label: 'Yes', to: 'r1' }, { label: 'No', to: 'r1' }] },
+      { id: 'r1', kind: 'result', text: 'Fine' }, { id: 'zz', kind: 'result', text: '' },
+    ]))).toEqual({ done: 1, open: 0 });
+  });
+});
+
+describe('guided builder: fixing mistakes', () => {
+  it('an answer with an empty label sends the author back to the answers', () => {
+    const f = base([{ id: 'q1', kind: 'question', text: 'On?', options: [{ label: ' ', to: '' }, { label: 'No', to: '' }] }]);
+    expect(nextTask(f)).toMatchObject({ kind: 'answers', nodeId: 'q1' });
+  });
+  it('"choose something else" removes the new step and reopens the answer', () => {
+    const f = base([
+      { id: 'q1', kind: 'question', text: 'On?', options: [{ label: 'Yes', to: 'a1' }, { label: 'No', to: '' }] },
+      { id: 'a1', kind: 'article', text: '' },
+    ]);
+    const g = undoChoice(f, 'a1');
+    expect(g.nodes.map((n) => n.id)).toEqual(['q1']);
+    expect(nextTask(g)).toMatchObject({ kind: 'branch', nodeId: 'q1', option: 0 });
   });
 });
