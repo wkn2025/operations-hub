@@ -1,4 +1,4 @@
-import type { Flow, FlowNode, FlowNodeKind } from '@ops/shared';
+import type { Flow, FlowNode, FlowNodeKind, FlowOption } from '@ops/shared';
 import { setTarget } from './flowOps';
 
 /** One step of the guided builder: the single thing the author is asked next. */
@@ -122,4 +122,12 @@ export function layout(flow: Flow) {
   };
   if (byId.has(flow.startId)) place(flow.startId, 0, 's');
   return { boxes, edges, cols, rows: leaf };
+}
+
+/** "I mixed up Yes and No": swap where a two-answer question's answers lead (whole branches move; labels stay). */
+export function swapOutcomes(flow: Flow, id: string): Flow {
+  const n = flow.nodes.find((x) => x.id === id);
+  if (n?.options?.length !== 2) return flow;
+  const [a, b] = n.options as [FlowOption, FlowOption];
+  return { ...flow, nodes: flow.nodes.map((x) => (x.id === id ? { ...x, options: [{ ...a, to: b.to }, { ...b, to: a.to }] } : x)) };
 }

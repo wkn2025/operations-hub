@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 import clsx from 'clsx';
-import { CircleHelp, FileText, Flag, Link2, Undo2 } from 'lucide-react';
+import { ArrowLeftRight, CircleHelp, FileText, Flag, Link2, Undo2 } from 'lucide-react';
 import type { Flow, FlowNode } from '@ops/shared';
 import { layout, SLOT, type MapBox, type Task } from './guide';
 
@@ -13,7 +13,7 @@ const x = (b: MapBox) => b.row * U - (bw(b) + GX) / 2, y = (b: MapBox) => b.col 
 const TONE: Record<string, string> = { success: 'bg-success-soft', warning: 'bg-warning-soft', info: 'bg-primary-soft' };
 
 /** The live decision map beside the builder: grows top-down as the author answers, like an n8n canvas turned upright. */
-export function FlowMap({ flow, task, onEdit }: { flow: Flow; task: Task; onEdit?: (nodeId: string) => void }) {
+export function FlowMap({ flow, task, onEdit, onSwap }: { flow: Flow; task: Task; onEdit?: (nodeId: string) => void; onSwap?: (nodeId: string) => void }) {
   const m = useMemo(() => layout(flow), [flow]);
   const byId = useMemo(() => new Map(flow.nodes.map((n) => [n.id, n])), [flow.nodes]);
   const still = useReducedMotion();
@@ -67,6 +67,18 @@ export function FlowMap({ flow, task, onEdit }: { flow: Flow; task: Task; onEdit
                 className="absolute z-10 -translate-x-1/2 -translate-y-1/2 truncate rounded-full bg-white px-2 py-0.5 text-[11.5px] font-medium text-neutral-700 ring-1 ring-neutral-200">
                 {e.label || '…'}<span className="sr-only"> (answer to {byId.get(a.nodeId!)?.text})</span>
               </span>
+            );
+          })}
+          {onSwap && m.boxes.map((b) => {
+            const n = b.kind === 'question' && b.nodeId ? byId.get(b.nodeId) : undefined;
+            if (n?.options?.length !== 2) return null;
+            const [a, c] = n.options;
+            return (
+              <button key={`s-${b.key}`} type="button" onClick={() => onSwap(n.id)} title={`Swap what “${a!.label}” and “${c!.label}” lead to`}
+                aria-label={`Swap ${a!.label} and ${c!.label}: ${n.text}`} style={{ left: x(b) + bw(b) / 2, top: y(b) + H + 4 }}
+                className="absolute z-20 flex h-6 w-6 -translate-x-1/2 items-center justify-center rounded-full bg-white text-neutral-500 shadow-sm ring-1 ring-neutral-200 hover:bg-accent-soft hover:text-primary hover:ring-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+                <ArrowLeftRight size={12} aria-hidden />
+              </button>
             );
           })}
           {m.boxes.map((b) => (

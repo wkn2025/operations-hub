@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Flow } from '@ops/shared';
-import { chooseNext, layout, nextTask, progress, undoChoice } from './guide';
+import { chooseNext, layout, nextTask, progress, swapOutcomes, undoChoice } from './guide';
 
 const base = (nodes: Flow['nodes'], title = 'Printer broken'): Flow => ({ title, startId: 'q1', nodes });
 
@@ -127,5 +127,18 @@ describe('guided builder: the live map', () => {
     ]));
     expect(m.boxes.map((b) => [b.kind, b.row])).toEqual([['question', 0.5], ['open', 0.25]]);
     expect(m.rows).toBe(1);
+  });
+});
+
+describe('guided builder: switching Yes and No', () => {
+  it('swaps where the two answers lead; the labels stay', () => {
+    const f = base([
+      { id: 'q1', kind: 'question', text: 'On?', options: [{ label: 'Yes', to: 'r1' }, { label: 'No', to: 'q2' }] },
+      { id: 'q2', kind: 'question', text: 'Plugged?', options: [{ label: 'Yes', to: 'r1' }, { label: 'No', to: '' }] },
+      { id: 'r1', kind: 'result', text: 'Print' },
+    ]);
+    expect(swapOutcomes(f, 'q1').nodes[0]!.options).toEqual([{ label: 'Yes', to: 'q2' }, { label: 'No', to: 'r1' }]);
+    expect(swapOutcomes(f, 'q2').nodes[1]!.options).toEqual([{ label: 'Yes', to: '' }, { label: 'No', to: 'r1' }]);
+    expect(swapOutcomes(f, 'r1')).toBe(f); // nothing to swap
   });
 });

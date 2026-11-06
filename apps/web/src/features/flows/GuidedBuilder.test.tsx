@@ -221,4 +221,20 @@ describe('guided flow builder', () => {
     expect(await within(pick).findByRole('option', { name: 'Old procedure (not in the list)' })).toBeInTheDocument();
     expect(pick).toHaveValue('old');
   });
+
+  it('Yes and No can be swapped from the map in one click when they were mixed up', async () => {
+    const fetch = mockFetch({ '/api/me': me, '/api/flows/f1': { ...view, nodes: [
+      { id: 'q1', kind: 'question', text: 'Is it on?', options: [{ label: 'Yes', to: 'r1' }, { label: 'No', to: 'r2' }] },
+      { id: 'r1', kind: 'result', text: 'Switch it on', severity: 'warning' },
+      { id: 'r2', kind: 'result', text: 'Print a test page', severity: 'success' },
+    ] } });
+    renderApp(<Routes><Route path="/flows/:id/build" element={<BuildFlow />} /></Routes>, '/flows/f1/build');
+    const map = await screen.findByRole('region', { name: 'Your flow so far' });
+    await userEvent.click(within(map).getByRole('button', { name: 'Swap Yes and No: Is it on?' }));
+    expect(await screen.findByText(/Swapped: what followed “Yes” now follows “No”/)).toBeInTheDocument();
+    await waitFor(() => {
+      const last = fetch.mock.calls.filter(([u, i]) => String(u) === '/api/flows/f1' && i?.method === 'PATCH').at(-1);
+      expect(JSON.parse(String(last![1]!.body)).nodes[0].options).toEqual([{ label: 'Yes', to: 'r2' }, { label: 'No', to: 'r1' }]);
+    });
+  });
 });
