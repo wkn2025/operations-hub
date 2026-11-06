@@ -273,6 +273,12 @@ test('every top-level category (and the sidebar entry for it) has published cont
       await expect(rows.nth(1)).toContainText('Office visit');
       await expect(rows.nth(2)).toContainText('Arm sling');
       await expect(rows.nth(3)).toContainText('No match');
+      await page.keyboard.press('Control+k'); // the top search finds codes too and opens the lookup with that code
+      await page.getByRole('combobox', { name: 'Search' }).fill('z0102');
+      await page.getByRole('option', { name: /Z01\.02/ }).click();
+      await expect(page).toHaveURL(/\?q=Z01\.02$/);
+      await expect(rows).toHaveCount(1);
+      await expect(rows.first()).toContainText('failed vision screening');
       continue;
     }
     expect(arts.filter((a) => topOf(a.categoryId) === t.id).length, t.name).toBeGreaterThan(0);

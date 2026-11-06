@@ -113,4 +113,18 @@ describe('SearchDialog', () => {
     await userEvent.keyboard('{Enter}');
     await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/category/edi-issues'));
   });
+
+  it('code hits open the codes lookup with that code filled in', async () => {
+    mockFetch({
+      '/api/search': { groups: [{ kind: 'code', hits: [{ id: 'Z01.02|ICD-10-CM', title: 'Z01.02', snippet: 'Encounter for examination of eyes and vision following failed vision screening', categoryPath: 'ICD-10-CM' }] }] },
+      '/api/categories': { categories: [{ id: 'k', parentId: null, name: 'Diagnosis & Service codes', slug: 'diagnosis-service-codes', description: null, sortOrder: 0, archived: false, path: 'Diagnosis & Service codes' }] },
+    });
+    renderApp(<SearchProvider><SearchDialog /></SearchProvider>);
+    await userEvent.keyboard('{Control>}k{/Control}');
+    await userEvent.type(screen.getByRole('combobox'), 'z0102');
+    expect(await screen.findByRole('option', { name: /Z01\.02.*failed vision screening/ })).toBeInTheDocument();
+    expect(screen.getByText('Codes')).toBeInTheDocument();
+    await userEvent.keyboard('{Enter}');
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/category/diagnosis-service-codes?q=Z01.02'));
+  });
 });
