@@ -202,7 +202,8 @@ function findCategory(app: App, parent: string | null, name: string) {
 function renameLegacyCategories(app: App) {
   for (const [parent, from, to] of LEGACY_RENAMES) {
     const row = findCategory(app, parent, from);
-    if (!row || findCategory(app, parent, to)) continue;
+    if (!row) continue;
+    if (findCategory(app, parent, to)) { console.warn(`seed: both "${from}" and "${to}" exist under "${parent}"; left as is`); continue; }
     app.db.update(categories).set({ name: to }).where(eq(categories.id, row.id)).run();
     reindexCategorySubtree(app, row.id);
   }
@@ -212,7 +213,7 @@ function moveLegacyCategories(app: App) {
   for (const [from, name, to] of LEGACY_MOVES) {
     const row = findCategory(app, from, name), target = findCategory(app, null, to);
     if (!row || !target || findCategory(app, to, name)) continue;
-    const sortOrder = CATEGORY_TREE.find((t) => t.name === to)!.children.indexOf(name);
+    const sortOrder = Math.max(0, CATEGORY_TREE.find((t) => t.name === to)!.children.indexOf(name)); // retired names are not in the tree
     app.db.update(categories).set({ parentId: target.id, sortOrder }).where(eq(categories.id, row.id)).run();
     reindexCategorySubtree(app, row.id);
   }

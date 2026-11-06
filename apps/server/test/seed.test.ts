@@ -29,7 +29,7 @@ const EDI_REAL: [string, string][] = [
 ];
 /** Country Specifics (2026-11-05): facts given by the user, real procedure, no DEMO label. */
 const COUNTRY_REAL: [string, RegExp[]][] = [
-  ['Barbados: country specifics', [/treating doctor/i, /not the hospital/i, /paid/i]],
+  ['Barbados: country specifics', [/treating doctor/i, /not the hospital/i, /paid/i, /unlike other countries/i]],
   ['Mexico: country specifics', [/US billing office/i, /US prices/i]],
   ['Cuba: country specifics', [/Asistur/, /government/i, /illegal/i]],
 ];
