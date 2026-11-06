@@ -109,12 +109,14 @@ export function layout(flow: Flow) {
     boxes.push(box);
     const opts = n.options ?? [];
     if (!opts.length) { box.row = next(1); cols = Math.max(cols, col + 1); return box.row; }
+    const start = leaf;
     const rows = opts.map((o, i) => {
       const child = `${key}/${i}`;
       edges.push({ from: key, to: child, label: o.label });
       return o.to && byId.has(o.to) ? place(o.to, col + 1, child) : add({ key: child, kind: 'open', from: { nodeId: id, option: i }, col: col + 1 }, next(SLOT));
     });
-    box.row = (rows[0]! + rows.at(-1)!) / 2;
+    leaf = Math.max(leaf, start + 1); // a question is a full step wide even over one narrow "?"
+    box.row = Math.min(Math.max((rows[0]! + rows.at(-1)!) / 2, start + 0.5), leaf - 0.5);
     cols = Math.max(cols, col + 1);
     return box.row;
   };

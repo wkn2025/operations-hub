@@ -121,4 +121,11 @@ describe('guided builder: the live map', () => {
     expect(m.edges.map((e) => e.label)).toEqual(['Yes', 'Yes', 'No', 'No']);
     expect([m.cols, m.rows]).toEqual([3, 2]); // rows = total width in step units
   });
+  it('a question never gets less than a full step of width, even with one narrow "?" under it', () => {
+    const m = layout(base([
+      { id: 'q1', kind: 'question', text: 'On?', options: [{ label: 'Yes', to: '' }] },
+    ]));
+    expect(m.boxes.map((b) => [b.kind, b.row])).toEqual([['question', 0.5], ['open', 0.25]]);
+    expect(m.rows).toBe(1);
+  });
 });

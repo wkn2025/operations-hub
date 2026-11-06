@@ -38,9 +38,10 @@ export function FlowMap({ flow, task, onEdit }: { flow: Flow; task: Task; onEdit
   useEffect(() => {
     const b = m.boxes.find((bx) => bx.key === current), el = box.current;
     if (!b || !el) return;
-    const pad = 20, l = x(b) * k, t = y(b) * k, { scrollLeft: sl, scrollTop: st, clientWidth: cw, clientHeight: ch } = el;
+    const pad = 20, l = x(b) * k, t = (y(b) - GY / 2) * k, { scrollLeft: sl, scrollTop: st, clientWidth: cw, clientHeight: ch } = el;
     const left = l < sl ? l : l + bw(b) * k + pad * 2 > sl + cw ? l + bw(b) * k + pad * 2 - cw : sl;
-    const top = t < st ? t : t + H * k + pad * 2 > st + ch ? t + H * k + pad * 2 - ch : st;
+    const tall = (H + GY / 2) * k; // the box plus its answer label
+    const top = t < st ? t : t + tall + pad * 2 > st + ch ? t + tall + pad * 2 - ch : st;
     if (left !== sl || top !== st) el.scrollTo?.({ left, top, behavior: still ? 'auto' : 'smooth' });
   }, [current, m, still, k]);
   const at = new Map(m.boxes.map((b) => [b.key, b]));
@@ -62,8 +63,8 @@ export function FlowMap({ flow, task, onEdit }: { flow: Flow; task: Task; onEdit
           {m.edges.map((e) => {
             const a = at.get(e.from)!, b = at.get(e.to)!;
             return (
-              <span key={`l-${e.to}`} title={e.label} style={{ left: x(b) + bw(b) / 2, top: y(b) - GY / 3 }}
-                className="absolute z-10 max-w-[140px] -translate-x-1/2 -translate-y-1/2 truncate rounded-full bg-white px-2 py-0.5 text-[11.5px] font-medium text-neutral-700 ring-1 ring-neutral-200">
+              <span key={`l-${e.to}`} title={e.label} style={{ left: x(b) + bw(b) / 2, top: y(b) - GY / 3, maxWidth: bw(b) + GX - 6 }}
+                className="absolute z-10 -translate-x-1/2 -translate-y-1/2 truncate rounded-full bg-white px-2 py-0.5 text-[11.5px] font-medium text-neutral-700 ring-1 ring-neutral-200">
                 {e.label || '…'}<span className="sr-only"> (answer to {byId.get(a.nodeId!)?.text})</span>
               </span>
             );

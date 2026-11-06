@@ -72,6 +72,7 @@ function Builder({ initial }: { initial: FlowView }) {
   const ref = useRef(draft);
   const [focus, setFocus] = useState<string | null>(null); // a question picked from the path to change
   const [reopened, setReopened] = useState<{ nodeId: string; option: number } | null>(null); // after "Choose something else"
+  const editQuestion = (id: string) => { setReopened(null); setFocus(id); };
   const [trying, setTrying] = useState(false);
   const [notice, setNotice] = useState<{ tone: 'error' | 'info'; text: string } | null>(null);
 
@@ -111,7 +112,7 @@ function Builder({ initial }: { initial: FlowView }) {
   const auto = nextTask(draft);
   const back = reopened && byId.get(reopened.nodeId)?.options?.[reopened.option];
   const task: Task = focus && byId.get(focus) ? { kind: 'question', nodeId: focus, path: pathTo(draft, focus) }
-    : back && !back.to && auto.kind !== 'question' && auto.kind !== 'answers' && auto.kind !== 'result' && auto.kind !== 'article'
+    : back && !back.to && (auto.kind === 'branch' || auto.kind === 'done')
       ? { kind: 'branch', nodeId: reopened!.nodeId, option: reopened!.option, path: [...pathTo(draft, reopened!.nodeId).slice(0, -1), { nodeId: reopened!.nodeId, answer: back.label }] }
       : auto;
   const { done, open } = progress(draft);
@@ -160,7 +161,7 @@ function Builder({ initial }: { initial: FlowView }) {
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,520px)_minmax(0,1fr)] lg:items-start">
       <div className="min-w-0 max-w-[720px] lg:max-w-none">
-      {'path' in task && task.path.some((s) => s.answer) && <Trail path={task.path} byId={byId} onEdit={view.permissions.write ? setFocus : undefined} />}
+      {'path' in task && task.path.some((s) => s.answer) && <Trail path={task.path} byId={byId} onEdit={view.permissions.write ? editQuestion : undefined} />}
       {!view.permissions.write && <p role="status" className="mt-5 flex items-center gap-2 rounded-[12px] bg-neutral-100 px-4 py-3 text-sm text-neutral-700"><Lock size={15} aria-hidden /> You can look at this flow but not change it right now (it may need approval or be archived).</p>}
       {autosave.status === 'conflict' && <p role="alert" className="mt-5 flex flex-wrap items-center gap-2 rounded-[12px] bg-warning-soft px-4 py-3 text-sm text-neutral-900">Someone else changed this flow, so your last change wasn’t saved. <button type="button" onClick={() => void reloadLatest()} className="font-medium text-primary underline">Load their version</button></p>}
       {stuck && (
@@ -193,7 +194,7 @@ function Builder({ initial }: { initial: FlowView }) {
             title={<>When they answer <Em>{byId.get(task.nodeId)!.options![task.option]!.label}</Em>, what happens next?</>}>
             <div className="grid gap-3 sm:grid-cols-3">
               {(([['question', CircleHelp, 'Ask another question', 'You need to know more first'], ['result', Flag, 'Give the solution', 'You know what they should do'], ['article', FileText, 'Send them to an article', 'The answer is already written up']]) as [FlowNodeKind, typeof Flag, string, string][]).map(([kind, Icon, label, sub]) => (
-                <button key={kind} type="button" onClick={() => update(chooseNext(ref.current, task.nodeId, task.option, kind).flow)}
+                <button key={kind} type="button" onClick={() => { update(chooseNext(ref.current, task.nodeId, task.option, kind).flow); setReopened(null); }}
                   className="group flex flex-col items-start gap-3 rounded-[18px] bg-white p-5 text-left shadow-sm ring-1 ring-neutral-200 transition hover:-translate-y-0.5 hover:shadow-md hover:ring-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary motion-reduce:transition-none motion-reduce:hover:translate-y-0">
                   <span className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-accent text-primary"><Icon size={20} aria-hidden /></span>
                   <span className="text-[15px] font-semibold text-neutral-900">{label}</span>
@@ -231,7 +232,7 @@ function Builder({ initial }: { initial: FlowView }) {
         )}
       </Stage>}
       </div>
-      <div className="min-w-0 lg:sticky lg:top-[96px] lg:mt-5"><FlowMap flow={draft} task={task} onEdit={view.permissions.write ? setFocus : undefined} /></div>
+      <div className="min-w-0 lg:sticky lg:top-[96px] lg:mt-5"><FlowMap flow={draft} task={task} onEdit={view.permissions.write ? editQuestion : undefined} /></div>
       </div>
     </div>
   );
