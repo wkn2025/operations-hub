@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { ARTICLE_TYPES, PM_NODES, PM_MARKS, type PmNode } from '@ops/shared';
+import { AMERICAS, ARTICLE_TYPES, PM_NODES, PM_MARKS, type PmNode } from '@ops/shared';
 import { setup, type Ctx } from './helpers';
 import { seedDemo, CATEGORY_TREE } from '../src/seed/base';
 import { SEED_ARTICLES } from '../src/seed/content/articles';
@@ -169,8 +169,12 @@ describe('Country Specifics', () => {
       expect(a!.category).toBe('Work Instructions / Country Specifics');
       const text = JSON.stringify(a!.content);
       for (const re of facts) expect(text, `${title}: ${re}`).toMatch(re);
+      expect(a!.fields).toMatchObject({ country: title.split(':')[0], countryDoc: 'specifics' });
     });
   }
+  it('the shared Americas list matches the bank information countries and territories', () => {
+    expect([...AMERICAS].sort()).toEqual(AMERICAS_BANKS.map((x) => x.name).sort());
+  });
 });
 
 describe('client directory', () => {

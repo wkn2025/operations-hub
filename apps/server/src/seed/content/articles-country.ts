@@ -19,7 +19,7 @@ export const COUNTRY_ARTICLES: SeedArticle[] = [
     owner: 'admin',
     tags: ['barbados', 'caribbean', 'medical report', 'country specifics'],
     reviewDate: '2027-05-01',
-    fields: { summary: 'Medical reports are obtained directly from the treating doctor, not the hospital, and they are paid, unlike in other countries.' },
+    fields: { country: 'Barbados', countryDoc: 'specifics', summary: 'Medical reports are obtained directly from the treating doctor, not the hospital, and they are paid, unlike in other countries.' },
     content: [
       callout('warning', 'Country rule: medical reports',
         p('In Barbados, medical reports are obtained ', b('directly from the treating doctor'), ', not the hospital.'),
@@ -47,7 +47,7 @@ export const COUNTRY_ARTICLES: SeedArticle[] = [
     owner: 'admin',
     tags: ['mexico', 'latin america', 'billing', 'us prices', 'country specifics'],
     reviewDate: '2027-05-01',
-    fields: { summary: 'Mexican cases are handled by US billing offices, which practise US prices.' },
+    fields: { country: 'Mexico', countryDoc: 'specifics', summary: 'Mexican cases are handled by US billing offices, which practise US prices.' },
     content: [
       callout('warning', 'Country rule: US billing offices',
         p('Mexican cases are handled by ', b('US billing offices'), ', which practise ', b('US prices'), '.')),
@@ -73,7 +73,7 @@ export const COUNTRY_ARTICLES: SeedArticle[] = [
     owner: 'admin',
     tags: ['cuba', 'caribbean', 'asistur', 'country specifics'],
     reviewDate: '2027-05-01',
-    fields: { summary: 'All cases are handled by Asistur, a government organisation. Contacting or paying hospitals and doctors directly can be considered illegal.' },
+    fields: { country: 'Cuba', countryDoc: 'specifics', summary: 'All cases are handled by Asistur, a government organisation. Contacting or paying hospitals and doctors directly can be considered illegal.' },
     content: [
       callout('danger', 'Country rule: only through Asistur',
         p('All cases in Cuba are handled by ', b('Asistur'), ', a government organisation.'),

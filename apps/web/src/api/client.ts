@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
-import type { ArticleStatus, ArticleType, ClientDocKind, ClientLine, FlowNode, FlowValidation, PmNode, Role, TemplateFields } from '@ops/shared';
+import type { ArticleStatus, ArticleType, ClientDocKind, ClientLine, CountryDoc, FlowNode, FlowValidation, PmNode, Role, TemplateFields } from '@ops/shared';
 
 export class HttpError extends Error {
   constructor(public status: number, public body: unknown) { super(`HTTP ${status}`); }
@@ -33,7 +33,7 @@ export interface Article {
   /** what the server would allow this user to do right now (UI hints only; the server still enforces) */
   permissions?: { write: boolean; publish: boolean; submit: boolean; archive: boolean };
 }
-export type ArticleSummary = Pick<Article, 'id' | 'slug' | 'title' | 'type' | 'status' | 'categoryId' | 'categoryPath' | 'revision' | 'updatedAt' | 'publishedAt' | 'reviewDate'> & { summary?: string | null; ownerId?: string | null; client?: string | null; line?: ClientLine | null; docKind?: ClientDocKind | null };
+export type ArticleSummary = Pick<Article, 'id' | 'slug' | 'title' | 'type' | 'status' | 'categoryId' | 'categoryPath' | 'revision' | 'updatedAt' | 'publishedAt' | 'reviewDate'> & { summary?: string | null; ownerId?: string | null; client?: string | null; line?: ClientLine | null; docKind?: ClientDocKind | null; country?: string | null; countryDoc?: CountryDoc | null };
 export interface SearchHit { id: string; title: string; snippet: string; categoryPath: string }
 export interface SearchGroup { kind: 'article' | 'flow' | 'category' | 'tag' | 'glossary'; hits: SearchHit[] }
 export interface FileRef { id: string; url: string; name: string; mime: string; size: number; source?: 'attached' | 'embedded' }
