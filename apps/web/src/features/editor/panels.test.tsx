@@ -70,6 +70,19 @@ describe('MetaPanel validation', () => {
     expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ fields: expect.objectContaining({ docKind: 'summary' }) }));
   });
 
+  it('shows Country and Document for an article in Country Specifics', async () => {
+    mockFetch({ '/api/categories': { categories: [
+      { id: 'wi', parentId: null, name: 'Work Instructions', slug: 'wi', description: null, sortOrder: 0, archived: false, path: 'Work Instructions' },
+      { id: 'cs', parentId: 'wi', name: 'Country Specifics', slug: 'cs', description: null, sortOrder: 0, archived: false, path: 'Work Instructions / Country Specifics' },
+    ] }, '/api/tags': { tags: [] }, '/api/owners': { owners: [] } });
+    const onChange = vi.fn();
+    renderApp(<MetaPanel draft={draft({ categoryId: 'cs' })} onChange={onChange} />);
+    fireEvent.change(await screen.findByLabelText('Country'), { target: { value: 'Cuba' } });
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ fields: expect.objectContaining({ country: 'Cuba' }) }));
+    fireEvent.change(screen.getByLabelText('Country document'), { target: { value: 'providers' } });
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ fields: expect.objectContaining({ countryDoc: 'providers' }) }));
+  });
+
   it('adds a tag on Enter', async () => {
     mockFetch({ '/api/categories': { categories: [] }, '/api/tags': { tags: [] }, '/api/owners': { owners: [] } });
     const onChange = vi.fn();

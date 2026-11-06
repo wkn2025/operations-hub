@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { ARTICLE_TYPES, PM_NODES, PM_MARKS, type PmNode } from '@ops/shared';
+import { AMERICAS, ARTICLE_TYPES, PM_NODES, PM_MARKS, type PmNode } from '@ops/shared';
 import { setup, type Ctx } from './helpers';
 import { seedDemo, CATEGORY_TREE } from '../src/seed/base';
 import { SEED_ARTICLES } from '../src/seed/content/articles';
@@ -26,6 +26,12 @@ const EDI_REAL: [string, string][] = [
   ['837 Health Care Claim', 'Glossary & Acronyms / EDI terms'],
   ['PCF file', 'Glossary & Acronyms / EDI terms'],
   ['835 payment file', 'Glossary & Acronyms / EDI terms'],
+];
+/** Country Specifics (2026-11-05): facts given by the user, real procedure, no DEMO label. */
+const COUNTRY_REAL: [string, RegExp[]][] = [
+  ['Barbados: country specifics', [/treating doctor/i, /not the hospital/i, /paid/i, /unlike other countries/i]],
+  ['Mexico: country specifics', [/US billing office/i, /US prices/i]],
+  ['Cuba: country specifics', [/Asistur/, /government/i, /illegal/i]],
 ];
 const EDI_OLD = ['UHCG Direct EDI: inbound 837I pipeline', 'MacroHealth EDI: 837P and 837I exchange', '837 claim file: segment-by-segment guide',
   'Acknowledgements: 999 and 277CA handling', '999 rejected a whole batch (IK5*R)', 'MacroHealth file not picked up',
@@ -82,7 +88,7 @@ describe('seedDemo (Task 9)', () => {
     const ids = new Set(published().map((a) => a.id));
     const nodeTypes = new Set<string>(Object.values(PM_NODES));
     const markTypes = new Set<string>(PM_MARKS);
-    const real = new Set(EDI_REAL.map(([t]) => t));
+    const real = new Set([...EDI_REAL, ...COUNTRY_REAL].map(([t]) => t));
     let links = 0;
     for (const a of published()) {
       if (real.has(a.title)) expect(a.content, a.title).not.toMatch(/DEMO/);
@@ -155,6 +161,22 @@ describe('seedDemo (Task 9)', () => {
   });
 });
 
+describe('Country Specifics', () => {
+  for (const [title, facts] of COUNTRY_REAL) {
+    it(`${title}: filed under Work Instructions / Country Specifics with the key facts`, () => {
+      const a = SEED_ARTICLES.find((x) => x.title === title);
+      expect(a, title).toBeDefined();
+      expect(a!.category).toBe('Work Instructions / Country Specifics');
+      const text = JSON.stringify(a!.content);
+      for (const re of facts) expect(text, `${title}: ${re}`).toMatch(re);
+      expect(a!.fields).toMatchObject({ country: title.split(':')[0], countryDoc: 'specifics' });
+    });
+  }
+  it('the shared Americas list matches the bank information countries and territories', () => {
+    expect([...AMERICAS].sort()).toEqual(AMERICAS_BANKS.map((x) => x.name).sort());
+  });
+});
+
 describe('client directory', () => {
   it('every client has corporate and travel, each with full T&C and coverage summary, filed under the top category', () => {
     const terms = SEED_ARTICLES.filter((a) => a.type === 'client_terms' && a.category.startsWith('Clients & Terms and Conditions'));
@@ -178,7 +200,7 @@ describe('category restructure', () => {
       'Provider Networks & Partners', 'Finance & Payment Processing', 'Internal Systems', 'Glossary & Acronyms']);
     expect(tree['EDI & Automation']).toEqual(['EDI 101', 'Import & web.transformer', 'Adjudication & adjustments', 'EDI issues']);
     expect(tree['Finance & Payment Processing']).toContain('Payment issues');
-    expect(tree['Work Instructions']).toEqual(['Case handling', 'Invoice processing', 'Reimbursements']);
+    expect(tree['Work Instructions']).toEqual(['Assistance', 'Billing', 'Country Specifics']);
     expect(tree['Quality Assurance']).toEqual(['Quality checks', 'Audit & sampling']);
     expect(tree['Finance & Payment Processing']).toEqual(['Payment runs', 'Currency & fees', 'Reconciliation', 'Payment issues', 'Global codes', 'Bank information']);
   });
@@ -188,11 +210,11 @@ describe('category restructure', () => {
     const a = SEED_ARTICLES.find((x) => x.title === REIMB)!;
     expect(a).toBeDefined();
     expect(a.type).toBe('work_instruction');
-    expect(a.category).toBe('Work Instructions / Reimbursements');
+    expect(a.category).toBe('Work Instructions / Billing'); // Reimbursements merged into Billing (2026-11-05)
     const text = JSON.stringify(a.content);
     for (const re of [/complete/i, /medical records/i, /approval limits/i, /D01/, /D07/, /payment run/i, /proof of payment/i, /retention/i])
       expect(text, String(re)).toMatch(re);
-    expect(SEED_ARTICLES.filter((x) => x.category === 'Work Instructions / Reimbursements')).toHaveLength(1);
+    expect(SEED_ARTICLES.some((x) => x.category.endsWith('/ Reimbursements'))).toBe(false);
   });
 
   it('files the troubleshooting articles under EDI & Automation and Finance, and QA articles under Quality Assurance', () => {
@@ -312,8 +334,12 @@ describe('seed upgrades a database seeded with the old 9-category tree', () => {
     expect(art('bluefin-corporate-health-coverage-summary')).toMatchObject({ id: ids.get('Bluefin Corporate Health: coverage summary'), status: 'published', category_id: ids.get('Clients & Terms and Conditions') });
     for (const k of ['Travel insurance clients', 'Corporate clients', 'Coverage summaries'])
       expect(cats().find((x) => x.id === ids.get(`Clients & Terms and Conditions / ${k}`))!.archived, k).toBe(1);
-    const reimb = u.app.sqlite.prepare("select count(*) n from articles where category_id = ? and status <> 'archived'").get(ids.get('Claims & Reimbursements / Reimbursements')) as { n: number };
-    expect(reimb.n).toBe(1);
+    // Work Instructions rework: renamed in place (same ids), Reimbursements merged into Billing and archived
+    const byId = new Map(cats().map((x) => [x.id, x]));
+    expect(byId.get(ids.get('Work Instructions / Case handling')!)).toMatchObject({ name: 'Assistance', archived: 0 });
+    expect(byId.get(ids.get('Work Instructions / Invoice processing')!)).toMatchObject({ name: 'Billing', archived: 0 });
+    expect(byId.get(ids.get('Claims & Reimbursements / Reimbursements')!)!.archived).toBe(1);
+    expect(art('reimbursement-from-document-intake-to-proof-of-payment')?.category_id).toBe(ids.get('Work Instructions / Invoice processing'));
   });
 
   it('gives an existing Finance category the Global codes and Bank information subcategories', () => {

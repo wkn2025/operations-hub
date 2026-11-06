@@ -9,7 +9,7 @@ export const CLAIMS_ARTICLES: SeedArticle[] = [
   {
     title: 'Request a missing GOP',
     type: 'work_instruction',
-    category: 'Work Instructions / Case handling',
+    category: 'Work Instructions / Assistance',
     owner: 'editor',
     tags: ['gop', 'medical team', 'case handling'],
     reviewDate: '2026-12-10',
@@ -41,7 +41,7 @@ export const CLAIMS_ARTICLES: SeedArticle[] = [
   {
     title: REIMBURSEMENT_WI,
     type: 'work_instruction',
-    category: 'Work Instructions / Reimbursements',
+    category: 'Work Instructions / Billing',
     owner: 'editor',
     tags: ['reimbursement', 'claims', 'approval', 'medical records', 'denial', 'proof of payment'],
     reviewDate: '2027-01-31',

@@ -4,6 +4,7 @@ import { ALL_ENTRIES, EDI_101, EDI_ARTICLES, EDI_IMPORT, MANUAL_HANDLING, MISSIN
 import { CLIENT_ARTICLES } from './articles-clients';
 import { CLIENT_TERMS_ARTICLES } from './articles-client-terms';
 import { CLIENT_PLACEHOLDER_ARTICLES } from './articles-client-placeholders';
+import { COUNTRY_ARTICLES } from './articles-country';
 import { CLAIMS_ARTICLES } from './articles-claims';
 import { QA_ARTICLES } from './articles-qa';
 import { NETWORK_FINANCE_ARTICLES } from './articles-network-finance';
@@ -33,7 +34,7 @@ const CORE_ARTICLES: SeedArticle[] = [
   {
     title: invoiceWi,
     type: 'work_instruction',
-    category: 'Work Instructions / Invoice processing',
+    category: 'Work Instructions / Billing',
     owner: 'editor',
     tags: ['invoice', 'registration', 'claims'],
     reviewDate: '2026-11-12',
@@ -167,6 +168,6 @@ const CORE_ARTICLES: SeedArticle[] = [
 ];
 
 export const SEED_ARTICLES: SeedArticle[] = [
-  ...CORE_ARTICLES, ...EDI_ARTICLES, ...CLIENT_ARTICLES, ...CLIENT_TERMS_ARTICLES, ...CLIENT_PLACEHOLDER_ARTICLES, ...CLAIMS_ARTICLES,
+  ...CORE_ARTICLES, ...EDI_ARTICLES, ...CLIENT_ARTICLES, ...CLIENT_TERMS_ARTICLES, ...CLIENT_PLACEHOLDER_ARTICLES, ...CLAIMS_ARTICLES, ...COUNTRY_ARTICLES,
   ...QA_ARTICLES, ...NETWORK_FINANCE_ARTICLES, ...SYSTEMS_ARTICLES, ...GLOSSARY_ARTICLES, ...BANK_ARTICLES,
 ];

@@ -138,6 +138,13 @@ describe('articles', () => {
     expect((await c.req(c.editor, 'POST', '/api/articles', { title: 'Bad', fields: { line: 'cruise' } })).status).toBe(400);
     expect((await c.req(c.editor, 'POST', '/api/articles', { title: 'Bad', fields: { docKind: 'brochure' } })).status).toBe(400);
   });
+  it('country fields: validated against the Americas list and returned by the list', async () => {
+    const a = await create({ fields: { country: 'Barbados', countryDoc: 'evacuation' } });
+    const list = (await c.req(c.editor, 'GET', '/api/articles?limit=50')).body.articles;
+    expect(list.find((x: any) => x.id === a.id)).toMatchObject({ country: 'Barbados', countryDoc: 'evacuation' });
+    expect((await c.req(c.editor, 'POST', '/api/articles', { title: 'Bad', fields: { country: 'Atlantis' } })).status).toBe(400);
+    expect((await c.req(c.editor, 'POST', '/api/articles', { title: 'Bad', fields: { countryDoc: 'visa' } })).status).toBe(400);
+  });
   it('tags are saved and returned', async () => {
     const a = await create({ tags: ['EDI', 'edi', ' 837 '] });
     expect((await c.req(c.editor, 'GET', `/api/articles/${a.id}`)).body.tags).toEqual(['837', 'edi']);

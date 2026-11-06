@@ -2,7 +2,7 @@ import { useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { Hash, Lock, Paperclip, Plus, Trash2, Upload, X } from 'lucide-react';
-import { ARTICLE_TYPES, CLIENT_DOC_KINDS, CLIENT_DOC_LABELS, CLIENT_LINES, CLIENT_LINE_LABELS, LIST_ITEM_MAX, TEMPLATE_FIELD_MAX, TEMPLATE_LABELS, type ArticleType, type PmNode, type TemplateFields } from '@ops/shared';
+import { AMERICAS, ARTICLE_TYPES, COUNTRY_DOCS, COUNTRY_DOC_LABELS, CLIENT_DOC_KINDS, CLIENT_DOC_LABELS, CLIENT_LINES, CLIENT_LINE_LABELS, LIST_ITEM_MAX, TEMPLATE_FIELD_MAX, TEMPLATE_LABELS, type ArticleType, type PmNode, type TemplateFields } from '@ops/shared';
 import { api, HttpError, useCategories, type Category, type FileRef } from '../../api/client';
 import { LinkPicker } from './LinkPicker';
 import { uploadFile } from './extensions/ImageUpload';
@@ -18,7 +18,7 @@ type MaxField = keyof typeof TEMPLATE_FIELD_MAX;
 /** Labels of template fields, for messages ("Purpose wasn’t saved: …"). */
 export const FIELD_LABELS: Record<string, string> = {
   summary: 'Summary', purpose: 'Purpose', scope: 'Scope', audience: 'Who uses this', verification: 'How to verify',
-  client: 'Client name', contractRef: 'Contract reference', validFrom: 'Valid from', validTo: 'Valid to', region: 'Territory', line: 'Line', docKind: 'Document', keyLimits: 'Key limits',
+  client: 'Client name', contractRef: 'Contract reference', validFrom: 'Valid from', validTo: 'Valid to', region: 'Territory', line: 'Line', docKind: 'Document', country: 'Country', countryDoc: 'Country document', keyLimits: 'Key limits',
   systems: 'Systems', version: 'Version', symptom: 'Symptom', cause: 'Likely cause', fix: 'Quick fix', flowId: 'Guided flow',
   term: 'Term', acronym: 'Acronym', definition: 'Definition', aliases: 'Also known as', relatedTerms: 'Related terms',
   title: 'Title', tags: 'Tags', reviewDate: 'Review by', related: 'Related articles', categoryId: 'Category', ownerId: 'Owner', type: 'Template',
@@ -88,6 +88,8 @@ function Text({ label, value, onChange, multiline, type = 'text', error, hint, p
     </Field>
   );
 }
+
+const COUNTRY_LABELS = Object.fromEntries(AMERICAS.map((c) => [c, c])) as Record<(typeof AMERICAS)[number], string>;
 
 /** Optional choice from a fixed list; empty clears the field. */
 function Choice<T extends string>({ label, value, options, labels, onChange, disabled, hint }: {
@@ -197,6 +199,11 @@ export function MetaPanel({ draft, onChange, articleId, slug, published, disable
       <Section title={`${TEMPLATE_LABELS[draft.type]} fields`}>
         <Text label="Summary" multiline value={f.summary} max={TEMPLATE_FIELD_MAX.summary} error={errors.summary} disabled={disabled} onChange={(v) => setF({ summary: v })} placeholder="One sentence shown under the title" />
         <TemplateFieldsForm draft={draft} setF={setF} errors={errors} disabled={disabled} />
+        {cats.data?.find((c) => c.id === draft.categoryId)?.name === 'Country Specifics' && (<>
+          <Choice label="Country" value={f.country} options={AMERICAS} labels={COUNTRY_LABELS} disabled={disabled} onChange={(v) => setF({ country: v })} />
+          <Choice label="Country document" value={f.countryDoc} options={COUNTRY_DOCS} labels={COUNTRY_DOC_LABELS} disabled={disabled} onChange={(v) => setF({ countryDoc: v })}
+            hint="Country and Country document place this article in the country list." />
+        </>)}
       </Section>
 
       <Section title="Related articles">

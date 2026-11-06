@@ -26,7 +26,7 @@ const OLD_EDI_DESCRIPTION = 'Electronic claim exchange, acknowledgements and the
 export const CATEGORY_TREE: { name: string; description: string; children: string[] }[] = [
   { name: 'EDI & Automation', description: EDI_DESCRIPTION, children: ['EDI 101', 'Import & web.transformer', 'Adjudication & adjustments', 'EDI issues'] },
   { name: 'Clients & Terms and Conditions', description: 'Who our clients are and what each contract lets us authorise.', children: [] },
-  { name: 'Work Instructions', description: 'Step-by-step procedures for recurring operational tasks.', children: ['Case handling', 'Invoice processing', 'Reimbursements'] },
+  { name: 'Work Instructions', description: 'Step-by-step procedures for recurring operational tasks.', children: ['Assistance', 'Billing', 'Country Specifics'] },
   { name: 'Quality Assurance', description: 'Checks, sampling and sign-offs that keep claims and payments right first time.', children: ['Quality checks', 'Audit & sampling'] },
   { name: 'Provider Networks & Partners', description: 'Hospitals, clinics and assistance partners we work with.', children: ['Hospital network', 'Assistance partners'] },
   { name: 'Finance & Payment Processing', description: 'Payment runs, currencies, fees and reconciliation.', children: ['Payment runs', 'Currency & fees', 'Reconciliation', 'Payment issues', 'Global codes', 'Bank information'] },
@@ -44,12 +44,18 @@ const LEGACY_MOVES: [string, string, string][] = [
   ['Work Instructions', 'Quality checks', 'Quality Assurance'],
   ['Claims & Reimbursements', 'Reimbursements', 'Work Instructions'],
 ];
+/** Subcategories renamed in place (same id, so articles and links follow): [parent, old name, new name]. */
+const LEGACY_RENAMES: [string, string, string][] = [
+  ['Work Instructions', 'Case handling', 'Assistance'],
+  ['Work Instructions', 'Invoice processing', 'Billing'],
+];
 /** Legacy rows archived once empty; children before parents (same rule as PATCH /api/categories, 409 otherwise). */
 const LEGACY_ARCHIVE: [string | null, string][] = [
   ['Claims & Reimbursements', 'Claim intake'], ['Claims & Reimbursements', 'Medical records'],
   [null, 'Claims & Reimbursements'], [null, 'Troubleshooting Center'],
   // Clients & T&C is one A–Z client directory (2026-11-05); its articles move to the top category first
   ['Clients & Terms and Conditions', 'Travel insurance clients'], ['Clients & Terms and Conditions', 'Corporate clients'], ['Clients & Terms and Conditions', 'Coverage summaries'],
+  ['Work Instructions', 'Reimbursements'], // merged into Billing (2026-11-05)
   ['EDI & Automation', 'Inbound claims (837)'], ['EDI & Automation', 'Acknowledgements (999/277)'], ['EDI & Automation', 'Automation scripts'],
 ];
 /** Demo articles retired by merges or removals: archived, never deleted, so their history stays.
@@ -138,6 +144,7 @@ export async function seedBase(app: App) {
     const tops = CATEGORY_TREE.map((t, i) => ensureCategory(app, t.name, null, i, t.description));
     app.db.update(categories).set({ description: EDI_DESCRIPTION }).where(and(eq(categories.id, tops[0]!), eq(categories.description, OLD_EDI_DESCRIPTION))).run();
     moveLegacyCategories(app);
+    renameLegacyCategories(app);
     CATEGORY_TREE.forEach((t, i) => {
       catIds.set(t.name, tops[i]!);
       t.children.forEach((c, j) => catIds.set(`${t.name} / ${c}`, ensureCategory(app, c, tops[i]!, j, null)));
@@ -192,11 +199,21 @@ function findCategory(app: App, parent: string | null, name: string) {
   return parentId === undefined ? undefined : all.find((c) => c.name === name && c.parentId === parentId);
 }
 
+function renameLegacyCategories(app: App) {
+  for (const [parent, from, to] of LEGACY_RENAMES) {
+    const row = findCategory(app, parent, from);
+    if (!row) continue;
+    if (findCategory(app, parent, to)) { console.warn(`seed: both "${from}" and "${to}" exist under "${parent}"; left as is`); continue; }
+    app.db.update(categories).set({ name: to }).where(eq(categories.id, row.id)).run();
+    reindexCategorySubtree(app, row.id);
+  }
+}
+
 function moveLegacyCategories(app: App) {
   for (const [from, name, to] of LEGACY_MOVES) {
     const row = findCategory(app, from, name), target = findCategory(app, null, to);
     if (!row || !target || findCategory(app, to, name)) continue;
-    const sortOrder = CATEGORY_TREE.find((t) => t.name === to)!.children.indexOf(name);
+    const sortOrder = Math.max(0, CATEGORY_TREE.find((t) => t.name === to)!.children.indexOf(name)); // retired names are not in the tree
     app.db.update(categories).set({ parentId: target.id, sortOrder }).where(eq(categories.id, row.id)).run();
     reindexCategorySubtree(app, row.id);
   }
