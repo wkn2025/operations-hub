@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { ArticleTemplate } from '.';
 import type { Article } from '../../../api/client';
-import { renderApp } from '../../../test/utils';
+import { mockFetch, renderApp } from '../../../test/utils';
 
 const base: Article = {
   id: 'x', slug: 'x', title: 'The title', type: 'standard', status: 'published', categoryId: null, categoryPath: 'Work Instructions',
@@ -38,6 +39,28 @@ describe('ArticleTemplate', () => {
     expect(screen.getByText('Northwind (fictional)')).toBeInTheDocument();
     expect(screen.getByText('NW-1')).toBeInTheDocument();
     expect(screen.getByText('EUR 250,000')).toBeInTheDocument();
+  });
+
+  it('client terms: switch to the same client and line, other document', async () => {
+    const fetch = mockFetch({ '/api/articles?': { total: 4, articles: [
+      { id: 'o', slug: 'other-client', title: 'x', status: 'published', client: 'Acme', line: 'travel', docKind: 'summary' },
+      { id: 'c', slug: 'nw-corp-summary', title: 'x', status: 'published', client: 'Northwind', line: 'corporate', docKind: 'summary' },
+      { id: 'd', slug: 'nw-travel-draft', title: 'x', status: 'draft', client: 'Northwind', line: 'travel', docKind: 'summary' },
+      { id: 's', slug: 'nw-travel-summary', title: 'x', status: 'published', client: 'Northwind', line: 'travel', docKind: 'summary' },
+    ] } });
+    renderApp(<ArticleTemplate article={{ ...make('client_terms', { client: 'Northwind (fictional)', line: 'travel', docKind: 'full' }), categoryId: 'cat' }} />);
+    const nav = screen.getByRole('navigation', { name: 'Document version' });
+    expect(nav).toHaveTextContent('Full T&C');
+    expect(screen.getByText('Full T&C')).toHaveAttribute('aria-current', 'page');
+    expect(await screen.findByRole('link', { name: /Coverage summary/ })).toHaveAttribute('href', '/article/nw-travel-summary');
+    expect(String(fetch.mock.calls[0]![0])).toContain('categoryId=cat');
+    await userEvent.click(screen.getByRole('link', { name: /Coverage summary/ })); // pill slides, then the page changes
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/article/nw-travel-summary'));
+  });
+
+  it('client terms: no switch when the document has no client/line/kind', () => {
+    renderApp(<ArticleTemplate article={make('client_terms', { client: 'Northwind' })} />);
+    expect(screen.queryByRole('navigation', { name: 'Document version' })).toBeNull();
   });
 
   it('technical: system chips and version', () => {
