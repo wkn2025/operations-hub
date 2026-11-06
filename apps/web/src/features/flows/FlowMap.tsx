@@ -96,7 +96,7 @@ function Box({ b, node, current, onEdit }: { b: MapBox; node?: FlowNode; current
     const label = `Same ending: ${node.text}`;
     const cls = clsx(shell, 'justify-center gap-1 px-1.5', node.kind === 'article' ? TONE.info : TONE[node.severity ?? 'success'] ?? TONE.success, 'ring-1 ring-neutral-200');
     return onEdit
-      ? <button type="button" title={label} aria-label={`Map: change ending ${node.text}`} onClick={() => onEdit(node.id)} className={clsx(cls, 'hover:ring-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary')}><Link2 size={14} aria-hidden className="shrink-0" /><span aria-hidden>Same</span></button>
+      ? <button type="button" title={label} aria-label={`Map: change ending ${node.text} (also used by another answer)`} onClick={() => onEdit(node.id)} className={clsx(cls, 'hover:ring-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary')}><Link2 size={14} aria-hidden className="shrink-0" /><span aria-hidden>Same</span></button>
       : <div title={label} className={cls}><Link2 size={14} aria-hidden className="shrink-0" /><span className="sr-only">{label}</span><span aria-hidden>Same</span></div>;
   }
   if (b.kind === 'repeat') {

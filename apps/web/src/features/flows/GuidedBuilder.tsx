@@ -213,7 +213,7 @@ function Builder({ initial }: { initial: FlowView }) {
                 <ul className="mt-2 flex flex-wrap gap-2">
                   {endings.map((n) => (
                     <li key={n.id}>
-                      <button type="button" aria-label={`Reuse ending: ${n.text}`} onClick={() => { update(setTarget(ref.current, task.nodeId, task.option, n.id).flow); setReopened(null); }}
+                      <button type="button" title={n.text} aria-label={`Reuse ending: ${n.text}`} onClick={() => { update(setTarget(ref.current, task.nodeId, task.option, n.id).flow); setReopened(null); }}
                         className="inline-flex max-w-[280px] items-center gap-2 rounded-full bg-white px-3.5 py-2 text-left text-[13.5px] text-neutral-800 ring-1 ring-neutral-200 hover:bg-accent-soft hover:ring-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
                         {n.kind === 'article' ? <FileText size={14} aria-hidden className="shrink-0" /> : <Flag size={14} aria-hidden className="shrink-0" />}<span className="truncate">{n.text}</span>
                       </button>
