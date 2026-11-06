@@ -70,4 +70,17 @@ describe('search', () => {
     const r = await c.req(c.viewer, 'GET', '/api/search?q=lim&limit=2');
     expect(hits(r, 'article')).toHaveLength(2);
   });
+
+  it('code-shaped queries also return a Codes group (same lookup as the codes page); words do not', async () => {
+    const codes = (r: any) => hits(r, 'code');
+    expect(codes(await search(c.viewer, 'z0102'))).toEqual([]); // no codes page to open yet
+    const page = (await c.req(c.admin, 'POST', '/api/categories', { name: 'Diagnosis & Service codes' })).body;
+    expect(codes(await search(c.viewer, 'z0102'))).toEqual([{ id: 'Z01.02|ICD-10-CM', title: 'Z01.02', categoryPath: 'ICD-10-CM', snippet: expect.stringMatching(/vision/i) }]);
+    expect(codes(await search(c.viewer, 'Z01.02, 99214')).map((h: any) => h.title)).toEqual(['Z01.02', '99214']);
+    expect(codes(await search(c.viewer, 'G0439')).map((h: any) => h.categoryPath)).toEqual(['ICD-10-CM', 'HCPCS']);
+    expect(codes(await search(c.viewer, 'office visit'))).toEqual([]);
+    expect(codes(await search(c.viewer, 'ZZZ99'))).toEqual([]);
+    expect((await c.req(c.admin, 'PATCH', `/api/categories/${page.id}`, { archived: true })).status).toBe(200);
+    expect(codes(await search(c.viewer, 'z0102'))).toEqual([]); // archived page: nothing to open
+  });
 });

@@ -2,6 +2,7 @@ import type { Database } from 'better-sqlite3';
 import type { User } from '@ops/shared';
 import { flowVisibilitySql } from './flows';
 import { categoryPath, hiddenCategoryIds, visibility, type Svc } from './articles';
+import { lookupCodes, splitCodes } from './codes';
 
 /** Rebuild the FTS row for one article. Call inside the same transaction as the save. */
 export function indexArticle(sqlite: Database, articleId: string) {
@@ -21,7 +22,7 @@ export function indexArticle(sqlite: Database, articleId: string) {
 }
 
 export interface Hit { id: string; title: string; snippet: string; categoryPath: string }
-export interface Group { kind: 'article' | 'flow' | 'category' | 'tag' | 'glossary'; hits: Hit[] }
+export interface Group { kind: 'article' | 'flow' | 'category' | 'tag' | 'glossary' | 'code'; hits: Hit[] }
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
@@ -81,5 +82,17 @@ export function searchAll(s: Svc, user: User, q: string, limit = 20): Group[] {
   ).all(...like, ...vis.params, limit) as { id: string; name: string; n: number }[];
   if (tagRows.length) groups.push({ kind: 'tag', hits: tagRows.map((t) => ({ id: t.id, title: t.name, snippet: `${t.n} article${t.n === 1 ? '' : 's'}`, categoryPath: '' })) });
   if (glo.length) groups.push({ kind: 'glossary', hits: glo });
+
+  // codes: when every word is code-shaped (codes all have a digit), the same lookup as the Diagnosis & Service codes page;
+  // only while that page is visible, since a hit opens it. Hit id = "code|system" (a code can be in two lists).
+  const codesPage = cats.find((c) => !c.parentId && c.name === 'Diagnosis & Service codes' && !hid.has(c.id));
+  const words = splitCodes(q.slice(0, 200)).slice(0, 10);
+  if (codesPage && words.length && words.every((w) => /\d/.test(w) && w.length <= 7)) {
+    const codeHits = lookupCodes(words.join(' ')).flatMap((r) => r.matches).map((m) => ({
+      id: `${m.code}|${m.system}`, title: m.code, categoryPath: m.system,
+      snippet: esc(m.description + (m.billable ? '' : ' (category, not billable)')),
+    }));
+    if (codeHits.length) groups.push({ kind: 'code', hits: codeHits });
+  }
   return groups;
 }

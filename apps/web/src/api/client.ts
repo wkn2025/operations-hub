@@ -35,7 +35,7 @@ export interface Article {
 }
 export type ArticleSummary = Pick<Article, 'id' | 'slug' | 'title' | 'type' | 'status' | 'categoryId' | 'categoryPath' | 'revision' | 'updatedAt' | 'publishedAt' | 'reviewDate'> & { summary?: string | null; ownerId?: string | null; client?: string | null; line?: ClientLine | null; docKind?: ClientDocKind | null; country?: string | null; countryDoc?: CountryDoc | null };
 export interface SearchHit { id: string; title: string; snippet: string; categoryPath: string }
-export interface SearchGroup { kind: 'article' | 'flow' | 'category' | 'tag' | 'glossary'; hits: SearchHit[] }
+export interface SearchGroup { kind: 'article' | 'flow' | 'category' | 'tag' | 'glossary' | 'code'; hits: SearchHit[] }
 export interface FileRef { id: string; url: string; name: string; mime: string; size: number; source?: 'attached' | 'embedded' }
 export interface ReviewDue { id: string; slug: string; title: string; reviewDate: string; overdue: boolean }
 
