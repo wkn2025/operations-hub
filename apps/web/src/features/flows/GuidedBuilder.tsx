@@ -12,6 +12,7 @@ import { NotFound } from '../../pages/NotFound';
 import { LinkPicker } from '../editor/LinkPicker';
 import { useAutosave } from '../editor/useAutosave';
 import { FlowRunner } from './FlowRunner';
+import { FlowMap } from './FlowMap';
 import { chooseNext, nextTask, progress, undoChoice, type PathStep, type Task } from './guide';
 
 /**
@@ -132,7 +133,7 @@ function Builder({ initial }: { initial: FlowView }) {
   };
 
   return (
-    <div className="mx-auto max-w-[720px]">
+    <div className="mx-auto max-w-[1320px]">
       <header className="flex items-center gap-3">
         <Link to="/flows" onClick={(e) => void leave(e, '/flows')} aria-label="Back to guided flows" className="flex h-9 w-9 items-center justify-center rounded-[12px] text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900"><ArrowLeft size={18} /></Link>
         <p className="min-w-0 flex-1 truncate text-[15px] font-semibold text-neutral-900">{draft.title}</p>
@@ -152,6 +153,8 @@ function Builder({ initial }: { initial: FlowView }) {
         </div>
       </div>
 
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,540px)_minmax(0,1fr)] xl:items-start">
+      <div className="min-w-0">
       {'path' in task && task.path.some((s) => s.answer) && <Trail path={task.path} byId={byId} onEdit={view.permissions.write ? setFocus : undefined} />}
       {!view.permissions.write && <p role="status" className="mt-5 flex items-center gap-2 rounded-[12px] bg-neutral-100 px-4 py-3 text-sm text-neutral-700"><Lock size={15} aria-hidden /> You can look at this flow but not change it right now (it may need approval or be archived).</p>}
       {autosave.status === 'conflict' && <p role="alert" className="mt-5 flex flex-wrap items-center gap-2 rounded-[12px] bg-warning-soft px-4 py-3 text-sm text-neutral-900">Someone else changed this flow, so your last change wasn’t saved. <button type="button" onClick={() => void reloadLatest()} className="font-medium text-primary underline">Load their version</button></p>}
@@ -222,6 +225,9 @@ function Builder({ initial }: { initial: FlowView }) {
           </Card>
         )}
       </Stage>}
+      </div>
+      <div className="min-w-0 xl:sticky xl:top-[96px] xl:mt-5"><FlowMap flow={draft} task={task} onEdit={view.permissions.write ? setFocus : undefined} /></div>
+      </div>
     </div>
   );
 }
