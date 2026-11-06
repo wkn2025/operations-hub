@@ -155,4 +155,33 @@ describe('guided flow builder', () => {
     expect(await screen.findByRole('heading', { name: /When they answer No/ })).toBeInTheDocument();
     expect(screen.getByRole('list', { name: 'Your path so far' })).toHaveTextContent('Is there paper?'); // q2's No, not q1's
   });
+
+  it('an answer can reuse an ending already written, and endings on the map can be opened and changed', async () => {
+    const fetch = mockFetch({ '/api/me': me, '/api/flows/f1': { ...view, nodes: [
+      { id: 'q1', kind: 'question', text: 'Is it on?', options: [{ label: 'Yes', to: 'q2' }, { label: 'No', to: 'r1' }] },
+      { id: 'q2', kind: 'question', text: 'Is there paper?', options: [{ label: 'Yes', to: 'r2' }, { label: 'No', to: '' }] },
+      { id: 'r1', kind: 'result', text: 'Switch it on', severity: 'warning' },
+      { id: 'r2', kind: 'result', text: 'Call IT', severity: 'success' },
+    ] } });
+    renderApp(<Routes><Route path="/flows/:id/build" element={<BuildFlow />} /></Routes>, '/flows/f1/build');
+    expect(await screen.findByRole('heading', { name: /When they answer No/ })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Reuse ending: Call IT' }));
+    expect(await screen.findByRole('heading', { name: /Every path ends with an answer/ })).toBeInTheDocument();
+    await waitFor(() => {
+      const last = fetch.mock.calls.filter(([u, i]) => String(u) === '/api/flows/f1' && i?.method === 'PATCH').at(-1);
+      const nodes = JSON.parse(String(last![1]!.body)).nodes;
+      expect(nodes.find((n: { id: string }) => n.id === 'q2').options[1]).toEqual({ label: 'No', to: 'r2' });
+      expect(nodes).toHaveLength(4); // reused, not copied
+    });
+
+    const map = screen.getByRole('region', { name: 'Your flow so far' });
+    await userEvent.click(within(map).getAllByRole('button', { name: 'Map: change ending Call IT' })[0]!);
+    const input = await screen.findByLabelText('Solution');
+    expect(input).toHaveValue('Call IT');
+    await userEvent.clear(input);
+    await userEvent.type(input, 'Call IT on 1234');
+    await userEvent.click(screen.getByRole('button', { name: /Done/ }));
+    expect(await screen.findByRole('heading', { name: /Every path ends with an answer/ })).toBeInTheDocument();
+    expect(within(map).getAllByText('Call IT on 1234').length).toBeGreaterThanOrEqual(1);
+  });
 });

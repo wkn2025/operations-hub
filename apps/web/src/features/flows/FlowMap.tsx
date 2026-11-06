@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 import clsx from 'clsx';
-import { CircleHelp, FileText, Flag, Undo2 } from 'lucide-react';
+import { CircleHelp, FileText, Flag, Link2, Undo2 } from 'lucide-react';
 import type { Flow, FlowNode } from '@ops/shared';
 import { layout, SLOT, type MapBox, type Task } from './guide';
 
@@ -92,6 +92,13 @@ function Box({ b, node, current, onEdit }: { b: MapBox; node?: FlowNode; current
       </div>
     );
   }
+  if (b.kind === 'repeat' && node && node.kind !== 'question') {
+    const label = `Same ending: ${node.text}`;
+    const cls = clsx(shell, 'justify-center gap-1 px-1.5', node.kind === 'article' ? TONE.info : TONE[node.severity ?? 'success'] ?? TONE.success, 'ring-1 ring-neutral-200');
+    return onEdit
+      ? <button type="button" title={label} aria-label={`Map: change ending ${node.text}`} onClick={() => onEdit(node.id)} className={clsx(cls, 'hover:ring-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary')}><Link2 size={14} aria-hidden className="shrink-0" /><span aria-hidden>Same</span></button>
+      : <div title={label} className={cls}><Link2 size={14} aria-hidden className="shrink-0" /><span className="sr-only">{label}</span><span aria-hidden>Same</span></div>;
+  }
   if (b.kind === 'repeat') {
     return <div title={`Back to: ${node?.text}`} className={clsx(shell, 'justify-center gap-1 bg-white px-1.5 text-neutral-500 ring-1 ring-neutral-200')}><Undo2 size={14} aria-hidden className="shrink-0" /><span className="sr-only">Back to: {node?.text}</span><span aria-hidden>Back</span></div>;
   }
@@ -99,8 +106,8 @@ function Box({ b, node, current, onEdit }: { b: MapBox; node?: FlowNode; current
   const text = node?.text.trim() ? <span className="line-clamp-2 text-neutral-900">{node.text}</span> : <span className="italic text-ink-muted">{b.kind === 'question' ? 'New question…' : 'New ending…'}</span>;
   const tone = b.kind === 'question' ? 'bg-white' : b.kind === 'article' ? TONE.info : TONE[node?.severity ?? 'success'] ?? TONE.success;
   const icon = <span className={clsx('flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px]', b.kind === 'question' ? 'bg-accent text-primary' : 'bg-white/80 text-neutral-700')}><Icon size={15} aria-hidden /></span>;
-  if (b.kind === 'question' && onEdit && node?.text.trim()) {
-    return <button type="button" onClick={() => onEdit(b.nodeId!)} aria-label={`Map: change question ${node.text}`} aria-current={current ? 'step' : undefined} className={clsx(shell, tone, ring, 'hover:ring-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2')}>{icon}{text}</button>;
+  if (onEdit && node?.text.trim()) {
+    return <button type="button" onClick={() => onEdit(b.nodeId!)} aria-label={`Map: change ${b.kind === 'question' ? 'question' : 'ending'} ${node.text}`} aria-current={current ? 'step' : undefined} className={clsx(shell, tone, ring, 'hover:ring-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2')}>{icon}{text}</button>;
   }
   return <div className={clsx(shell, tone, ring)} aria-current={current ? 'step' : undefined}>{icon}{text}</div>;
 }

@@ -13,6 +13,7 @@ import { LinkPicker } from '../editor/LinkPicker';
 import { useAutosave } from '../editor/useAutosave';
 import { FlowRunner } from './FlowRunner';
 import { FlowMap } from './FlowMap';
+import { setTarget } from './flowOps';
 import { chooseNext, nextTask, progress, undoChoice, type PathStep, type Task } from './guide';
 
 /**
@@ -111,7 +112,8 @@ function Builder({ initial }: { initial: FlowView }) {
   const byId = new Map(draft.nodes.map((n) => [n.id, n]));
   const auto = nextTask(draft);
   const back = reopened && byId.get(reopened.nodeId)?.options?.[reopened.option];
-  const task: Task = focus && byId.get(focus) ? { kind: 'question', nodeId: focus, path: pathTo(draft, focus) }
+  const focused = focus ? byId.get(focus) : undefined;
+  const task: Task = focused ? { kind: focused.kind, nodeId: focused.id, path: pathTo(draft, focused.id) }
     : back && !back.to && (auto.kind === 'branch' || auto.kind === 'done')
       ? { kind: 'branch', nodeId: reopened!.nodeId, option: reopened!.option, path: [...pathTo(draft, reopened!.nodeId).slice(0, -1), { nodeId: reopened!.nodeId, answer: back.label }] }
       : auto;
@@ -124,6 +126,9 @@ function Builder({ initial }: { initial: FlowView }) {
     ? <button type="button" onClick={() => { const from = ref.current.nodes.flatMap((n) => (n.options ?? []).map((o, i) => (o.to === node.id ? { nodeId: n.id, option: i } : null))).find(Boolean); update(undoChoice(ref.current, node.id)); setReopened(from ?? null); }} className="inline-flex items-center gap-1.5 rounded-[10px] px-2.5 py-1.5 text-[13px] font-medium text-neutral-600 hover:bg-neutral-100"><Undo2 size={14} aria-hidden /> Choose something else</button>
     : null;
   const v = validateFlow(draft);
+  // endings already written, offered for reuse ("same as before") instead of copy-paste
+  const endings = draft.nodes.filter((n) => n.kind !== 'question' && n.text.trim() && (n.kind !== 'article' || n.articleId));
+  const cancel = <button type="button" onClick={() => setFocus(null)} className="rounded-[10px] px-2.5 py-1.5 text-[13px] font-medium text-neutral-600 hover:bg-neutral-100">Cancel</button>;
 
   const publish = async (action: 'publish' | 'submit') => {
     setNotice(null);
@@ -180,7 +185,7 @@ function Builder({ initial }: { initial: FlowView }) {
             hint="One short question they can answer by picking an option.">
             <OneLine label="Question" placeholder="For example: Is the printer switched on?" max={400} initial={byId.get(task.nodeId)!.text}
               submit={focus ? 'Done' : 'Next'} onSubmit={(t) => { patch(task.nodeId, { text: t }); setFocus(null); }}
-              extra={focus ? <button type="button" onClick={() => setFocus(null)} className="rounded-[10px] px-2.5 py-1.5 text-[13px] font-medium text-neutral-600 hover:bg-neutral-100">Cancel</button> : undo} />
+              extra={focus ? cancel : undo} />
           </Card>
         )}
         {task.kind === 'answers' && (
@@ -202,10 +207,25 @@ function Builder({ initial }: { initial: FlowView }) {
                 </button>
               ))}
             </div>
+            {endings.length > 0 && (
+              <div className="mt-6">
+                <p className="text-[13px] font-medium text-neutral-700">Same as an ending you already wrote?</p>
+                <ul className="mt-2 flex flex-wrap gap-2">
+                  {endings.map((n) => (
+                    <li key={n.id}>
+                      <button type="button" aria-label={`Reuse ending: ${n.text}`} onClick={() => { update(setTarget(ref.current, task.nodeId, task.option, n.id).flow); setReopened(null); }}
+                        className="inline-flex max-w-[280px] items-center gap-2 rounded-full bg-white px-3.5 py-2 text-left text-[13.5px] text-neutral-800 ring-1 ring-neutral-200 hover:bg-accent-soft hover:ring-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+                        {n.kind === 'article' ? <FileText size={14} aria-hidden className="shrink-0" /> : <Flag size={14} aria-hidden className="shrink-0" />}<span className="truncate">{n.text}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </Card>
         )}
-        {task.kind === 'result' && <Ending node={node!} onDone={(p) => patch(task.nodeId, p)} extra={undo} />}
-        {task.kind === 'article' && <ArticleStep onPick={(a) => patch(task.nodeId, { articleId: a.id, text: a.title })} extra={undo} />}
+        {task.kind === 'result' && <Ending node={node!} editing={!!focus} onDone={(p) => { patch(task.nodeId, p); setFocus(null); }} extra={focus ? cancel : undo} />}
+        {task.kind === 'article' && <ArticleStep editing={!!focus} onPick={(a) => { patch(task.nodeId, { articleId: a.id, text: a.title }); setFocus(null); }} extra={focus ? cancel : undo} />}
         {task.kind === 'title' && (
           <Card step="Name" icon={Sparkles} title="What problem will this flow help people solve?">
             <OneLine label="Flow title" max={200} submit="Next" onSubmit={(t) => update({ ...ref.current, title: t })} />
@@ -356,10 +376,10 @@ const TONES: { value: FlowSeverity; label: string; icon: typeof Flag }[] = [
   { value: 'success', label: 'This solves it', icon: CircleCheck }, { value: 'info', label: 'Good to know', icon: Info }, { value: 'warning', label: 'Stop or escalate', icon: TriangleAlert },
 ];
 
-function Ending({ node, onDone, extra }: { node: FlowNode; onDone: (p: Partial<FlowNode>) => void; extra?: ReactNode }) {
+function Ending({ node, editing, onDone, extra }: { node: FlowNode; editing?: boolean; onDone: (p: Partial<FlowNode>) => void; extra?: ReactNode }) {
   const [text, setText] = useState(node.text), [detail, setDetail] = useState(node.detail ?? ''), [tone, setTone] = useState<FlowSeverity>(node.severity ?? 'success');
   return (
-    <Card step="An ending" icon={Flag} title="What should they do?" hint="This is what people see at the end of this path.">
+    <Card step={editing ? 'Change this ending' : 'An ending'} icon={Flag} title="What should they do?" hint={editing ? 'Every answer that leads here shows the change.' : 'This is what people see at the end of this path.'}>
       <form onSubmit={(e) => { e.preventDefault(); if (text.trim()) onDone({ text: text.trim(), detail: detail.trim() || undefined, severity: tone }); }}>
         <label className="sr-only" htmlFor="ending-text">Solution</label>
         <input id="ending-text" autoFocus aria-describedby="task-title" value={text} maxLength={400} placeholder="For example: Restart the printer and try again" onChange={(e) => setText(e.target.value)} className={field} />
@@ -377,20 +397,20 @@ function Ending({ node, onDone, extra }: { node: FlowNode; onDone: (p: Partial<F
             ))}
           </div>
         </fieldset>
-        <div className="mt-5 flex items-center justify-between gap-3">{extra ?? <span />}<Button type="submit" disabled={!text.trim()}>Save ending <ArrowRight size={15} aria-hidden /></Button></div>
+        <div className="mt-5 flex items-center justify-between gap-3">{extra ?? <span />}<Button type="submit" disabled={!text.trim()}>{editing ? 'Done' : 'Save ending'} <ArrowRight size={15} aria-hidden /></Button></div>
       </form>
     </Card>
   );
 }
 
-function ArticleStep({ onPick, extra }: { onPick: (a: { id: string; title: string }) => void; extra?: ReactNode }) {
+function ArticleStep({ onPick, editing, extra }: { onPick: (a: { id: string; title: string }) => void; editing?: boolean; extra?: ReactNode }) {
   const [open, setOpen] = useState(false);
   const wrap = useRef<HTMLDivElement>(null);
   useEffect(() => setOpen(true), []);
   // the picker opens by itself, so on close put focus back on its button
   const toggle = (o: boolean) => { setOpen(o); if (!o) requestAnimationFrame(() => wrap.current?.querySelector('button')?.focus()); };
   return (
-    <Card step="An ending" icon={FileText} title="Which article should they read?" hint="Search the hub and pick the article that answers their problem.">
+    <Card step={editing ? 'Change this ending' : 'An ending'} icon={FileText} title="Which article should they read?" hint="Search the hub and pick the article that answers their problem.">
       <div ref={wrap} className="flex items-center justify-between gap-3">
         <Button onClick={() => toggle(true)}><FileText size={15} aria-hidden /> Choose an article</Button>
         {extra}
