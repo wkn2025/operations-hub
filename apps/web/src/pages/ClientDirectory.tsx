@@ -8,7 +8,7 @@ import { StatusBadge } from '../components/ui/primitives';
 
 /** "Acme Travel (fictional)" -> "Acme Travel": the DEMO label lives on every article, not in the directory. */
 const display = (client: string) => client.replace(/\s*\(fictional\)\s*$/i, '').trim().replace(/\s+/g, ' ');
-const key = (client: string) => display(client).toLowerCase();
+export const key = (client: string) => display(client).toLowerCase();
 
 /** Clients & Terms and Conditions: client (A–Z) -> Corporate / Travel -> Full T&C / Coverage summary. Built from the client_terms fields. */
 export function ClientDirectory({ articles }: { articles: ArticleSummary[] }) {
