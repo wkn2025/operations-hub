@@ -67,9 +67,10 @@ function VersionSwitch({ article: a }: { article: Article }) {
   const go = (e: MouseEvent, k: typeof docKind, slug: string) => {
     if (still || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return; // plain link behaviour
     e.preventDefault();
+    if (timer.current) return; // already sliding: a double-click must not navigate twice
     setSel(k);
     void qc.prefetchQuery({ queryKey: ['article', slug], queryFn: () => api<Article>(`/api/articles/${encodeURIComponent(slug)}`) });
-    timer.current = window.setTimeout(() => navigate(`/article/${slug}`), 300);
+    timer.current = window.setTimeout(() => { timer.current = undefined; navigate(`/article/${slug}`); }, 300);
   };
   const chip = 'relative z-10 rounded-full px-4 py-1.5 text-center text-[13px] font-medium transition-colors duration-300 motion-reduce:transition-none';
   return (
@@ -78,7 +79,7 @@ function VersionSwitch({ article: a }: { article: Article }) {
         sel === 'summary' ? 'translate-x-full bg-accent' : 'translate-x-0 bg-primary')} />
       {CLIENT_DOC_KINDS.map((k) => {
         const on = sel === k, text = on ? (k === 'summary' ? 'text-neutral-900' : 'text-white') : '';
-        if (k === docKind) return <span key={k} aria-current="page" className={clsx(chip, text || 'text-neutral-700')}>{CLIENT_DOC_LABELS[k]}</span>;
+        if (k === docKind) return <span key={k} aria-current="page" className={clsx(chip, 'font-semibold', text || 'text-neutral-700')}>{CLIENT_DOC_LABELS[k]}</span>;
         const o = other(k);
         return o
           ? <Link key={k} to={`/article/${o.slug}`} onClick={(e) => go(e, k, o.slug)} className={clsx(chip, text || 'text-primary hover:bg-white/70')}>{CLIENT_DOC_LABELS[k]}</Link>
