@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Flow } from '@ops/shared';
-import { chooseNext, nextTask, progress, undoChoice } from './guide';
+import { chooseNext, layout, nextTask, progress, undoChoice } from './guide';
 
 const base = (nodes: Flow['nodes'], title = 'Printer broken'): Flow => ({ title, startId: 'q1', nodes });
 
@@ -11,12 +11,23 @@ describe('guided builder: next task', () => {
     expect(nextTask(base([{ id: 'q1', kind: 'question', text: 'On?', options: [] }]))).toMatchObject({ kind: 'answers', nodeId: 'q1' });
   });
 
-  it('walks one path to its end before the next answer (depth first), with the path so far', () => {
+  it('follows the first answer down, then goes back to the highest open answer (top-down), with the path so far', () => {
     const f = base([
       { id: 'q1', kind: 'question', text: 'On?', options: [{ label: 'Yes', to: 'q2' }, { label: 'No', to: '' }] },
-      { id: 'q2', kind: 'question', text: 'Paper?', options: [{ label: 'Yes', to: '' }, { label: 'No', to: '' }] },
+      { id: 'q2', kind: 'question', text: 'Paper?', options: [{ label: 'Yes', to: 'r1' }, { label: 'No', to: '' }] },
+      { id: 'r1', kind: 'result', text: 'Print' },
     ]);
-    expect(nextTask(f)).toEqual({ kind: 'branch', nodeId: 'q2', option: 0, path: [{ nodeId: 'q1', answer: 'Yes' }, { nodeId: 'q2', answer: 'Yes' }] });
+    expect(nextTask(f)).toEqual({ kind: 'branch', nodeId: 'q1', option: 1, path: [{ nodeId: 'q1', answer: 'No' }] });
+    const fresh = { ...f, nodes: [...f.nodes.map((n) => (n.id === 'q1' ? { ...n, options: [n.options![0]!, { label: 'No', to: 'q3' }] } : n)), { id: 'q3', kind: 'question' as const, text: '' }] };
+    expect(nextTask(fresh)).toMatchObject({ kind: 'question', nodeId: 'q3' }); // a step just added is filled in straight away
+    const q3asked = { ...fresh, nodes: fresh.nodes.map((n) => (n.id === 'q3' ? { ...n, text: 'Plugged in?', options: [{ label: 'Yes', to: '' }, { label: 'No', to: '' }] } : n)) };
+    expect(nextTask(q3asked)).toMatchObject({ kind: 'branch', nodeId: 'q3', option: 0 }); // a new question: follow its first answer down first
+    const deep = base([
+      { id: 'q1', kind: 'question', text: 'On?', options: [{ label: 'Yes', to: 'q2' }, { label: 'No', to: 'r1' }] },
+      { id: 'q2', kind: 'question', text: 'Paper?', options: [{ label: 'Yes', to: '' }, { label: 'No', to: '' }] },
+      { id: 'r1', kind: 'result', text: 'Switch on' },
+    ]);
+    expect(nextTask(deep)).toEqual({ kind: 'branch', nodeId: 'q2', option: 0, path: [{ nodeId: 'q1', answer: 'Yes' }, { nodeId: 'q2', answer: 'Yes' }] });
   });
 
   it('asks to fill a new ending, then is done when every path ends', () => {
@@ -38,6 +49,17 @@ describe('guided builder: next task', () => {
       { id: 'r1', kind: 'result', text: 'Done' },
     ]);
     expect(nextTask(f)).toEqual({ kind: 'done' });
+  });
+});
+
+describe('guided builder: several new questions at once (after a reload)', () => {
+  it('starts with the highest one, left first', () => {
+    const f = base([
+      { id: 'q1', kind: 'question', text: 'On?', options: [{ label: 'Yes', to: 'q2' }, { label: 'No', to: 'q3' }] },
+      { id: 'q2', kind: 'question', text: 'Paper?', options: [{ label: 'Yes', to: '' }, { label: 'No', to: '' }] },
+      { id: 'q3', kind: 'question', text: 'Plugged?', options: [{ label: 'Yes', to: '' }, { label: 'No', to: '' }] },
+    ]);
+    expect(nextTask(f)).toMatchObject({ kind: 'branch', nodeId: 'q2', option: 0 });
   });
 });
 
@@ -81,5 +103,29 @@ describe('guided builder: fixing mistakes', () => {
     const g = undoChoice(f, 'a1');
     expect(g.nodes.map((n) => n.id)).toEqual(['q1']);
     expect(nextTask(g)).toMatchObject({ kind: 'branch', nodeId: 'q1', option: 0 });
+  });
+});
+
+describe('guided builder: the live map', () => {
+  it('lays the flow out: col = steps from the start, row = centre across (open "?" and "back to" slots are half width), parents centred', () => {
+    const m = layout(base([
+      { id: 'q1', kind: 'question', text: 'On?', options: [{ label: 'Yes', to: 'q2' }, { label: 'No', to: '' }] },
+      { id: 'q2', kind: 'question', text: 'Paper?', options: [{ label: 'Yes', to: 'r1' }, { label: 'No', to: 'q1' }] },
+      { id: 'r1', kind: 'result', text: 'Print' },
+    ]));
+    const at = (k: string) => m.boxes.find((b) => b.key === k)!;
+    expect(m.boxes.map((b) => [b.kind, b.col, b.row])).toEqual([
+      ['question', 0, 1.3125], ['question', 1, 0.875], ['result', 2, 0.5], ['repeat', 2, 1.25], ['open', 1, 1.75],
+    ]);
+    expect(at(m.boxes[4]!.key)).toMatchObject({ kind: 'open', from: { nodeId: 'q1', option: 1 } });
+    expect(m.edges.map((e) => e.label)).toEqual(['Yes', 'Yes', 'No', 'No']);
+    expect([m.cols, m.rows]).toEqual([3, 2]); // rows = total width in step units
+  });
+  it('a question never gets less than a full step of width, even with one narrow "?" under it', () => {
+    const m = layout(base([
+      { id: 'q1', kind: 'question', text: 'On?', options: [{ label: 'Yes', to: '' }] },
+    ]));
+    expect(m.boxes.map((b) => [b.kind, b.row])).toEqual([['question', 0.5], ['open', 0.25]]);
+    expect(m.rows).toBe(1);
   });
 });

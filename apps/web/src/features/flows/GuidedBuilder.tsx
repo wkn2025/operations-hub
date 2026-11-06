@@ -12,6 +12,7 @@ import { NotFound } from '../../pages/NotFound';
 import { LinkPicker } from '../editor/LinkPicker';
 import { useAutosave } from '../editor/useAutosave';
 import { FlowRunner } from './FlowRunner';
+import { FlowMap } from './FlowMap';
 import { chooseNext, nextTask, progress, undoChoice, type PathStep, type Task } from './guide';
 
 /**
@@ -70,6 +71,8 @@ function Builder({ initial }: { initial: FlowView }) {
   const [draft, setDraftState] = useState<Flow>({ title: initial.title, startId: initial.startId, nodes: initial.nodes });
   const ref = useRef(draft);
   const [focus, setFocus] = useState<string | null>(null); // a question picked from the path to change
+  const [reopened, setReopened] = useState<{ nodeId: string; option: number } | null>(null); // after "Choose something else"
+  const editQuestion = (id: string) => { setReopened(null); setFocus(id); };
   const [trying, setTrying] = useState(false);
   const [notice, setNotice] = useState<{ tone: 'error' | 'info'; text: string } | null>(null);
 
@@ -107,14 +110,18 @@ function Builder({ initial }: { initial: FlowView }) {
 
   const byId = new Map(draft.nodes.map((n) => [n.id, n]));
   const auto = nextTask(draft);
-  const task: Task = focus && byId.get(focus) ? { kind: 'question', nodeId: focus, path: pathTo(draft, focus) } : auto;
+  const back = reopened && byId.get(reopened.nodeId)?.options?.[reopened.option];
+  const task: Task = focus && byId.get(focus) ? { kind: 'question', nodeId: focus, path: pathTo(draft, focus) }
+    : back && !back.to && (auto.kind === 'branch' || auto.kind === 'done')
+      ? { kind: 'branch', nodeId: reopened!.nodeId, option: reopened!.option, path: [...pathTo(draft, reopened!.nodeId).slice(0, -1), { nodeId: reopened!.nodeId, answer: back.label }] }
+      : auto;
   const { done, open } = progress(draft);
   const pct = done + open ? Math.round((done / (done + open)) * 100) : 0;
   const isStart = 'nodeId' in task && task.nodeId === draft.startId;
   const node = 'nodeId' in task ? byId.get(task.nodeId) : undefined;
   // a fresh step with nothing after it can be taken back ("choose something else")
   const undo = !focus && node && node.id !== draft.startId && !(node.options ?? []).length
-    ? <button type="button" onClick={() => update(undoChoice(ref.current, node.id))} className="inline-flex items-center gap-1.5 rounded-[10px] px-2.5 py-1.5 text-[13px] font-medium text-neutral-600 hover:bg-neutral-100"><Undo2 size={14} aria-hidden /> Choose something else</button>
+    ? <button type="button" onClick={() => { const from = ref.current.nodes.flatMap((n) => (n.options ?? []).map((o, i) => (o.to === node.id ? { nodeId: n.id, option: i } : null))).find(Boolean); update(undoChoice(ref.current, node.id)); setReopened(from ?? null); }} className="inline-flex items-center gap-1.5 rounded-[10px] px-2.5 py-1.5 text-[13px] font-medium text-neutral-600 hover:bg-neutral-100"><Undo2 size={14} aria-hidden /> Choose something else</button>
     : null;
   const v = validateFlow(draft);
 
@@ -132,7 +139,7 @@ function Builder({ initial }: { initial: FlowView }) {
   };
 
   return (
-    <div className="mx-auto max-w-[720px]">
+    <div className="mx-auto max-w-[1320px]">
       <header className="flex items-center gap-3">
         <Link to="/flows" onClick={(e) => void leave(e, '/flows')} aria-label="Back to guided flows" className="flex h-9 w-9 items-center justify-center rounded-[12px] text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900"><ArrowLeft size={18} /></Link>
         <p className="min-w-0 flex-1 truncate text-[15px] font-semibold text-neutral-900">{draft.title}</p>
@@ -152,7 +159,9 @@ function Builder({ initial }: { initial: FlowView }) {
         </div>
       </div>
 
-      {'path' in task && task.path.some((s) => s.answer) && <Trail path={task.path} byId={byId} onEdit={view.permissions.write ? setFocus : undefined} />}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,520px)_minmax(0,1fr)] lg:items-start">
+      <div className="min-w-0 max-w-[720px] lg:max-w-none">
+      {'path' in task && task.path.some((s) => s.answer) && <Trail path={task.path} byId={byId} onEdit={view.permissions.write ? editQuestion : undefined} />}
       {!view.permissions.write && <p role="status" className="mt-5 flex items-center gap-2 rounded-[12px] bg-neutral-100 px-4 py-3 text-sm text-neutral-700"><Lock size={15} aria-hidden /> You can look at this flow but not change it right now (it may need approval or be archived).</p>}
       {autosave.status === 'conflict' && <p role="alert" className="mt-5 flex flex-wrap items-center gap-2 rounded-[12px] bg-warning-soft px-4 py-3 text-sm text-neutral-900">Someone else changed this flow, so your last change wasn’t saved. <button type="button" onClick={() => void reloadLatest()} className="font-medium text-primary underline">Load their version</button></p>}
       {stuck && (
@@ -185,7 +194,7 @@ function Builder({ initial }: { initial: FlowView }) {
             title={<>When they answer <Em>{byId.get(task.nodeId)!.options![task.option]!.label}</Em>, what happens next?</>}>
             <div className="grid gap-3 sm:grid-cols-3">
               {(([['question', CircleHelp, 'Ask another question', 'You need to know more first'], ['result', Flag, 'Give the solution', 'You know what they should do'], ['article', FileText, 'Send them to an article', 'The answer is already written up']]) as [FlowNodeKind, typeof Flag, string, string][]).map(([kind, Icon, label, sub]) => (
-                <button key={kind} type="button" onClick={() => update(chooseNext(ref.current, task.nodeId, task.option, kind).flow)}
+                <button key={kind} type="button" onClick={() => { update(chooseNext(ref.current, task.nodeId, task.option, kind).flow); setReopened(null); }}
                   className="group flex flex-col items-start gap-3 rounded-[18px] bg-white p-5 text-left shadow-sm ring-1 ring-neutral-200 transition hover:-translate-y-0.5 hover:shadow-md hover:ring-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary motion-reduce:transition-none motion-reduce:hover:translate-y-0">
                   <span className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-accent text-primary"><Icon size={20} aria-hidden /></span>
                   <span className="text-[15px] font-semibold text-neutral-900">{label}</span>
@@ -222,6 +231,9 @@ function Builder({ initial }: { initial: FlowView }) {
           </Card>
         )}
       </Stage>}
+      </div>
+      <div className="min-w-0 lg:sticky lg:top-[96px] lg:mt-5"><FlowMap flow={draft} task={task} onEdit={view.permissions.write ? editQuestion : undefined} /></div>
+      </div>
     </div>
   );
 }

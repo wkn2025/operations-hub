@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router';
 import { mockFetch, renderApp } from '../../test/utils';
@@ -120,5 +120,39 @@ describe('guided flow builder', () => {
     expect(screen.queryByText('Flow list')).toBeNull();
     await userEvent.click(screen.getByRole('button', { name: 'Leave anyway' }));
     expect(await screen.findByText('Flow list')).toBeInTheDocument();
+  });
+
+  it('after the Yes path ends it goes back to the FIRST question’s other answer, not the last one; the map grows alongside', async () => {
+    mockFetch({ '/api/me': me, '/api/flows/f1': { ...view, nodes: [
+      { id: 'q1', kind: 'question', text: 'Is it on?', options: [{ label: 'Yes', to: 'q2' }, { label: 'No', to: '' }] },
+      { id: 'q2', kind: 'question', text: 'Is there paper?', options: [{ label: 'Yes', to: 'r0' }, { label: 'No', to: '' }] },
+      { id: 'r0', kind: 'result', text: 'Print a test page', severity: 'success' },
+    ] } });
+    renderApp(<Routes><Route path="/flows/:id/build" element={<BuildFlow />} /></Routes>, '/flows/f1/build');
+    const map = await screen.findByRole('region', { name: 'Your flow so far' });
+    expect(within(map).getAllByText('Not decided yet')).toHaveLength(1); // q2 No; q1 No is "You are here"
+    expect(within(map).getByText('You are here')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /When they answer No/ })).toBeInTheDocument(); // q1's No first (top-down)
+    expect(screen.getByRole('list', { name: 'Your path so far' })).not.toHaveTextContent('Is there paper?');
+    await userEvent.click(screen.getByRole('button', { name: /Give the solution/ }));
+    await userEvent.type(await screen.findByLabelText('Solution'), 'Switch it on');
+    await userEvent.click(screen.getByRole('button', { name: /Save ending/ }));
+    expect(await within(map).findByText('Switch it on')).toBeInTheDocument();
+    await userEvent.click(within(map).getByRole('button', { name: 'Map: change question Is there paper?' }));
+    expect(await screen.findByLabelText('Question')).toHaveValue('Is there paper?');
+  });
+
+  it('"Choose something else" returns to the answer it reopened, even when another answer is higher up', async () => {
+    mockFetch({ '/api/me': me, '/api/flows/f1': { ...view, nodes: [
+      { id: 'q1', kind: 'question', text: 'Is it on?', options: [{ label: 'Yes', to: 'q2' }, { label: 'No', to: '' }] },
+      { id: 'q2', kind: 'question', text: 'Is there paper?', options: [{ label: 'Yes', to: 'r1' }, { label: 'No', to: 'r2' }] },
+      { id: 'r1', kind: 'result', text: 'Print', severity: 'success' },
+      { id: 'r2', kind: 'result', text: '', severity: 'success' },
+    ] } });
+    renderApp(<Routes><Route path="/flows/:id/build" element={<BuildFlow />} /></Routes>, '/flows/f1/build');
+    expect(await screen.findByRole('heading', { name: 'What should they do?' })).toBeInTheDocument(); // r2 (blank) first
+    await userEvent.click(screen.getByRole('button', { name: /Choose something else/ }));
+    expect(await screen.findByRole('heading', { name: /When they answer No/ })).toBeInTheDocument();
+    expect(screen.getByRole('list', { name: 'Your path so far' })).toHaveTextContent('Is there paper?'); // q2's No, not q1's
   });
 });
