@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 import clsx from 'clsx';
-import { ArrowLeftRight, CircleHelp, FileText, Flag, Link2, Undo2 } from 'lucide-react';
+import { ChevronDown, CircleHelp, FileText, Flag, Link2, Undo2 } from 'lucide-react';
 import type { Flow, FlowNode } from '@ops/shared';
 import { layout, SLOT, type MapBox, type Task } from './guide';
 
@@ -13,7 +13,7 @@ const x = (b: MapBox) => b.row * U - (bw(b) + GX) / 2, y = (b: MapBox) => b.col 
 const TONE: Record<string, string> = { success: 'bg-success-soft', warning: 'bg-warning-soft', info: 'bg-primary-soft' };
 
 /** The live decision map beside the builder: grows top-down as the author answers, like an n8n canvas turned upright. */
-export function FlowMap({ flow, task, onEdit, onSwap }: { flow: Flow; task: Task; onEdit?: (nodeId: string) => void; onSwap?: (nodeId: string) => void }) {
+export function FlowMap({ flow, task, onEdit, onSwap }: { flow: Flow; task: Task; onEdit?: (nodeId: string) => void; onSwap?: (nodeId: string, from: number, to: number) => void }) {
   const m = useMemo(() => layout(flow), [flow]);
   const byId = useMemo(() => new Map(flow.nodes.map((n) => [n.id, n])), [flow.nodes]);
   const still = useReducedMotion();
@@ -61,24 +61,26 @@ export function FlowMap({ flow, task, onEdit, onSwap }: { flow: Flow; task: Task
             })}
           </svg>
           {m.edges.map((e) => {
-            const a = at.get(e.from)!, b = at.get(e.to)!;
+            const a = at.get(e.from)!, b = at.get(e.to)!, q = byId.get(a.nodeId!);
+            const answers = q?.options ?? [];
+            // the answer on the line is a small dropdown: pick another answer to switch the two branches (e.g. Yes <-> No)
+            if (onSwap && q && answers.length > 1 && answers.every((o) => o.label.trim())) {
+              return (
+                <span key={`l-${e.to}`} style={{ left: x(b) + bw(b) / 2, top: y(b) - GY / 3, maxWidth: bw(b) + GX - 6 }} className="absolute z-10 -translate-x-1/2 -translate-y-1/2">
+                  <select value={e.option} title={`${e.label}: pick another answer to switch these two branches`} aria-label={`Answer “${e.label}” to “${q.text}”: pick another answer to switch branches`}
+                    onChange={(ev) => onSwap(q.id, e.option, Number(ev.target.value))}
+                    className="max-w-full cursor-pointer appearance-none truncate rounded-full bg-white py-0.5 pl-2 pr-5 text-[11.5px] font-medium text-neutral-700 ring-1 ring-neutral-200 hover:bg-accent-soft hover:ring-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+                    {answers.map((o, k) => <option key={k} value={k}>{o.label}</option>)}
+                  </select>
+                  <ChevronDown size={11} aria-hidden className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-neutral-500" />
+                </span>
+              );
+            }
             return (
               <span key={`l-${e.to}`} title={e.label} style={{ left: x(b) + bw(b) / 2, top: y(b) - GY / 3, maxWidth: bw(b) + GX - 6 }}
                 className="absolute z-10 -translate-x-1/2 -translate-y-1/2 truncate rounded-full bg-white px-2 py-0.5 text-[11.5px] font-medium text-neutral-700 ring-1 ring-neutral-200">
                 {e.label || '…'}<span className="sr-only"> (answer to {byId.get(a.nodeId!)?.text})</span>
               </span>
-            );
-          })}
-          {onSwap && m.boxes.map((b) => {
-            const n = b.kind === 'question' && b.nodeId ? byId.get(b.nodeId) : undefined;
-            if (n?.options?.length !== 2 || !n.text.trim() || n.options.some((o) => !o.label.trim())) return null;
-            const [a, c] = n.options;
-            return (
-              <button key={`s-${b.key}`} type="button" onClick={() => onSwap(n.id)} title={`Swap what “${a!.label}” and “${c!.label}” lead to`}
-                aria-label={`Swap ${a!.label} and ${c!.label}: ${n.text}`} style={{ left: x(b) + bw(b) / 2, top: y(b) + H + 4 }}
-                className="absolute z-20 flex h-6 w-6 -translate-x-1/2 items-center justify-center rounded-full bg-white text-neutral-500 shadow-sm ring-1 ring-neutral-200 hover:bg-accent-soft hover:text-primary hover:ring-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-                <ArrowLeftRight size={12} aria-hidden />
-              </button>
             );
           })}
           {m.boxes.map((b) => (

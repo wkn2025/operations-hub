@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Flow } from '@ops/shared';
-import { chooseNext, layout, nextTask, progress, swapOutcomes, undoChoice } from './guide';
+import { chooseNext, layout, nextTask, progress, swapAnswers, undoChoice } from './guide';
 
 const base = (nodes: Flow['nodes'], title = 'Printer broken'): Flow => ({ title, startId: 'q1', nodes });
 
@@ -118,7 +118,7 @@ describe('guided builder: the live map', () => {
       ['question', 0, 1.3125], ['question', 1, 0.875], ['result', 2, 0.5], ['repeat', 2, 1.25], ['open', 1, 1.75],
     ]);
     expect(at(m.boxes[4]!.key)).toMatchObject({ kind: 'open', from: { nodeId: 'q1', option: 1 } });
-    expect(m.edges.map((e) => e.label)).toEqual(['Yes', 'Yes', 'No', 'No']);
+    expect(m.edges.map((e) => [e.label, e.option])).toEqual([['Yes', 0], ['Yes', 0], ['No', 1], ['No', 1]]);
     expect([m.cols, m.rows]).toEqual([3, 2]); // rows = total width in step units
   });
   it('a question never gets less than a full step of width, even with one narrow "?" under it', () => {
@@ -131,16 +131,16 @@ describe('guided builder: the live map', () => {
 });
 
 describe('guided builder: switching Yes and No', () => {
-  it('swaps where the two answers lead; the labels stay', () => {
+  it('two answers swap where they lead; labels and order stay; nothing happens when there is nothing to move', () => {
     const f = base([
-      { id: 'q1', kind: 'question', text: 'On?', options: [{ label: 'Yes', to: 'r1' }, { label: 'No', to: 'q2' }] },
-      { id: 'q2', kind: 'question', text: 'Plugged?', options: [{ label: 'Yes', to: 'r1' }, { label: 'No', to: '' }] },
+      { id: 'q1', kind: 'question', text: 'On?', options: [{ label: 'Yes', to: 'r1' }, { label: 'No', to: 'q2' }, { label: 'Not sure', to: '' }] },
+      { id: 'q2', kind: 'question', text: 'Plugged?', options: [{ label: 'Yes', to: 'r1' }, { label: 'No', to: 'r1' }] },
       { id: 'r1', kind: 'result', text: 'Print' },
     ]);
-    expect(swapOutcomes(f, 'q1').nodes[0]!.options).toEqual([{ label: 'Yes', to: 'q2' }, { label: 'No', to: 'r1' }]);
-    expect(swapOutcomes(f, 'q2').nodes[1]!.options).toEqual([{ label: 'Yes', to: '' }, { label: 'No', to: 'r1' }]);
-    expect(swapOutcomes(f, 'r1')).toBe(f); // nothing to swap
-    const same = base([{ id: 'q1', kind: 'question', text: 'On?', options: [{ label: 'Yes', to: 'r1' }, { label: 'No', to: 'r1' }] }, { id: 'r1', kind: 'result', text: 'Print' }]);
-    expect(swapOutcomes(same, 'q1')).toBe(same); // both lead to the same place: nothing moves
+    expect(swapAnswers(f, 'q1', 0, 1).nodes[0]!.options).toEqual([{ label: 'Yes', to: 'q2' }, { label: 'No', to: 'r1' }, { label: 'Not sure', to: '' }]);
+    expect(swapAnswers(f, 'q1', 2, 0).nodes[0]!.options).toEqual([{ label: 'Yes', to: '' }, { label: 'No', to: 'q2' }, { label: 'Not sure', to: 'r1' }]);
+    expect(swapAnswers(f, 'q2', 0, 1)).toBe(f); // both lead to the same place
+    expect(swapAnswers(f, 'q1', 1, 1)).toBe(f);
+    expect(swapAnswers(f, 'r1', 0, 1)).toBe(f);
   });
 });

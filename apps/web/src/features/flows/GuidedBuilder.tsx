@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import clsx from 'clsx';
-import { ArrowLeft, ArrowLeftRight, ArrowRight, CircleHelp, Undo2, Lock, FileText, Flag, Info, Play, Plus, Send, Sparkles, TriangleAlert, Trophy, Upload, X, CircleCheck } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CircleHelp, Undo2, Lock, FileText, Flag, Info, Play, Plus, Send, Sparkles, TriangleAlert, Trophy, Upload, X, CircleCheck } from 'lucide-react';
 import { validateFlow, type Flow, type FlowNode, type FlowNodeKind, type FlowOption, type FlowSeverity } from '@ops/shared';
 import { api, fetchArticles, HttpError, isEditorRole, useArticle, useSession, type ArticleSummary, type FlowView } from '../../api/client';
 import { Button } from '../../components/ui/primitives';
@@ -14,7 +14,7 @@ import { useAutosave } from '../editor/useAutosave';
 import { FlowRunner } from './FlowRunner';
 import { FlowMap } from './FlowMap';
 import { setTarget } from './flowOps';
-import { chooseNext, nextTask, progress, swapOutcomes, undoChoice, type PathStep, type Task } from './guide';
+import { chooseNext, nextTask, progress, swapAnswers, undoChoice, type PathStep, type Task } from './guide';
 
 /**
  * /flows/:id/build — the guided builder: one question at a time, like a quest. The author never sees ids, "goes to"
@@ -74,13 +74,12 @@ function Builder({ initial }: { initial: FlowView }) {
   const [focus, setFocus] = useState<string | null>(null); // a question picked from the path to change
   const [reopened, setReopened] = useState<{ nodeId: string; option: number } | null>(null); // after "Choose something else"
   const editQuestion = (id: string) => { setReopened(null); setFocus(id); };
-  // "I mixed up Yes and No": the two branches change places, the labels stay
-  const swap = (id: string) => {
-    const n = ref.current.nodes.find((x) => x.id === id);
-    const next = n?.options?.length === 2 ? swapOutcomes(ref.current, id) : ref.current;
-    if (next === ref.current || !n?.options) { setNotice({ tone: 'info', text: 'Nothing to swap: both answers lead to the same place.' }); return; }
+  // "I mixed up Yes and No": picking another answer on the map switches the two branches; labels stay
+  const swap = (id: string, i: number, j: number) => {
+    const n = ref.current.nodes.find((x) => x.id === id), next = swapAnswers(ref.current, id, i, j);
+    if (!n?.options || next === ref.current) return; // same place: nothing to move
     update(next); setReopened(null);
-    setNotice({ tone: 'info', text: `Swapped: what followed “${n.options[0]!.label}” now follows “${n.options[1]!.label}”, and the other way round.` });
+    setNotice({ tone: 'info', text: `Switched: what followed “${n.options[i]!.label}” now follows “${n.options[j]!.label}”, and the other way round.` });
   };
   const [trying, setTrying] = useState(false);
   const [notice, setNotice] = useState<{ tone: 'error' | 'info'; text: string } | null>(null);
@@ -194,11 +193,6 @@ function Builder({ initial }: { initial: FlowView }) {
             <OneLine label="Question" placeholder="For example: Is the printer switched on?" max={400} initial={byId.get(task.nodeId)!.text}
               submit={focus ? 'Done' : 'Next'} onSubmit={(t) => { patch(task.nodeId, { text: t }); setFocus(null); }}
               extra={focus ? cancel : undo} />
-            {focus && node?.options?.length === 2 && node.options.every((o) => o.label.trim()) && (
-              <button type="button" onClick={() => swap(node.id)} className="mt-4 inline-flex items-center gap-2 rounded-[12px] px-3 py-2 text-[13.5px] font-medium text-primary ring-1 ring-inset ring-primary-line hover:bg-primary-soft">
-                <ArrowLeftRight size={15} aria-hidden /> Swap what “{node.options[0]!.label}” and “{node.options[1]!.label}” lead to
-              </button>
-            )}
           </Card>
         )}
         {task.kind === 'answers' && (
