@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { ArticleTemplate } from '.';
 import type { Article } from '../../../api/client';
 import { mockFetch, renderApp } from '../../../test/utils';
@@ -53,6 +54,8 @@ describe('ArticleTemplate', () => {
     expect(screen.getByText('Full T&C')).toHaveAttribute('aria-current', 'page');
     expect(await screen.findByRole('link', { name: /Coverage summary/ })).toHaveAttribute('href', '/article/nw-travel-summary');
     expect(String(fetch.mock.calls[0]![0])).toContain('categoryId=cat');
+    await userEvent.click(screen.getByRole('link', { name: /Coverage summary/ })); // pill slides, then the page changes
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/article/nw-travel-summary'));
   });
 
   it('client terms: no switch when the document has no client/line/kind', () => {
