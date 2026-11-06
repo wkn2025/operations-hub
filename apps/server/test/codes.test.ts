@@ -11,6 +11,8 @@ describe('splitCodes', () => {
   it('mixed separators, case, dots, repeats and blanks', () => {
     expect(splitCodes('  s33.01 ,, s3301\n99214 -  - a4565  ')).toEqual(['S3301', '99214', 'A4565']);
     expect(splitCodes('')).toEqual([]);
+    // pasted from Outlook/Word: " - " auto-corrected to an en dash, or an em dash / minus sign
+    expect(splitCodes('S33.0XXA – 99214—A4565 − G0439')).toEqual(['S330XXA', '99214', 'A4565', 'G0439']);
   });
 });
 

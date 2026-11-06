@@ -20,7 +20,8 @@ describe('Diagnosis & Service codes lookup', () => {
   it('looks up what is typed and lists each code with its system and description, in order', async () => {
     const fetch = mockFetch({ '/api/codes?': RESULTS });
     renderApp(<CodeLookup />, '/category/codes');
-    await userEvent.type(screen.getByRole('searchbox', { name: /codes/i }), 's33.0xxa, s33 - G0439 ZZZ99');
+    await userEvent.click(screen.getByRole('searchbox', { name: /codes/i }));
+    await userEvent.paste('s33.0xxa, s33 - G0439 ZZZ99'); // one change: no race with the debounce
     const rows = within(await screen.findByRole('list', { name: 'Code results' })).getAllByRole('listitem');
     expect(rows).toHaveLength(4);
     expect(rows[0]).toHaveTextContent(/S33\.0XXA.*ICD-10-CM.*initial encounter/);

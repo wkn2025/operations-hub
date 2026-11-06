@@ -22,10 +22,13 @@ export function CodeLookup() {
   const [text, setText] = useState(params.get('q') ?? '');
   const q = text.trim();
   const [term, setTerm] = useState(q);
+  const urlQ = params.get('q') ?? '';
+  // the address changed from outside (sidebar link, Back): show what it says
+  useEffect(() => { setText((t) => (t.trim() === urlQ ? t : urlQ)); }, [urlQ]);
   useEffect(() => { // look up once typing pauses; keep the text in the address
-    const t = window.setTimeout(() => { setTerm(q); setParams(q ? { q } : {}, { replace: true }); }, 300);
+    const t = window.setTimeout(() => { setTerm(q); if (q !== urlQ) setParams(q ? { q } : {}, { replace: true }); }, 300);
     return () => window.clearTimeout(t);
-  }, [q, setParams]);
+  }, [q, urlQ, setParams]);
 
   const look = useQuery({
     queryKey: ['codes', term], enabled: term.length > 0, staleTime: Infinity, placeholderData: (prev) => prev,
@@ -44,17 +47,18 @@ export function CodeLookup() {
           className="w-full rounded-[14px] bg-white py-3.5 pl-11 pr-4 text-[16px] text-neutral-900 shadow-sm ring-1 ring-inset ring-neutral-200 placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-primary" />
       </div>
       <p id="code-q-help" className="mt-2 text-[13px] text-neutral-500">
-        ICD-10, CPT and HCPCS. Several at once: separate them with spaces, commas or dashes. ICD-10 dots are optional (S33.0XXA = S330XXA).
+        ICD-10, CPT and HCPCS. Several at once: separate them with spaces, commas or dashes. ICD-10 dots are optional (S33.0XXA = S330XXA). A CPT modifier (99214-25) shows as its own “no match” row.
       </p>
 
-      <div aria-live="polite" className="mt-6">
+      <div className="mt-6">
+        {/* only short status lines are announced, never the whole list */}
         {term && look.isError && (look.error instanceof HttpError && look.error.status === 400
-          ? <p role="alert" className="text-[14px] text-neutral-700">Up to 100 codes at a time. Split the list and look them up in parts.</p>
+          ? <p role="status" className="text-[14px] text-neutral-700">Up to 100 codes at a time. Split the list and look them up in parts.</p>
           : <div className="panel"><ErrorState title="Couldn’t look up the codes" onRetry={() => look.refetch()} retrying={look.isFetching} /></div>)}
         {term && look.isPending && <div className="panel space-y-3 p-5">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-6 w-2/3" />)}</div>}
         {results && !look.isError && (
           <>
-            <p className="mb-2 text-[13px] text-neutral-500 tabular">{found} of {results.length} found</p>
+            <p role="status" className="mb-2 text-[13px] text-neutral-500 tabular">{found} of {results.length} found</p>
             <ul aria-label="Code results" className={clsx('panel divide-y divide-neutral-100 overflow-hidden transition-opacity', look.isPlaceholderData && 'opacity-60')}>
               {results.map((r) => (
                 <li key={r.query} className="px-5 py-4">
