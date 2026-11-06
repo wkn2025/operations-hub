@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import * as Dialog from '@radix-ui/react-dialog';
 import clsx from 'clsx';
-import { ArrowDown, ArrowUp, BookA, Stethoscope, CornerDownLeft, FileText, Folder, Hash, History, Route, RotateCw, Search, X, type LucideIcon } from 'lucide-react';
+import { ArrowDown, ArrowUp, BookA, CornerDownLeft, FileText, Folder, Hash, History, Route, RotateCw, Search, Stethoscope, X, type LucideIcon } from 'lucide-react';
 import { api, useCategories, type SearchGroup, type SearchHit } from '../../api/client';
 import { parseMarked } from '../../lib/text';
 import { readPref, writePref } from '../../lib/prefs';
@@ -83,7 +83,7 @@ export function SearchDialog() {
     const slug = cats.data?.find((c) => c.id === item.hit.id)?.slug ?? item.hit.id;
     if (item.kind === 'code') { // hit id = "code|system": open the lookup page with that code
       const page = cats.data?.find((c) => !c.parentId && c.name === 'Diagnosis & Service codes');
-      navigate(`/category/${page?.slug ?? 'diagnosis-service-codes'}?q=${encodeURIComponent(item.hit.id.split('|')[0]!)}`);
+      if (page) navigate(`/category/${page.slug}?q=${encodeURIComponent(item.hit.id.split('|')[0]!)}`);
       return;
     }
     navigate(item.kind === 'category' ? `/category/${slug}` : item.kind === 'flow' ? `/flows/${item.hit.id}` : `/article/${item.hit.id}`);
