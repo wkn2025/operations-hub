@@ -1,7 +1,7 @@
 import { forwardRef, type ComponentPropsWithoutRef, type ReactNode } from 'react';
 import clsx from 'clsx';
 import {
-  BookA, Cpu, FileText, Folder, Handshake, Hospital, Landmark, LifeBuoy, ListChecks, MonitorCog, ScrollText, ShieldCheck, Workflow, type LucideIcon,
+  BookA, Cpu, FileText, Stethoscope, Folder, Handshake, Hospital, Landmark, LifeBuoy, ListChecks, MonitorCog, ScrollText, ShieldCheck, Workflow, type LucideIcon,
 } from 'lucide-react';
 import type { ArticleStatus, ArticleType } from '@ops/shared';
 
@@ -17,6 +17,7 @@ const CATEGORY_ICON: Record<string, LucideIcon> = {
   'Provider Networks & Partners': Hospital,
   'Finance & Payment Processing': Landmark,
   'Internal Systems': MonitorCog,
+  'Diagnosis & Service codes': Stethoscope,
   'Glossary & Acronyms': BookA,
 };
 export const categoryIcon = (name: string): LucideIcon => CATEGORY_ICON[name] ?? Folder;

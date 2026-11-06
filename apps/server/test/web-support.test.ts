@@ -31,12 +31,12 @@ describe('seed guard', () => {
     expect(() => seedAllowed({ NODE_ENV: 'production', AUTH_MODE: 'oidc' }, ['--categories-only'])).not.toThrow();
   });
 
-  it('--categories-only path: the 8 top-level categories, idempotent, no demo users or articles', () => {
+  it('--categories-only path: the 9 top-level categories, idempotent, no demo users or articles', () => {
     seedCategories(c.app);
     seedCategories(c.app);
     const cats = c.app.sqlite.prepare('select name, parent_id, description from categories').all() as { name: string; parent_id: string | null; description: string | null }[];
     expect(cats.map((x) => x.name).sort()).toEqual(CATEGORY_TREE.map((t) => t.name).sort());
-    expect(cats).toHaveLength(8);
+    expect(cats).toHaveLength(9);
     expect(cats.every((x) => !x.parent_id && x.description)).toBe(true);
     expect(c.app.sqlite.prepare("select count(*) n from users where email like '%@demo.test'").get()).toEqual({ n: 0 });
     expect(c.app.sqlite.prepare('select count(*) n from articles').get()).toEqual({ n: 0 });
@@ -62,9 +62,9 @@ describe('seedBase', () => {
     const cats = c.app.sqlite.prepare('select name, parent_id from categories').all() as { name: string; parent_id: string | null }[];
     const top = cats.filter((x) => !x.parent_id).map((x) => x.name);
     expect(top.sort()).toEqual(CATEGORY_TREE.map((t) => t.name).sort());
-    expect(top).toHaveLength(8);
-    expect(cats.length).toBe(8 + CATEGORY_TREE.reduce((n, t) => n + t.children.length, 0));
-    for (const t of CATEGORY_TREE.filter((x) => x.name !== 'Clients & Terms and Conditions')) expect(t.children.length).toBeGreaterThanOrEqual(2); // clients: one A–Z directory
+    expect(top).toHaveLength(9);
+    expect(cats.length).toBe(9 + CATEGORY_TREE.reduce((n, t) => n + t.children.length, 0));
+    for (const t of CATEGORY_TREE.filter((x) => !['Clients & Terms and Conditions', 'Diagnosis & Service codes'].includes(x.name))) expect(t.children.length).toBeGreaterThanOrEqual(2); // clients: one A–Z directory; codes: a lookup page
 
     const users = c.app.sqlite.prepare('select email, role from users').all() as { email: string; role: string }[];
     expect(users).toEqual(expect.arrayContaining([

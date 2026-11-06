@@ -20,6 +20,7 @@ import multipart from '@fastify/multipart';
 import { fileRoutes } from './routes/files';
 import { flowRoutes } from './routes/flows';
 import { exportRoutes } from './routes/export';
+import { codeRoutes } from './routes/codes';
 import { securityHeaders, serveWeb } from './web';
 import { ApiError } from './services/articles';
 
@@ -74,6 +75,7 @@ export async function buildApp(opts: BuildOpts = {}): Promise<FastifyInstance> {
   searchRoutes(app);
   fileRoutes(app);
   flowRoutes(app);
+  codeRoutes(app);
   for (const r of [userRoutes, allowlistRoutes, settingsRoutes, reviewRoutes, auditRoutes, exportRoutes]) r(app);
   if (config.webDist) serveWeb(app, config.webDist);
 

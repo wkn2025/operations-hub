@@ -1,0 +1,35 @@
+import { readFileSync } from 'node:fs';
+import { gunzipSync } from 'node:zlib';
+
+/** Diagnosis & service code lookup. Data ships in apps/server/reference (sources in its README); read once, kept in memory. */
+export type CodeSystem = 'ICD-10-CM' | 'CPT' | 'HCPCS';
+export interface CodeMatch { system: CodeSystem; code: string; billable: boolean; description: string }
+
+export const MAX_CODES = 100;
+
+/** "s33.0xxa, 99214 - A4565" -> ["S330XXA", "99214", "A4565"]: split on spaces, commas and dashes (incl. the en/em dashes Outlook
+ * and Word type for " - "); dots dropped; upper case; repeats once. */
+export const splitCodes = (q: string) => [...new Set(q.toUpperCase().replace(/\./g, '').split(/[\s,\u2010-\u2015\u2212-]+/).filter(Boolean))];
+
+let index: Map<string, CodeMatch[]> | undefined;
+function load() {
+  const m = new Map<string, CodeMatch[]>();
+  const add = (key: string, x: CodeMatch) => m.set(key, [...(m.get(key) ?? []), x]);
+  const file = (name: string) => readFileSync(new URL(`../../reference/${name}`, import.meta.url));
+  // ICD-10-CM order file: code \t 1 billable / 0 header \t long description; shown with the dot after the category
+  for (const line of gunzipSync(file('icd10cm-2027.tsv.gz')).toString('utf8').split(/\r?\n/)) {
+    const [code, flag, description] = line.split('\t');
+    if (code && description) add(code, { system: 'ICD-10-CM', code: code.length > 3 ? `${code.slice(0, 3)}.${code.slice(3)}` : code, billable: flag === '1', description });
+  }
+  // CPT / HCPCS: code \t system \t plain description
+  for (const line of file('cpt-hcpcs.tsv').toString('utf8').split(/\r?\n/)) { // checkouts may turn LF into CRLF
+    const [code, system, description] = line.split('\t');
+    if (code && description) add(code, { system: system as CodeSystem, code, billable: true, description });
+  }
+  return m;
+}
+
+export const lookupCodes = (q: string) => {
+  index ??= load();
+  return splitCodes(q).map((query) => ({ query, matches: index!.get(query) ?? [] }));
+};

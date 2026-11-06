@@ -22,7 +22,7 @@ import { claimLifecycleSvg } from './screenshots/claim-lifecycle.svg';
 const EDI_DESCRIPTION = 'How EDI invoices travel between UHCG, MacroHealth and Euro-Center, and how we import, adjudicate and adjust them.';
 const OLD_EDI_DESCRIPTION = 'Electronic claim exchange, acknowledgements and the automations around them.';
 
-/** The eight top-level categories with their demo subcategories (restructured 2026-10-30, was nine). */
+/** The nine top-level categories with their demo subcategories (restructured 2026-10-30; codes lookup added 2026-11-06). */
 export const CATEGORY_TREE: { name: string; description: string; children: string[] }[] = [
   { name: 'EDI & Automation', description: EDI_DESCRIPTION, children: ['EDI 101', 'Import & web.transformer', 'Adjudication & adjustments', 'EDI issues'] },
   { name: 'Clients & Terms and Conditions', description: 'Who our clients are and what each contract lets us authorise.', children: [] },
@@ -31,6 +31,9 @@ export const CATEGORY_TREE: { name: string; description: string; children: strin
   { name: 'Provider Networks & Partners', description: 'Hospitals, clinics and assistance partners we work with.', children: ['Hospital network', 'Assistance partners'] },
   { name: 'Finance & Payment Processing', description: 'Payment runs, currencies, fees and reconciliation.', children: ['Payment runs', 'Currency & fees', 'Reconciliation', 'Payment issues', 'Global codes', 'Bank information'] },
   { name: 'Internal Systems', description: 'Globo, ECNet and the other tools we run on.', children: ['Globo', 'ECNet', 'Access & permissions'] },
+  // added 2026-11-06 (user): a lookup page, not articles. In an existing database it shares Glossary's position and sorts
+  // before it by name, so fresh, current and legacy-upgraded databases all show it just above Glossary.
+  { name: 'Diagnosis & Service codes', description: 'Look up ICD-10, CPT and HCPCS codes, several at once.', children: [] },
   { name: 'Glossary & Acronyms', description: 'The terms and abbreviations used across operations.', children: ['EDI terms', 'Medical terms'] },
 ];
 
@@ -126,7 +129,7 @@ export function seedAllowed(env: Record<string, string | undefined>, argv: strin
     throw new Error('Seed refused: NODE_ENV=production or AUTH_MODE=oidc. Pass --force-demo to seed demo data anyway.');
 }
 
-/** Production-safe: only the eight top-level categories (no demo users, articles or subcategories). Idempotent. */
+/** Production-safe: only the nine top-level categories (no demo users, articles or subcategories). Idempotent. */
 export function seedCategories(app: App) {
   app.sqlite.transaction(() => CATEGORY_TREE.forEach((t, i) => ensureCategory(app, t.name, null, i, t.description)))();
 }

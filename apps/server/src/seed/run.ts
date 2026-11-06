@@ -3,7 +3,7 @@ import { loadConfig } from '../config';
 import { seedAllowed, seedBase, seedCategories } from './base';
 
 // `npm run seed`: same DATA_DIR/.env as the server; safe to run repeatedly. NODE_ENV defaults to development here.
-// `npm run seed -- --categories-only`: just the eight top-level categories; allowed in production.
+// `npm run seed -- --categories-only`: just the nine top-level categories; allowed in production.
 const env = { ...process.env, NODE_ENV: process.env.NODE_ENV || 'development' };
 const argv = process.argv.slice(2);
 try { seedAllowed(env, argv); } catch (e) { console.error((e as Error).message); process.exit(1); }
