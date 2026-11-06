@@ -202,10 +202,10 @@ function Workspace({ initial }: { initial: FlowView }) {
           <Link to={status === 'published' ? `/flows/${view.slug}` : '/flows'} aria-label="Back" className="flex h-9 w-9 items-center justify-center rounded-[12px] text-neutral-500 transition-colors hover:bg-white hover:text-neutral-900"><ArrowLeft size={18} /></Link>
           <span className="flex items-center gap-1.5 pl-1 text-[13px] font-medium text-neutral-700"><PenLine size={14} className="text-neutral-400" aria-hidden />Editing flow</span>
           <Link to={`/flows/${view.id}/build`} onClick={async (e) => {
-            if (e.ctrlKey || e.metaKey || e.shiftKey || e.button === 1) return;
+            if (e.ctrlKey || e.metaKey || e.shiftKey) return; // new tab: let the browser open it
             e.preventDefault();
             if (await autosave.flush()) navigate(`/flows/${view.id}/build`);
-            else setNotice({ tone: 'error', text: 'Your last change isn’t saved, so the guided builder wasn’t opened. Fix the problem above first.' });
+            else setNotice({ tone: 'error', text: 'Your last change isn’t saved, so the guided builder wasn’t opened. Check the save status at the top, fix the problem, then try again.' });
           }} className="rounded-[10px] px-2.5 py-1.5 text-[13px] font-medium text-primary hover:bg-white">Guided builder</Link>
           <StatusBadge status={status} />
           <span aria-live="polite" className="ml-2 flex items-center gap-2 text-[13px] text-neutral-500" data-save-state={key}>

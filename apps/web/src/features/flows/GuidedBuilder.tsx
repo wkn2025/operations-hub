@@ -78,7 +78,7 @@ function Builder({ initial }: { initial: FlowView }) {
     try {
       const v = await api<FlowView>(`/api/flows/${view.id}`, { method: 'PATCH', json: { baseRevision: base, title: d.title.trim(), startId: d.startId, nodes: d.nodes, autosave: true } });
       setView(v); qc.setQueryData(['flow', v.slug], v); qc.setQueryData(['flow', v.id], v);
-      setNotice((n) => (n?.text.startsWith('Not saved') ? null : n));
+      setNotice((n) => (n?.text.startsWith('Not saved') ? null : n)); setStuck(null);
       return { revision: v.revision };
     } catch (e) {
       const st = e instanceof HttpError ? e.status : 0;
@@ -91,7 +91,7 @@ function Builder({ initial }: { initial: FlowView }) {
   // never open another editor on a stale copy: save first, then go
   const [stuck, setStuck] = useState<string | null>(null); // where the author wanted to go when the last change couldn't be saved
   const leave = async (e: React.MouseEvent, to: string) => {
-    if (e.ctrlKey || e.metaKey || e.shiftKey || e.button === 1) return;
+    if (e.ctrlKey || e.metaKey || e.shiftKey) return; // new tab: let the browser open it
     e.preventDefault();
     if (await autosave.flush()) navigate(to); else setStuck(to);
   };
@@ -99,7 +99,7 @@ function Builder({ initial }: { initial: FlowView }) {
     try {
       const v = await api<FlowView>(`/api/flows/${view.id}`);
       const d = { title: v.title, startId: v.startId, nodes: v.nodes };
-      ref.current = d; setDraftState(d); setView(v); autosave.reset(v.revision); setNotice(null);
+      ref.current = d; setDraftState(d); setView(v); autosave.reset(v.revision); setNotice(null); setStuck(null);
     } catch { setNotice({ tone: 'error', text: 'Couldn’t load the latest version. Try again.' }); }
   };
   const update = (next: Flow) => { ref.current = next; setDraftState(next); autosave.change(next); };
@@ -152,14 +152,14 @@ function Builder({ initial }: { initial: FlowView }) {
         </div>
       </div>
 
-      {'path' in task && task.path.some((s) => s.answer) && <Trail path={task.path} byId={byId} onEdit={setFocus} />}
+      {'path' in task && task.path.some((s) => s.answer) && <Trail path={task.path} byId={byId} onEdit={view.permissions.write ? setFocus : undefined} />}
       {!view.permissions.write && <p role="status" className="mt-5 flex items-center gap-2 rounded-[12px] bg-neutral-100 px-4 py-3 text-sm text-neutral-700"><Lock size={15} aria-hidden /> You can look at this flow but not change it right now (it may need approval or be archived).</p>}
       {autosave.status === 'conflict' && <p role="alert" className="mt-5 flex flex-wrap items-center gap-2 rounded-[12px] bg-warning-soft px-4 py-3 text-sm text-neutral-900">Someone else changed this flow, so your last change wasn’t saved. <button type="button" onClick={() => void reloadLatest()} className="font-medium text-primary underline">Load their version</button></p>}
       {stuck && (
         <div role="alert" className="mt-5 flex flex-wrap items-center gap-3 rounded-[12px] bg-danger-soft px-4 py-3 text-sm text-danger">
           Your last change isn’t saved, so you’re still here.
           <button type="button" onClick={() => setStuck(null)} className="font-medium underline">Stay and fix it</button>
-          <button type="button" onClick={() => navigate(stuck)} className="font-medium underline">Leave without saving</button>
+          <button type="button" onClick={() => navigate(stuck)} className="font-medium underline">Leave anyway</button>
         </div>
       )}
       {notice && <p role={notice.tone === 'error' ? 'alert' : 'status'} className={clsx('mt-5 rounded-[12px] px-4 py-3 text-sm', notice.tone === 'error' ? 'bg-danger-soft text-danger' : 'bg-primary-soft text-primary')}>{notice.text}</p>}
@@ -242,7 +242,7 @@ function Win({ questions, endings }: { questions: number; endings: number }) {
 }
 
 /** The questions and answers that led here, as chips; a question chip lets the author change it. */
-function Trail({ path, byId, onEdit }: { path: PathStep[]; byId: Map<string, FlowNode>; onEdit: (id: string) => void }) {
+function Trail({ path, byId, onEdit }: { path: PathStep[]; byId: Map<string, FlowNode>; onEdit?: (id: string) => void }) {
   return (
     <ol aria-label="Your path so far" className="mt-5 flex flex-wrap items-center gap-1.5 text-[13px]">
       {path.map((s, i) => {
@@ -250,7 +250,7 @@ function Trail({ path, byId, onEdit }: { path: PathStep[]; byId: Map<string, Flo
         if (!n || n.kind !== 'question' || !n.text) return null;
         return (
           <li key={i} className="flex items-center gap-1.5">
-            <button type="button" onClick={() => onEdit(s.nodeId)} aria-label={`Change question: ${n.text}`} title="Change this question" className="max-w-[240px] truncate rounded-full bg-white px-3 py-1 text-neutral-700 ring-1 ring-neutral-200 hover:ring-primary">{n.text}</button>
+            {onEdit ? <button type="button" onClick={() => onEdit(s.nodeId)} aria-label={`Change question: ${n.text}`} title="Change this question" className="max-w-[240px] truncate rounded-full bg-white px-3 py-1 text-neutral-700 ring-1 ring-neutral-200 hover:ring-primary">{n.text}</button> : <span className="max-w-[240px] truncate rounded-full bg-white px-3 py-1 text-neutral-700 ring-1 ring-neutral-200">{n.text}</span>}
             {s.answer && <span className="rounded-full bg-accent px-2.5 py-1 font-medium text-neutral-900">{s.answer}</span>}
             {i < path.length - 1 && <ArrowRight size={13} className="text-neutral-400" aria-hidden />}
           </li>

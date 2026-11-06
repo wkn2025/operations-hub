@@ -118,7 +118,7 @@ describe('guided flow builder', () => {
     await userEvent.click(screen.getByRole('link', { name: 'Back to guided flows' }));
     expect(await screen.findByText(/last change isn’t saved, so you’re still here/)).toBeInTheDocument();
     expect(screen.queryByText('Flow list')).toBeNull();
-    await userEvent.click(screen.getByRole('button', { name: 'Leave without saving' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Leave anyway' }));
     expect(await screen.findByText('Flow list')).toBeInTheDocument();
   });
 });
