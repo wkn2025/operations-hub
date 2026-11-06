@@ -60,8 +60,7 @@ test('viewer runs the EDI flow to a result, goes back and restarts; cannot edit'
 
 test('editor builds a flow, fixes a validation error, publishes; a viewer runs it', async ({ page, playwright, baseURL }) => {
   await loginAs(page, 'editor@demo.test');
-  await page.goto('/flows');
-  await page.getByRole('link', { name: 'New flow' }).click();
+  await page.goto('/flows/new/edit'); // advanced editor ("New flow" opens the guided builder, tested below)
   const title = `E2E printer flow ${Date.now()}`;
   await page.getByLabel('Flow title').fill(title);
   await page.getByRole('button', { name: 'Create flow' }).click();
@@ -128,4 +127,35 @@ test('editor builds a flow, fixes a validation error, publishes; a viewer runs i
   await page.getByRole('button', { name: /Open search/ }).click(); // the top bar search (the home page has no search bar of its own)
   await page.getByRole('combobox', { name: 'Search' }).fill('printer powered');
   await expect(page.getByRole('group', { name: 'Flows' })).toContainText(title);
+});
+
+test('guided builder: a new editor builds and publishes a flow one question at a time; a viewer runs it', async ({ page, playwright, baseURL }) => {
+  await loginAs(page, 'editor@demo.test');
+  await page.goto('/flows');
+  await page.getByRole('link', { name: 'New flow' }).click();
+  const title = `E2E guided flow ${Date.now()}`;
+  await page.getByLabel('Flow title').fill(title);
+  await page.getByRole('button', { name: /Start building/ }).click();
+  await expect(page).toHaveURL(/\/flows\/[0-9a-f-]{36}\/build$/);
+
+  await page.getByLabel('Question').fill('Is the printer switched on?');
+  await page.getByRole('button', { name: /Next/ }).click();
+  await page.getByRole('button', { name: /Next/ }).click(); // Yes / No
+  await page.getByRole('button', { name: /Give the solution/ }).click();
+  await page.getByLabel('Solution').fill('Print a test page');
+  await page.getByRole('button', { name: /Save ending/ }).click();
+  await page.getByRole('button', { name: /Give the solution/ }).click();
+  await page.getByLabel('Solution').fill('Switch it on and try again');
+  await page.getByRole('button', { name: /Save ending/ }).click();
+  await expect(page.getByRole('heading', { name: /Every path ends with an answer/ })).toBeVisible();
+  await shot(page, '29-guided-builder-done');
+  await page.getByRole('button', { name: /Publish/ }).click();
+  await expect(page.getByText('Published! Everyone can use it now.')).toBeVisible();
+
+  const viewer = await playwright.request.newContext({ baseURL });
+  expect((await viewer.post('/api/auth/dev/login', { data: { email: 'viewer@demo.test' } })).ok()).toBeTruthy();
+  const flowId = page.url().match(/flows\/([0-9a-f-]{36})\/build/)![1]!;
+  const got = await (await viewer.get(`/api/flows/${flowId}`)).json();
+  expect(got.status).toBe('published');
+  expect(got.nodes.map((n: { text: string }) => n.text)).toEqual(['Is the printer switched on?', 'Print a test page', 'Switch it on and try again']);
 });

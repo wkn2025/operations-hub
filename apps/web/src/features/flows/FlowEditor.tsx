@@ -99,6 +99,7 @@ const SAVE: Record<SaveStatus | 'dirty', { label: string; dot: string }> = {
 
 function Workspace({ initial }: { initial: FlowView }) {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [view, setView] = useState(initial);
   const [draft, setDraftState] = useState<Draft>(() => fromView(initial));
   const draftRef = useRef(draft);
@@ -112,7 +113,7 @@ function Workspace({ initial }: { initial: FlowView }) {
   const remember = (v: FlowView) => { setView(v); qc.setQueryData(['flow', v.slug], v); qc.setQueryData(['flow', v.id], v); void qc.invalidateQueries({ queryKey: ['flows'] }); };
 
   const autosave = useAutosave<Draft>(async (d, base, o) => {
-    const body = { baseRevision: base, ...(d.title.trim() ? { title: d.title.trim() } : {}), startId: d.startId, nodes: saveable(d).nodes, articleId: d.articleId, autosave: !o.explicit };
+    const body = { baseRevision: base, ...(d.title.trim() ? { title: d.title.trim() } : {}), startId: d.startId, nodes: d.nodes, articleId: d.articleId, autosave: !o.explicit };
     try {
       const v = await api<FlowView>(`/api/flows/${view.id}`, { method: 'PATCH', keepalive: o.keepalive, json: body });
       setView(v); qc.setQueryData(['flow', v.slug], v); qc.setQueryData(['flow', v.id], v);
@@ -200,6 +201,12 @@ function Workspace({ initial }: { initial: FlowView }) {
         <div className="glass flex h-14 items-center gap-2 rounded-[18px] pl-2 pr-2">
           <Link to={status === 'published' ? `/flows/${view.slug}` : '/flows'} aria-label="Back" className="flex h-9 w-9 items-center justify-center rounded-[12px] text-neutral-500 transition-colors hover:bg-white hover:text-neutral-900"><ArrowLeft size={18} /></Link>
           <span className="flex items-center gap-1.5 pl-1 text-[13px] font-medium text-neutral-700"><PenLine size={14} className="text-neutral-400" aria-hidden />Editing flow</span>
+          <Link to={`/flows/${view.id}/build`} onClick={async (e) => {
+            if (e.ctrlKey || e.metaKey || e.shiftKey) return; // new tab: let the browser open it
+            e.preventDefault();
+            if (await autosave.flush()) navigate(`/flows/${view.id}/build`);
+            else setNotice({ tone: 'error', text: 'Your last change isn’t saved, so the guided builder wasn’t opened. Check the save status at the top, fix the problem, then try again.' });
+          }} className="rounded-[10px] px-2.5 py-1.5 text-[13px] font-medium text-primary hover:bg-white">Guided builder</Link>
           <StatusBadge status={status} />
           <span aria-live="polite" className="ml-2 flex items-center gap-2 text-[13px] text-neutral-500" data-save-state={key}>
             <span className={clsx('h-2 w-2 rounded-full transition-colors duration-300', s.dot)} aria-hidden />

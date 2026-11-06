@@ -17,7 +17,7 @@ export function FlowsPage() {
             <p className="mt-2 max-w-[56ch] text-[17px] text-neutral-500">Answer a few questions and get to the fix. Pick the problem you are looking at.</p>
           </div>
           {editor && (
-            <Link to="/flows/new/edit" className="mt-1.5 inline-flex shrink-0 items-center gap-2 rounded-[12px] bg-primary px-4 py-2 text-sm font-medium text-white shadow-button transition-colors hover:bg-primary-hover">
+            <Link to="/flows/new/build" className="mt-1.5 inline-flex shrink-0 items-center gap-2 rounded-[12px] bg-primary px-4 py-2 text-sm font-medium text-white shadow-button transition-colors hover:bg-primary-hover">
               <Plus size={16} aria-hidden /> New flow
             </Link>
           )}
