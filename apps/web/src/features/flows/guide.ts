@@ -131,3 +131,20 @@ export function swapAnswers(flow: Flow, id: string, i: number, j: number): Flow 
   const options = n.options!.map((o, k): FlowOption => (k === i ? { ...o, to: b.to } : k === j ? { ...o, to: a.to } : o));
   return { ...flow, nodes: flow.nodes.map((x) => (x.id === id ? { ...x, options } : x)) };
 }
+
+/**
+ * The × on a map tile: remove a step, plus whatever only it led to (steps nobody else can reach any more); every
+ * answer that led to it is open again, so the builder asks "what happens next?" there. The first question stays.
+ */
+export function removeStep(flow: Flow, id: string): Flow {
+  if (id === flow.startId || !flow.nodes.some((n) => n.id === id)) return flow;
+  const before = new Set(reachable(flow).map((n) => n.id));
+  const opened = undoChoice(flow, id);
+  const after = new Set(reachable(opened).map((n) => n.id));
+  return { ...opened, nodes: opened.nodes.filter((n) => after.has(n.id) || !before.has(n.id)) }; // unrelated orphans stay
+}
+
+/** The × on a "Same" box: this answer no longer uses that ending (the ending stays for the others). */
+export function unlinkAnswer(flow: Flow, id: string, option: number): Flow {
+  return { ...flow, nodes: flow.nodes.map((n) => (n.id === id && n.options?.[option] ? { ...n, options: n.options.map((o, i) => (i === option ? { ...o, to: '' } : o)) } : n)) };
+}

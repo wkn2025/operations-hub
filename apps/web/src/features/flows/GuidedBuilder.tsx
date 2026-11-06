@@ -14,7 +14,7 @@ import { useAutosave } from '../editor/useAutosave';
 import { FlowRunner } from './FlowRunner';
 import { FlowMap } from './FlowMap';
 import { setTarget } from './flowOps';
-import { chooseNext, nextTask, progress, swapAnswers, undoChoice, type PathStep, type Task } from './guide';
+import { chooseNext, nextTask, progress, removeStep, swapAnswers, undoChoice, unlinkAnswer, type PathStep, type Task } from './guide';
 
 /**
  * /flows/:id/build — the guided builder: one question at a time, like a quest. The author never sees ids, "goes to"
@@ -74,6 +74,14 @@ function Builder({ initial }: { initial: FlowView }) {
   const [focus, setFocus] = useState<string | null>(null); // a question picked from the path to change
   const [reopened, setReopened] = useState<{ nodeId: string; option: number } | null>(null); // after "Choose something else"
   const editQuestion = (id: string) => { setReopened(null); setFocus(id); };
+  const remove = (r: { nodeId: string } | { unlink: string; option: number }) => {
+    const before = ref.current;
+    const next = 'unlink' in r ? unlinkAnswer(before, r.unlink, r.option) : removeStep(before, r.nodeId);
+    if (next === before) return;
+    const gone = before.nodes.length - next.nodes.length;
+    update(next, true); setFocus(null); setReopened(null); setNotice(null);
+    setRemoved({ before, text: 'unlink' in r ? 'That answer no longer uses the ending.' : gone > 1 ? `Removed the step and the ${gone - 1} step${gone === 2 ? '' : 's'} after it.` : 'Removed the step.' });
+  };
   // "I mixed up Yes and No": picking another answer on the map switches the two branches; labels stay
   const swap = (id: string, i: number, j: number) => {
     const n = ref.current.nodes.find((x) => x.id === id), next = swapAnswers(ref.current, id, i, j);
@@ -113,7 +121,8 @@ function Builder({ initial }: { initial: FlowView }) {
       ref.current = d; setDraftState(d); setView(v); autosave.reset(v.revision); setNotice(null); setStuck(null);
     } catch { setNotice({ tone: 'error', text: 'Couldn’t load the latest version. Try again.' }); }
   };
-  const update = (next: Flow) => { ref.current = next; setDraftState(next); autosave.change(next); };
+  const [removed, setRemoved] = useState<{ text: string; before: Flow } | null>(null); // last × on the map, with Undo
+  const update = (next: Flow, keepUndo = false) => { ref.current = next; setDraftState(next); autosave.change(next); if (!keepUndo) setRemoved(null); };
   const patch = (id: string, p: Partial<FlowNode>) => update({ ...ref.current, nodes: ref.current.nodes.map((n) => (n.id === id ? { ...n, ...p } : n)) });
 
   const byId = new Map(draft.nodes.map((n) => [n.id, n]));
@@ -181,6 +190,12 @@ function Builder({ initial }: { initial: FlowView }) {
           Your last change isn’t saved, so you’re still here.
           <button type="button" onClick={() => setStuck(null)} className="font-medium underline">Stay and fix it</button>
           <button type="button" onClick={() => navigate(stuck)} className="font-medium underline">Leave anyway</button>
+        </div>
+      )}
+      {removed && (
+        <div role="status" className="mt-5 flex flex-wrap items-center gap-3 rounded-[12px] bg-primary-soft px-4 py-3 text-sm text-primary">
+          {removed.text}
+          <button type="button" onClick={() => { update(removed.before); }} className="inline-flex items-center gap-1 font-medium underline"><Undo2 size={14} aria-hidden /> Undo</button>
         </div>
       )}
       {notice && <p role={notice.tone === 'error' ? 'alert' : 'status'} className={clsx('mt-5 rounded-[12px] px-4 py-3 text-sm', notice.tone === 'error' ? 'bg-danger-soft text-danger' : 'bg-primary-soft text-primary')}>{notice.text}</p>}
@@ -259,7 +274,7 @@ function Builder({ initial }: { initial: FlowView }) {
         )}
       </Stage>}
       </div>
-      <div className="min-w-0 lg:sticky lg:top-[96px] lg:mt-5"><FlowMap flow={draft} task={task} onEdit={view.permissions.write ? editQuestion : undefined} onSwap={view.permissions.write ? swap : undefined} /></div>
+      <div className="min-w-0 lg:sticky lg:top-[96px] lg:mt-5"><FlowMap flow={draft} task={task} onEdit={view.permissions.write ? editQuestion : undefined} onSwap={view.permissions.write ? swap : undefined} onRemove={view.permissions.write ? remove : undefined} /></div>
       </div>
     </div>
   );

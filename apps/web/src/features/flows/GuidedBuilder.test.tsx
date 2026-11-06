@@ -237,4 +237,29 @@ describe('guided flow builder', () => {
       expect(JSON.parse(String(last![1]!.body)).nodes[0].options).toEqual([{ label: 'Yes', to: 'r2' }, { label: 'No', to: 'r1' }]);
     });
   });
+
+  it('× on a map tile removes that step and what only it led to; Undo brings it back', async () => {
+    const fetch = mockFetch({ '/api/me': me, '/api/flows/f1': { ...view, nodes: [
+      { id: 'q1', kind: 'question', text: 'Is it on?', options: [{ label: 'Yes', to: 'q2' }, { label: 'No', to: 'r3' }] },
+      { id: 'q2', kind: 'question', text: 'Lines on the page?', options: [{ label: 'Yes', to: 'r1' }, { label: 'No', to: 'r2' }] },
+      { id: 'r1', kind: 'result', text: 'Clean the drum', severity: 'success' },
+      { id: 'r2', kind: 'result', text: 'Print a test page', severity: 'success' },
+      { id: 'r3', kind: 'result', text: 'Switch it on', severity: 'warning' },
+    ] } });
+    renderApp(<Routes><Route path="/flows/:id/build" element={<BuildFlow />} /></Routes>, '/flows/f1/build');
+    const map = await screen.findByRole('region', { name: 'Your flow so far' });
+    expect(within(map).queryByRole('button', { name: /Remove step: Is it on\?/ })).toBeNull(); // the first question stays
+    await userEvent.click(within(map).getByRole('button', { name: 'Remove step: Clean the drum' }));
+    expect(await screen.findByText('Removed the step.')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /When they answer Yes/ })).toBeInTheDocument(); // that answer is open again
+    await userEvent.click(within(map).getByRole('button', { name: 'Remove step: Lines on the page?' }));
+    expect(await screen.findByText('Removed the step and the 1 step after it.')).toBeInTheDocument();
+    expect(within(map).queryByText('Print a test page')).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: /Undo/ }));
+    expect(await within(map).findByText('Print a test page')).toBeInTheDocument();
+    await waitFor(() => {
+      const last = fetch.mock.calls.filter(([u, i]) => String(u) === '/api/flows/f1' && i?.method === 'PATCH').at(-1);
+      expect(JSON.parse(String(last![1]!.body)).nodes.map((n: { id: string }) => n.id)).toEqual(['q1', 'q2', 'r2', 'r3']);
+    });
+  });
 });

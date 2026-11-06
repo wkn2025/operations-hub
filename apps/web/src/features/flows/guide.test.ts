@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Flow } from '@ops/shared';
-import { chooseNext, layout, nextTask, progress, swapAnswers, undoChoice } from './guide';
+import { chooseNext, layout, nextTask, progress, removeStep, swapAnswers, unlinkAnswer, undoChoice } from './guide';
 
 const base = (nodes: Flow['nodes'], title = 'Printer broken'): Flow => ({ title, startId: 'q1', nodes });
 
@@ -142,5 +142,30 @@ describe('guided builder: switching Yes and No', () => {
     expect(swapAnswers(f, 'q2', 0, 1)).toBe(f); // both lead to the same place
     expect(swapAnswers(f, 'q1', 1, 1)).toBe(f);
     expect(swapAnswers(f, 'r1', 0, 1)).toBe(f);
+  });
+});
+
+describe('guided builder: removing a step from the map', () => {
+  const f = base([
+    { id: 'q1', kind: 'question', text: 'On?', options: [{ label: 'Yes', to: 'q2' }, { label: 'No', to: 'r3' }] },
+    { id: 'q2', kind: 'question', text: 'Lines?', options: [{ label: 'Yes', to: 'r1' }, { label: 'No', to: 'r3' }] },
+    { id: 'r1', kind: 'result', text: 'Print' },
+    { id: 'r3', kind: 'result', text: 'Call IT' },
+    { id: 'zz', kind: 'result', text: 'Old unreachable (kept)' },
+  ]);
+  it('removes the step and what only it led to; the answer that led there is open again; shared and unrelated steps stay', () => {
+    const g = removeStep(f, 'q2');
+    expect(g.nodes.map((n) => n.id)).toEqual(['q1', 'r3', 'zz']);
+    expect(g.nodes[0]!.options).toEqual([{ label: 'Yes', to: '' }, { label: 'No', to: 'r3' }]);
+    expect(nextTask(g)).toMatchObject({ kind: 'branch', nodeId: 'q1', option: 0 });
+  });
+  it('an ending used by two answers: removing it opens both; unlinking opens only one', () => {
+    expect(removeStep(f, 'r3').nodes.flatMap((n) => n.options ?? []).filter((o) => !o.to)).toHaveLength(2);
+    const u = unlinkAnswer(f, 'q2', 1);
+    expect(u.nodes.find((n) => n.id === 'q2')!.options![1]).toEqual({ label: 'No', to: '' });
+    expect(u.nodes.some((n) => n.id === 'r3')).toBe(true);
+  });
+  it('never removes the first question', () => {
+    expect(removeStep(f, 'q1')).toBe(f);
   });
 });
