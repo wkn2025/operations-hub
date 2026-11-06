@@ -52,6 +52,17 @@ describe('guided builder: next task', () => {
   });
 });
 
+describe('guided builder: several new questions at once (after a reload)', () => {
+  it('starts with the highest one, left first', () => {
+    const f = base([
+      { id: 'q1', kind: 'question', text: 'On?', options: [{ label: 'Yes', to: 'q2' }, { label: 'No', to: 'q3' }] },
+      { id: 'q2', kind: 'question', text: 'Paper?', options: [{ label: 'Yes', to: '' }, { label: 'No', to: '' }] },
+      { id: 'q3', kind: 'question', text: 'Plugged?', options: [{ label: 'Yes', to: '' }, { label: 'No', to: '' }] },
+    ]);
+    expect(nextTask(f)).toMatchObject({ kind: 'branch', nodeId: 'q2', option: 0 });
+  });
+});
+
 describe('guided builder: choosing what happens next', () => {
   it('creates the chosen step and points the answer at it', () => {
     const f = base([{ id: 'q1', kind: 'question', text: 'On?', options: [{ label: 'Yes', to: '' }, { label: 'No', to: '' }] }]);
@@ -96,7 +107,7 @@ describe('guided builder: fixing mistakes', () => {
 });
 
 describe('guided builder: the live map', () => {
-  it('lays the flow out left to right: columns by step, rows by leaf, parents centred, open answers as "?" slots', () => {
+  it('lays the flow out: col = steps from the start, row = centre across (open "?" and "back to" slots are half width), parents centred', () => {
     const m = layout(base([
       { id: 'q1', kind: 'question', text: 'On?', options: [{ label: 'Yes', to: 'q2' }, { label: 'No', to: '' }] },
       { id: 'q2', kind: 'question', text: 'Paper?', options: [{ label: 'Yes', to: 'r1' }, { label: 'No', to: 'q1' }] },
@@ -104,10 +115,10 @@ describe('guided builder: the live map', () => {
     ]));
     const at = (k: string) => m.boxes.find((b) => b.key === k)!;
     expect(m.boxes.map((b) => [b.kind, b.col, b.row])).toEqual([
-      ['question', 0, 1.25], ['question', 1, 0.5], ['result', 2, 0], ['repeat', 2, 1], ['open', 1, 2],
+      ['question', 0, 1.3125], ['question', 1, 0.875], ['result', 2, 0.5], ['repeat', 2, 1.25], ['open', 1, 1.75],
     ]);
     expect(at(m.boxes[4]!.key)).toMatchObject({ kind: 'open', from: { nodeId: 'q1', option: 1 } });
     expect(m.edges.map((e) => e.label)).toEqual(['Yes', 'Yes', 'No', 'No']);
-    expect([m.cols, m.rows]).toEqual([3, 3]);
+    expect([m.cols, m.rows]).toEqual([3, 2]); // rows = total width in step units
   });
 });

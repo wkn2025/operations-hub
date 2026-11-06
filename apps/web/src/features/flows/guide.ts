@@ -40,7 +40,7 @@ export function nextTask(flow: Flow): Task {
   const branch = (id: string, path: PathStep[], i: number): Task =>
     ({ kind: 'branch', nodeId: id, option: i, path: [...path, { nodeId: id, answer: byId.get(id)!.options![i]!.label }] });
   const fresh = (id: string) => { const o = byId.get(id)!.options ?? []; return o.length > 0 && o.every((x) => !x.to); };
-  for (const { id, path } of [...order].reverse()) if (fresh(id)) return branch(id, path, 0); // the newest question
+  for (const { id, path } of order) if (fresh(id)) return branch(id, path, 0); // a new question, the highest first
   for (const { id, path } of order) {
     const i = (byId.get(id)!.options ?? []).findIndex((o) => !o.to);
     if (i >= 0) return branch(id, path, i);
@@ -90,24 +90,29 @@ export function undoChoice(flow: Flow, id: string): Flow {
 export interface MapBox { key: string; kind: FlowNodeKind | 'open' | 'repeat'; nodeId?: string; from?: { nodeId: string; option: number }; col: number; row: number }
 export interface MapEdge { from: string; to: string; label: string }
 
-/** Left-to-right tree like n8n: column = steps from the start, row = leaf order, a question sits centred on its answers. */
+/**
+ * Tree layout: `col` = steps from the start (drawn top-down); `row` = centre across, in step widths. Open "?" slots and
+ * "back to" boxes are half width (SLOT), so a half-built yes/no tree stays narrow; a question sits centred over its answers.
+ */
+export const SLOT = 0.5;
 export function layout(flow: Flow) {
   const byId = new Map(flow.nodes.map((n) => [n.id, n]));
   const boxes: MapBox[] = [], edges: MapEdge[] = [], seen = new Set<string>();
-  let leaf = 0, cols = 0;
+  let leaf = 0, cols = 0; // leaf = width used so far
+  const next = (span: number) => { const c = leaf + span / 2; leaf += span; return c; };
   const add = (b: Omit<MapBox, 'row'>, row: number) => { boxes.push({ ...b, row }); cols = Math.max(cols, b.col + 1); return row; };
   const place = (id: string, col: number, key: string): number => {
     const n = byId.get(id)!;
-    if (seen.has(id)) return add({ key, kind: 'repeat', nodeId: id, col }, leaf++);
+    if (seen.has(id)) return add({ key, kind: 'repeat', nodeId: id, col }, next(SLOT));
     seen.add(id);
     const box: MapBox = { key, kind: n.kind, nodeId: id, col, row: 0 };
     boxes.push(box);
     const opts = n.options ?? [];
-    if (!opts.length) { box.row = leaf++; cols = Math.max(cols, col + 1); return box.row; }
+    if (!opts.length) { box.row = next(1); cols = Math.max(cols, col + 1); return box.row; }
     const rows = opts.map((o, i) => {
       const child = `${key}/${i}`;
       edges.push({ from: key, to: child, label: o.label });
-      return o.to && byId.has(o.to) ? place(o.to, col + 1, child) : add({ key: child, kind: 'open', from: { nodeId: id, option: i }, col: col + 1 }, leaf++);
+      return o.to && byId.has(o.to) ? place(o.to, col + 1, child) : add({ key: child, kind: 'open', from: { nodeId: id, option: i }, col: col + 1 }, next(SLOT));
     });
     box.row = (rows[0]! + rows.at(-1)!) / 2;
     cols = Math.max(cols, col + 1);

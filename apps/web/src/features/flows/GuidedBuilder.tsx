@@ -71,6 +71,7 @@ function Builder({ initial }: { initial: FlowView }) {
   const [draft, setDraftState] = useState<Flow>({ title: initial.title, startId: initial.startId, nodes: initial.nodes });
   const ref = useRef(draft);
   const [focus, setFocus] = useState<string | null>(null); // a question picked from the path to change
+  const [reopened, setReopened] = useState<{ nodeId: string; option: number } | null>(null); // after "Choose something else"
   const [trying, setTrying] = useState(false);
   const [notice, setNotice] = useState<{ tone: 'error' | 'info'; text: string } | null>(null);
 
@@ -108,14 +109,18 @@ function Builder({ initial }: { initial: FlowView }) {
 
   const byId = new Map(draft.nodes.map((n) => [n.id, n]));
   const auto = nextTask(draft);
-  const task: Task = focus && byId.get(focus) ? { kind: 'question', nodeId: focus, path: pathTo(draft, focus) } : auto;
+  const back = reopened && byId.get(reopened.nodeId)?.options?.[reopened.option];
+  const task: Task = focus && byId.get(focus) ? { kind: 'question', nodeId: focus, path: pathTo(draft, focus) }
+    : back && !back.to && auto.kind !== 'question' && auto.kind !== 'answers' && auto.kind !== 'result' && auto.kind !== 'article'
+      ? { kind: 'branch', nodeId: reopened!.nodeId, option: reopened!.option, path: [...pathTo(draft, reopened!.nodeId).slice(0, -1), { nodeId: reopened!.nodeId, answer: back.label }] }
+      : auto;
   const { done, open } = progress(draft);
   const pct = done + open ? Math.round((done / (done + open)) * 100) : 0;
   const isStart = 'nodeId' in task && task.nodeId === draft.startId;
   const node = 'nodeId' in task ? byId.get(task.nodeId) : undefined;
   // a fresh step with nothing after it can be taken back ("choose something else")
   const undo = !focus && node && node.id !== draft.startId && !(node.options ?? []).length
-    ? <button type="button" onClick={() => update(undoChoice(ref.current, node.id))} className="inline-flex items-center gap-1.5 rounded-[10px] px-2.5 py-1.5 text-[13px] font-medium text-neutral-600 hover:bg-neutral-100"><Undo2 size={14} aria-hidden /> Choose something else</button>
+    ? <button type="button" onClick={() => { const from = ref.current.nodes.flatMap((n) => (n.options ?? []).map((o, i) => (o.to === node.id ? { nodeId: n.id, option: i } : null))).find(Boolean); update(undoChoice(ref.current, node.id)); setReopened(from ?? null); }} className="inline-flex items-center gap-1.5 rounded-[10px] px-2.5 py-1.5 text-[13px] font-medium text-neutral-600 hover:bg-neutral-100"><Undo2 size={14} aria-hidden /> Choose something else</button>
     : null;
   const v = validateFlow(draft);
 
@@ -153,8 +158,8 @@ function Builder({ initial }: { initial: FlowView }) {
         </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,540px)_minmax(0,1fr)] xl:items-start">
-      <div className="min-w-0">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,520px)_minmax(0,1fr)] lg:items-start">
+      <div className="min-w-0 max-w-[720px] lg:max-w-none">
       {'path' in task && task.path.some((s) => s.answer) && <Trail path={task.path} byId={byId} onEdit={view.permissions.write ? setFocus : undefined} />}
       {!view.permissions.write && <p role="status" className="mt-5 flex items-center gap-2 rounded-[12px] bg-neutral-100 px-4 py-3 text-sm text-neutral-700"><Lock size={15} aria-hidden /> You can look at this flow but not change it right now (it may need approval or be archived).</p>}
       {autosave.status === 'conflict' && <p role="alert" className="mt-5 flex flex-wrap items-center gap-2 rounded-[12px] bg-warning-soft px-4 py-3 text-sm text-neutral-900">Someone else changed this flow, so your last change wasn’t saved. <button type="button" onClick={() => void reloadLatest()} className="font-medium text-primary underline">Load their version</button></p>}
@@ -226,7 +231,7 @@ function Builder({ initial }: { initial: FlowView }) {
         )}
       </Stage>}
       </div>
-      <div className="min-w-0 xl:sticky xl:top-[96px] xl:mt-5"><FlowMap flow={draft} task={task} onEdit={view.permissions.write ? setFocus : undefined} /></div>
+      <div className="min-w-0 lg:sticky lg:top-[96px] lg:mt-5"><FlowMap flow={draft} task={task} onEdit={view.permissions.write ? setFocus : undefined} /></div>
       </div>
     </div>
   );
