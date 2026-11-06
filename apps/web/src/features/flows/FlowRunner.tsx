@@ -95,7 +95,7 @@ export function FlowRunner({ flow, keyboard = true }: { flow: RunnableFlow; keyb
             transition={spring}>
             {stuck || !node ? <Broken error={state.error} onRestart={restart} />
               : node.kind === 'question' ? <Question node={node} onChoose={choose} headingRef={headingRef} />
-              : node.kind === 'result' ? <Result node={node} headingRef={headingRef} />
+              : node.kind === 'result' ? <Result node={node} ref_={flow.articles?.[node.articleId ?? '']} headingRef={headingRef} />
               : <ArticleStep node={node} ref_={flow.articles?.[node.articleId ?? '']} headingRef={headingRef} />}
           </motion.section>
         </AnimatePresence>
@@ -118,7 +118,7 @@ function Question({ node, onChoose, headingRef }: { node: FlowNode; onChoose: (i
   return (
     <div>
       <h2 ref={headingRef} tabIndex={-1} className="text-[30px] font-semibold leading-tight tracking-[-0.02em] text-neutral-900 outline-none">{node.text}</h2>
-      {node.detail && <p className="mt-3 max-w-[60ch] text-[16px] leading-relaxed text-neutral-500">{node.detail}</p>}
+      {node.detail && <p className="mt-3 max-w-[60ch] whitespace-pre-line text-[16px] leading-relaxed text-neutral-500">{node.detail}</p>}
       <ul className="mt-8 grid gap-3 sm:grid-cols-2">
         {(node.options ?? []).map((o, i) => (
           <li key={i}>
@@ -136,7 +136,7 @@ function Question({ node, onChoose, headingRef }: { node: FlowNode; onChoose: (i
   );
 }
 
-function Result({ node, headingRef }: { node: FlowNode; headingRef: HeadingRef }) {
+function Result({ node, ref_, headingRef }: { node: FlowNode; ref_?: FlowArticleRef; headingRef: HeadingRef }) {
   const sev = node.severity ?? 'info';
   const s = SEVERITY[sev];
   const Icon = s.icon;
@@ -144,7 +144,12 @@ function Result({ node, headingRef }: { node: FlowNode; headingRef: HeadingRef }
     <div data-testid="flow-result" data-severity={sev} className={clsx('rounded-[22px] p-8 shadow-md ring-1', s.ring)}>
       <span className={clsx('inline-flex items-center gap-2 rounded-full px-3 py-1 text-[13px] font-medium', s.tile)}><Icon size={15} aria-hidden /> {s.label}</span>
       <h2 ref={headingRef} tabIndex={-1} className="mt-5 text-[28px] font-semibold leading-tight tracking-[-0.02em] text-neutral-900 outline-none">{node.text}</h2>
-      {node.detail && <p className="mt-3 max-w-[60ch] text-[16px] leading-relaxed text-neutral-600">{node.detail}</p>}
+      {node.detail && <p className="mt-3 max-w-[60ch] whitespace-pre-line text-[16px] leading-relaxed text-neutral-600">{node.detail}</p>}
+      {node.articleId && (ref_?.slug && ref_.status !== 'unavailable'
+        ? <Link to={`/article/${ref_.slug}`} className="mt-6 inline-flex items-center gap-2 rounded-[12px] bg-white px-4 py-2.5 text-[15px] font-medium text-primary shadow-sm ring-1 ring-neutral-200 hover:ring-primary">
+            <FileText size={16} aria-hidden /> Read: {ref_.title} <ArrowUpRight size={14} aria-hidden />
+          </Link>
+        : <p className="mt-6 flex items-center gap-2 text-sm text-neutral-600"><Unlink size={15} aria-hidden /> The related article is unavailable.</p>)}
     </div>
   );
 }
@@ -156,7 +161,7 @@ function ArticleStep({ node, ref_, headingRef }: { node: FlowNode; ref_?: FlowAr
   return (
     <div>
       <h2 ref={headingRef} tabIndex={-1} className="text-[28px] font-semibold leading-tight tracking-[-0.02em] text-neutral-900 outline-none">{node.text}</h2>
-      {node.detail && <p className="mt-3 max-w-[60ch] text-[16px] leading-relaxed text-neutral-500">{node.detail}</p>}
+      {node.detail && <p className="mt-3 max-w-[60ch] whitespace-pre-line text-[16px] leading-relaxed text-neutral-500">{node.detail}</p>}
       <div className="mt-6 overflow-hidden rounded-[20px] bg-white shadow-md ring-1 ring-neutral-200/80">
         {unavailable ? (
           <div role="status" className="flex items-center gap-3 p-6">

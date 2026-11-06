@@ -81,9 +81,8 @@ describe('guided flow builder', () => {
     ] } });
     renderApp(<Routes><Route path="/flows/:id/build" element={<BuildFlow />} /></Routes>, '/flows/f1/build');
     expect(await screen.findByRole('heading', { name: /When they answer Inkjet/ })).toBeInTheDocument(); // not asked for answers again
-    await userEvent.click(screen.getByRole('button', { name: /Send them to an article/ }));
-    expect(await screen.findByRole('heading', { name: /Which article/ })).toBeInTheDocument();
-    await userEvent.keyboard('{Escape}');
+    await userEvent.click(screen.getByRole('button', { name: /Give the solution/ }));
+    expect(await screen.findByRole('heading', { name: 'What should they do?' })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /Choose something else/ }));
     expect(await screen.findByRole('heading', { name: /When they answer Inkjet/ })).toBeInTheDocument();
     await waitFor(() => {
@@ -183,5 +182,29 @@ describe('guided flow builder', () => {
     await userEvent.click(screen.getByRole('button', { name: /Done/ }));
     expect(await screen.findByRole('heading', { name: /Every path ends with an answer/ })).toBeInTheDocument();
     expect(within(map).getAllByText('Call IT on 1234').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('an ending can link a related article from a dropdown; there is no separate article step any more', async () => {
+    const fetch = mockFetch({ '/api/me': me, '/api/flows/f1': { ...view, nodes: [
+      { id: 'q1', kind: 'question', text: 'Is it on?', options: [{ label: 'Yes', to: '' }, { label: 'No', to: '' }] },
+    ] }, '/api/articles?': { articles: [
+      { id: 'a1', slug: 'printer-guide', title: 'Printer guide', type: 'standard', status: 'published', categoryId: 'c', categoryPath: 'Internal Systems / Globo', revision: 1, updatedAt: '', publishedAt: '', reviewDate: null },
+      { id: 'a2', slug: 'gop', title: 'Request a GOP', type: 'standard', status: 'published', categoryId: 'd', categoryPath: 'Work Instructions / Assistance', revision: 1, updatedAt: '', publishedAt: '', reviewDate: null },
+    ], total: 2 } });
+    renderApp(<Routes><Route path="/flows/:id/build" element={<BuildFlow />} /></Routes>, '/flows/f1/build');
+    expect(await screen.findByRole('heading', { name: /When they answer Yes/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Send them to an article/ })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: /Give the solution/ }));
+    await userEvent.type(await screen.findByLabelText('Solution'), 'Restart the printer');
+    await userEvent.type(screen.getByLabelText('More detail (optional)'), 'Switch off{Enter}Wait 10 seconds');
+    const pick = screen.getByLabelText('Related article (optional)');
+    expect(await within(pick).findByRole('option', { name: 'Printer guide' })).toBeInTheDocument();
+    expect(within(pick).getByRole('group', { name: 'Internal Systems' })).toBeInTheDocument();
+    await userEvent.selectOptions(pick, 'a1');
+    await userEvent.click(screen.getByRole('button', { name: /Save ending/ }));
+    await waitFor(() => {
+      const last = fetch.mock.calls.filter(([u, i]) => String(u) === '/api/flows/f1' && i?.method === 'PATCH').at(-1);
+      expect(JSON.parse(String(last![1]!.body)).nodes[1]).toEqual({ id: 'r1', kind: 'result', text: 'Restart the printer', detail: 'Switch off\nWait 10 seconds', severity: 'success', articleId: 'a1' });
+    });
   });
 });

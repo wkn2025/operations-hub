@@ -5,7 +5,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import clsx from 'clsx';
 import { ArrowLeft, ArrowRight, CircleHelp, Undo2, Lock, FileText, Flag, Info, Play, Plus, Send, Sparkles, TriangleAlert, Trophy, Upload, X, CircleCheck } from 'lucide-react';
 import { validateFlow, type Flow, type FlowNode, type FlowNodeKind, type FlowOption, type FlowSeverity } from '@ops/shared';
-import { api, HttpError, isEditorRole, useSession, type FlowView } from '../../api/client';
+import { api, fetchArticles, HttpError, isEditorRole, useSession, type ArticleSummary, type FlowView } from '../../api/client';
 import { Button } from '../../components/ui/primitives';
 import { ErrorState } from '../../components/ui/ErrorState';
 import { NotFound } from '../../pages/NotFound';
@@ -197,8 +197,8 @@ function Builder({ initial }: { initial: FlowView }) {
         {task.kind === 'branch' && (
           <Card step="Choose a path" icon={ArrowRight}
             title={<>When they answer <Em>{byId.get(task.nodeId)!.options![task.option]!.label}</Em>, what happens next?</>}>
-            <div className="grid gap-3 sm:grid-cols-3">
-              {(([['question', CircleHelp, 'Ask another question', 'You need to know more first'], ['result', Flag, 'Give the solution', 'You know what they should do'], ['article', FileText, 'Send them to an article', 'The answer is already written up']]) as [FlowNodeKind, typeof Flag, string, string][]).map(([kind, Icon, label, sub]) => (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {(([['question', CircleHelp, 'Ask another question', 'You need to know more first'], ['result', Flag, 'Give the solution', 'You know what they should do (you can link an article)']]) as [FlowNodeKind, typeof Flag, string, string][]).map(([kind, Icon, label, sub]) => (
                 <button key={kind} type="button" onClick={() => { update(chooseNext(ref.current, task.nodeId, task.option, kind).flow); setReopened(null); }}
                   className="group flex flex-col items-start gap-3 rounded-[18px] bg-white p-5 text-left shadow-sm ring-1 ring-neutral-200 transition hover:-translate-y-0.5 hover:shadow-md hover:ring-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary motion-reduce:transition-none motion-reduce:hover:translate-y-0">
                   <span className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-accent text-primary"><Icon size={20} aria-hidden /></span>
@@ -378,13 +378,15 @@ const TONES: { value: FlowSeverity; label: string; icon: typeof Flag }[] = [
 
 function Ending({ node, editing, onDone, extra }: { node: FlowNode; editing?: boolean; onDone: (p: Partial<FlowNode>) => void; extra?: ReactNode }) {
   const [text, setText] = useState(node.text), [detail, setDetail] = useState(node.detail ?? ''), [tone, setTone] = useState<FlowSeverity>(node.severity ?? 'success');
+  const [articleId, setArticleId] = useState(node.articleId ?? '');
   return (
     <Card step={editing ? 'Change this ending' : 'An ending'} icon={Flag} title="What should they do?" hint={editing ? 'Every answer that leads here shows the change.' : 'This is what people see at the end of this path.'}>
-      <form onSubmit={(e) => { e.preventDefault(); if (text.trim()) onDone({ text: text.trim(), detail: detail.trim() || undefined, severity: tone }); }}>
+      <form onSubmit={(e) => { e.preventDefault(); if (text.trim()) onDone({ text: text.trim(), detail: detail.trim() || undefined, severity: tone, articleId: articleId || undefined }); }}>
         <label className="sr-only" htmlFor="ending-text">Solution</label>
         <input id="ending-text" autoFocus aria-describedby="task-title" value={text} maxLength={400} placeholder="For example: Restart the printer and try again" onChange={(e) => setText(e.target.value)} className={field} />
         <label className="sr-only" htmlFor="ending-detail">More detail (optional)</label>
         <textarea id="ending-detail" rows={3} value={detail} maxLength={1000} placeholder="More detail (optional)" onChange={(e) => setDetail(e.target.value)} className={clsx(field, 'mt-3 resize-y text-[15px]')} />
+        <ArticleSelect value={articleId} onChange={setArticleId} />
         <fieldset className="mt-4">
           <legend className="text-[13px] font-medium text-neutral-700">What kind of ending is it?</legend>
           <div className="mt-2 flex flex-wrap gap-2">
@@ -400,6 +402,29 @@ function Ending({ node, editing, onDone, extra }: { node: FlowNode; editing?: bo
         <div className="mt-5 flex items-center justify-between gap-3">{extra ?? <span />}<Button type="submit" disabled={!text.trim()}>{editing ? 'Done' : 'Save ending'} <ArrowRight size={15} aria-hidden /></Button></div>
       </form>
     </Card>
+  );
+}
+
+/** Published articles grouped by top category, for linking an ending to the procedure it refers to. */
+function ArticleSelect({ value, onChange }: { value: string; onChange: (id: string) => void }) {
+  // ponytail: first 200 published articles (API page cap); a search picker if the hub outgrows that
+  const q = useQuery({ queryKey: ['articles', 'flow-links'], queryFn: () => fetchArticles({ status: 'published', sort: 'title', limit: 200 }), staleTime: 60_000 });
+  const groups = new Map<string, ArticleSummary[]>();
+  for (const a of q.data?.articles ?? []) {
+    const top = a.categoryPath.split(' / ')[0] || 'Uncategorised';
+    groups.set(top, [...(groups.get(top) ?? []), a]);
+  }
+  return (
+    <div className="mt-4">
+      <label htmlFor="ending-article" className="text-[13px] font-medium text-neutral-700">Related article (optional)</label>
+      <select id="ending-article" value={value} onChange={(e) => onChange(e.target.value)} className={clsx(field, 'mt-1.5 text-[15px]')}>
+        <option value="">{q.isPending ? 'Loading articles…' : 'No article'}</option>
+        {[...groups].sort(([a], [b]) => a.localeCompare(b)).map(([top, list]) => (
+          <optgroup key={top} label={top}>{list.map((a) => <option key={a.id} value={a.id}>{a.title}</option>)}</optgroup>
+        ))}
+      </select>
+      {q.isError && <p role="alert" className="mt-1.5 text-xs text-danger">Couldn’t load the article list. You can link one later.</p>}
+    </div>
   );
 }
 
