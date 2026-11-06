@@ -91,14 +91,14 @@ export function FlowMap({ flow, task, onEdit, onSwap, onRemove }: { flow: Flow; 
             <motion.div key={b.key} initial={still ? false : { opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.25 }}
               style={{ left: x(b), top: y(b), width: bw(b), height: H }} className="absolute transition-[left,top] duration-300 motion-reduce:transition-none">
               <Box b={b} node={b.nodeId ? byId.get(b.nodeId) : undefined} current={b.key === current} onEdit={onEdit} />
-              {onRemove && b.nodeId && b.kind !== 'open' && b.nodeId !== flow.startId && (() => {
+              {onRemove && b.nodeId && b.kind !== 'open' && (b.kind === 'repeat' || b.nodeId !== flow.startId) && (() => {
                 const n = byId.get(b.nodeId)!, e = into.get(b.key), from = e ? at.get(e.from)?.nodeId : undefined;
                 const unlink = b.kind === 'repeat' && from !== undefined;
                 const what = n.text.trim() || (n.kind === 'question' ? 'new question' : 'new ending');
                 return (
                   <button type="button" onClick={() => onRemove(unlink ? { unlink: from!, option: e!.option } : { nodeId: n.id })}
                     aria-label={unlink ? `Unlink “${e!.label}” from: ${what}` : `Remove step: ${what}`} title={unlink ? 'Stop using this ending here' : 'Remove this step'}
-                    className="absolute -right-2 -top-2 z-20 flex h-5 w-5 items-center justify-center rounded-full bg-white text-neutral-500 shadow-sm ring-1 ring-neutral-200 hover:bg-danger-soft hover:text-danger hover:ring-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+                    className="absolute -right-2.5 -top-2.5 z-20 flex h-6 w-6 items-center justify-center rounded-full bg-white text-neutral-500 shadow-sm ring-1 ring-neutral-200 hover:bg-danger-soft hover:text-danger hover:ring-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
                     <X size={11} aria-hidden />
                   </button>
                 );

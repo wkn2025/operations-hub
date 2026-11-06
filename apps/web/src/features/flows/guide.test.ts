@@ -168,4 +168,9 @@ describe('guided builder: removing a step from the map', () => {
   it('never removes the first question', () => {
     expect(removeStep(f, 'q1')).toBe(f);
   });
+  it('a loop back to the first question can be unlinked', () => {
+    const g = base([{ id: 'q1', kind: 'question', text: 'Again?', options: [{ label: 'Yes', to: 'q1' }, { label: 'No', to: 'r1' }] }, { id: 'r1', kind: 'result', text: 'Done' }]);
+    expect(unlinkAnswer(g, 'q1', 0).nodes[0]!.options![0]).toEqual({ label: 'Yes', to: '' });
+    expect(layout(g).boxes.find((b) => b.kind === 'repeat')!.nodeId).toBe('q1'); // drawn as a Back box (which gets a ×)
+  });
 });

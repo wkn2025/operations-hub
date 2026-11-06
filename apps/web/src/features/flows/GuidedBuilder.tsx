@@ -80,7 +80,7 @@ function Builder({ initial }: { initial: FlowView }) {
     if (next === before) return;
     const gone = before.nodes.length - next.nodes.length;
     update(next, true); setFocus(null); setReopened(null); setNotice(null);
-    setRemoved({ before, text: 'unlink' in r ? 'That answer no longer uses the ending.' : gone > 1 ? `Removed the step and the ${gone - 1} step${gone === 2 ? '' : 's'} after it.` : 'Removed the step.' });
+    setRemoved({ before, text: 'unlink' in r ? 'That answer no longer leads there.' : gone > 1 ? `Removed the step and the ${gone - 1} step${gone === 2 ? '' : 's'} after it.` : 'Removed the step.' });
   };
   // "I mixed up Yes and No": picking another answer on the map switches the two branches; labels stay
   const swap = (id: string, i: number, j: number) => {
@@ -118,7 +118,7 @@ function Builder({ initial }: { initial: FlowView }) {
     try {
       const v = await api<FlowView>(`/api/flows/${view.id}`);
       const d = { title: v.title, startId: v.startId, nodes: v.nodes };
-      ref.current = d; setDraftState(d); setView(v); autosave.reset(v.revision); setNotice(null); setStuck(null);
+      ref.current = d; setDraftState(d); setView(v); autosave.reset(v.revision); setNotice(null); setStuck(null); setRemoved(null); // Undo would overwrite their version
     } catch { setNotice({ tone: 'error', text: 'Couldn’t load the latest version. Try again.' }); }
   };
   const [removed, setRemoved] = useState<{ text: string; before: Flow } | null>(null); // last × on the map, with Undo
@@ -192,7 +192,7 @@ function Builder({ initial }: { initial: FlowView }) {
           <button type="button" onClick={() => navigate(stuck)} className="font-medium underline">Leave anyway</button>
         </div>
       )}
-      {removed && (
+      {removed && autosave.status !== 'conflict' && (
         <div role="status" className="mt-5 flex flex-wrap items-center gap-3 rounded-[12px] bg-primary-soft px-4 py-3 text-sm text-primary">
           {removed.text}
           <button type="button" onClick={() => { update(removed.before); }} className="inline-flex items-center gap-1 font-medium underline"><Undo2 size={14} aria-hidden /> Undo</button>
