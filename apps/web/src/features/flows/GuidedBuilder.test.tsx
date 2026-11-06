@@ -105,4 +105,20 @@ describe('guided flow builder', () => {
     expect(screen.getByText(/must not have options/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Fix in the advanced editor/ })).toBeInTheDocument();
   });
+
+  it('does not leave with a change the server refused; the author can stay or leave on purpose', async () => {
+    let calls = 0;
+    mockFetch({ '/api/me': me, '/api/flows/f1': () => (calls++ === 0 ? view : { __status: 422, errors: ['Something is wrong.'] }) });
+    renderApp(<Routes>
+      <Route path="/flows/:id/build" element={<BuildFlow />} />
+      <Route path="/flows" element={<p>Flow list</p>} />
+    </Routes>, '/flows/f1/build');
+    await userEvent.type(await screen.findByLabelText('Question'), 'Is it on?');
+    await userEvent.click(screen.getByRole('button', { name: /Next/ }));
+    await userEvent.click(screen.getByRole('link', { name: 'Back to guided flows' }));
+    expect(await screen.findByText(/last change isn’t saved, so you’re still here/)).toBeInTheDocument();
+    expect(screen.queryByText('Flow list')).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Leave without saving' }));
+    expect(await screen.findByText('Flow list')).toBeInTheDocument();
+  });
 });
