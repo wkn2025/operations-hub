@@ -12,6 +12,7 @@ import { NotFound } from './NotFound';
 import { ErrorState } from '../components/ui/ErrorState';
 import { ClientDirectory } from './ClientDirectory';
 import { CountryDirectory } from './CountryDirectory';
+import { CodeLookup } from './CodeLookup';
 
 export function CategoryPage() {
   const { slug = '' } = useParams();
@@ -21,7 +22,8 @@ export function CategoryPage() {
   const [filter, setFilter] = useState<string | null>(null);
   const all = cats.data ?? [];
   const cat = all.find((c) => c.slug === slug || c.id === slug);
-  const arts = useArticlePages({ within: filter ?? cat?.id, sort: 'title' }, !!cat);
+  const codes = cat?.name === 'Diagnosis & Service codes'; // a lookup page, no article list
+  const arts = useArticlePages({ within: filter ?? cat?.id, sort: 'title' }, !!cat && !codes);
   // directory pages group articles by their fields instead of listing them
   const directory = cat?.name === 'Clients & Terms and Conditions' ? 'clients' : cat?.name === 'Country Specifics' ? 'countries' : null;
   // the directory groups by client, so a half-loaded list would show false gaps: load every page
@@ -53,13 +55,15 @@ export function CategoryPage() {
             {cat.description ?? (parent ? `Part of ${parent.name}.` : '')}
           </p>
         </div>
-        {(role === 'editor' || role === 'admin') && (
+        {!codes && (role === 'editor' || role === 'admin') && (
           <Link to={`/edit/new?category=${cat.id}`} className="inline-flex shrink-0 items-center gap-2 rounded-[12px] bg-primary px-4 py-2 text-sm font-medium text-white shadow-button transition-colors hover:bg-primary-hover">
             <Plus size={16} aria-hidden /> New article
           </Link>
         )}
       </header>
 
+      {codes && <CodeLookup />}
+      {!codes && <>
       {directory && arts.isSuccess && (isFetchNextPageError
         ? <ErrorState title="Couldn’t load all documents" onRetry={() => fetchNextPage()} retrying={isFetchingNextPage} />
         : hasNextPage
@@ -118,6 +122,7 @@ export function CategoryPage() {
       </div>
       )}
       {!directory && <LoadMore q={arts} />}
+      </>}
     </div>
   );
 }

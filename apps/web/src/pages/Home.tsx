@@ -54,15 +54,16 @@ export function Home() {
           {(cats.isPending || counts.isPending) ? Array.from({ length: 8 }, (_, i) => <li key={i}><Skeleton className="h-[72px] rounded-[20px] xl:h-[124px]" /></li>)
             : tops.map((c) => {
               const n = count(c.id);
+              const sub = c.name === 'Diagnosis & Service codes' ? 'Code lookup' : articles(n); // a lookup page, not articles
               return (
                 <li key={c.id}>
                   {/* a row up to xl (1 or 2 columns), a tile in the 4-column grid */}
-                  <Link to={`/category/${c.slug}`} aria-label={`${c.name}, ${articles(n)}`}
+                  <Link to={`/category/${c.slug}`} aria-label={`${c.name}, ${sub}`}
                     className="group flex h-full items-center gap-4 rounded-[20px] bg-white p-4 shadow-sm ring-1 ring-neutral-200/80 transition-[box-shadow,transform] duration-300 ease-out hover:-translate-y-0.5 hover:shadow-md hover:ring-2 hover:ring-accent motion-reduce:hover:translate-y-0 xl:min-h-[124px] xl:flex-col xl:items-start xl:gap-0 xl:p-5">
                     <IconTile icon={categoryIcon(c.name)} tone="accent" />
                     <span className="min-w-0 xl:mt-auto xl:pt-5">
                       <span className="block text-[15px] font-semibold leading-snug text-neutral-900 transition-colors group-hover:text-primary">{c.name}</span>
-                      <span className="mt-0.5 block text-[13px] text-neutral-500 tabular">{articles(n)}</span>
+                      <span className="mt-0.5 block text-[13px] text-neutral-500 tabular">{sub}</span>
                     </span>
                   </Link>
                 </li>

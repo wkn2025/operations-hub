@@ -259,13 +259,23 @@ test('every top-level category (and the sidebar entry for it) has published cont
   await loginAs(page, 'viewer@demo.test');
   const cats = (await (await page.request.get('/api/categories')).json()).categories as { id: string; parentId: string | null; name: string; slug: string; archived: boolean }[];
   const top = cats.filter((c) => !c.parentId && !c.archived);
-  expect(top.length).toBe(8);
+  expect(top.length).toBe(9);
   const arts = (await (await page.request.get('/api/articles?limit=200')).json()).articles as { categoryId: string | null }[];
   const topOf = (id: string | null): string | undefined => { const c = cats.find((k) => k.id === id); return c ? (c.parentId ? topOf(c.parentId) : c.id) : undefined; };
   for (const t of top) {
-    expect(arts.filter((a) => topOf(a.categoryId) === t.id).length, t.name).toBeGreaterThan(0);
     await page.goto(`/category/${t.slug}`);
     await expect(page.getByRole('heading', { level: 1, name: t.name })).toBeVisible();
+    if (t.name === 'Diagnosis & Service codes') { // a lookup page, not articles: several codes, five separators, dots optional
+      await page.getByRole('searchbox', { name: 'Codes' }).fill('s330xxa, 99214 - A4565-S33.0XXA ZZZ99');
+      const rows = page.getByRole('list', { name: 'Code results' }).getByRole('listitem');
+      await expect(rows).toHaveCount(4);
+      await expect(rows.nth(0)).toContainText('S33.0XXA');
+      await expect(rows.nth(1)).toContainText('Office visit');
+      await expect(rows.nth(2)).toContainText('Arm sling');
+      await expect(rows.nth(3)).toContainText('No match');
+      continue;
+    }
+    expect(arts.filter((a) => topOf(a.categoryId) === t.id).length, t.name).toBeGreaterThan(0);
     if (t.name === 'Clients & Terms and Conditions') { // A–Z client directory: client -> line -> document
       const main = page.getByRole('main');
       await main.getByRole('button', { name: 'Bluefin Corporate Health' }).click();

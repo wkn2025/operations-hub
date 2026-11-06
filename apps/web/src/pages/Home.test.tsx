@@ -6,7 +6,7 @@ import { renderApp, mockFetch } from '../test/utils';
 import type { Category } from '../api/client';
 
 const TOPS = ['EDI & Automation', 'Clients & Terms and Conditions', 'Work Instructions', 'Quality Assurance',
-  'Provider Networks & Partners', 'Finance & Payment Processing', 'Internal Systems', 'Glossary & Acronyms'];
+  'Provider Networks & Partners', 'Finance & Payment Processing', 'Internal Systems', 'Diagnosis & Service codes', 'Glossary & Acronyms'];
 const cat = (id: string, name: string, sortOrder: number, parentId: string | null = null): Category =>
   ({ id, parentId, name, slug: id, description: `Description of ${name}`, sortOrder, archived: false, path: name });
 const categories = [
@@ -33,14 +33,14 @@ const routes = (role: string) => ({
 });
 
 describe('Home', () => {
-  it('shows the 8 visible top-level categories as tiles with published counts, no descriptions or subcategories', async () => {
+  it('shows the 9 visible top-level categories as tiles with published counts, no descriptions or subcategories', async () => {
     mockFetch(routes('viewer'));
     renderApp(<App />, '/');
     const main = await screen.findByRole('main');
     const nav = await within(main).findByRole('navigation', { name: 'Categories' });
     const tiles = within(nav).getAllByRole('link');
     expect(tiles.map((t) => t.getAttribute('aria-label'))).toEqual(
-      TOPS.map((n, i) => `${n}, ${i === 0 ? '3 articles' : i === 1 ? '1 article' : '0 articles'}`));
+      TOPS.map((n, i) => `${n}, ${i === 0 ? '3 articles' : i === 1 ? '1 article' : n === 'Diagnosis & Service codes' ? 'Code lookup' : '0 articles'}`));
     expect(tiles[0]).toHaveAttribute('href', '/category/t0');
     expect(within(main).queryByText(/Description of/)).toBeNull();
     expect(within(main).queryByText('Inbound claims (837)')).toBeNull();

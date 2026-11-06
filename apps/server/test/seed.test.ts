@@ -63,12 +63,13 @@ describe('seedDemo (Task 9)', () => {
     expect(dupFiles).toEqual([]);
   });
 
-  it('publishes at least 30 articles, at least 2 in each of the 8 top-level categories (incl. subcategories)', () => {
+  it('publishes at least 30 articles, at least 2 in each top-level category except the codes lookup (incl. subcategories)', () => {
     const arts = published();
     expect(arts.length).toBeGreaterThanOrEqual(30);
     const cats = all<{ id: string; name: string; parent_id: string | null }>('select id, name, parent_id from categories');
     const topOf = (id: string): string => { const x = cats.find((k) => k.id === id)!; return x.parent_id ? topOf(x.parent_id) : x.name; };
-    for (const t of CATEGORY_TREE) expect(arts.filter((a) => topOf(a.category_id) === t.name).length, t.name).toBeGreaterThanOrEqual(2);
+    // Diagnosis & Service codes is a lookup page, not articles
+    for (const t of CATEGORY_TREE.filter((x) => x.name !== 'Diagnosis & Service codes')) expect(arts.filter((a) => topOf(a.category_id) === t.name).length, t.name).toBeGreaterThanOrEqual(2);
   });
 
   it('has at least 6 articles of each template (5 for client_terms: the T&C categories hold only full terms)', () => {
@@ -194,10 +195,11 @@ describe('client directory', () => {
 });
 
 describe('category restructure', () => {
-  it('has the 8 top-level categories with the moved subcategories', () => {
+  it('has the 9 top-level categories with the moved subcategories', () => {
     const tree = Object.fromEntries(CATEGORY_TREE.map((t) => [t.name, t.children]));
     expect(Object.keys(tree)).toEqual(['EDI & Automation', 'Clients & Terms and Conditions', 'Work Instructions', 'Quality Assurance',
-      'Provider Networks & Partners', 'Finance & Payment Processing', 'Internal Systems', 'Glossary & Acronyms']);
+      'Provider Networks & Partners', 'Finance & Payment Processing', 'Internal Systems', 'Diagnosis & Service codes',
+      'Glossary & Acronyms']);
     expect(tree['EDI & Automation']).toEqual(['EDI 101', 'Import & web.transformer', 'Adjudication & adjustments', 'EDI issues']);
     expect(tree['Finance & Payment Processing']).toContain('Payment issues');
     expect(tree['Work Instructions']).toEqual(['Assistance', 'Billing', 'Country Specifics']);
