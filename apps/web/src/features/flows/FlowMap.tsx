@@ -70,7 +70,7 @@ export function FlowMap({ flow, task, onEdit, onSwap }: { flow: Flow; task: Task
                   <select value={e.option} title={`${e.label}: pick another answer to switch these two branches`} aria-label={`Answer “${e.label}” to “${q.text}”: pick another answer to switch branches`}
                     onChange={(ev) => onSwap(q.id, e.option, Number(ev.target.value))}
                     className="max-w-full cursor-pointer appearance-none truncate rounded-full bg-white py-0.5 pl-2 pr-5 text-[11.5px] font-medium text-neutral-700 ring-1 ring-neutral-200 hover:bg-accent-soft hover:ring-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-                    {answers.map((o, k) => <option key={k} value={k}>{o.label}</option>)}
+                    {answers.map((o, idx) => <option key={idx} value={idx}>{o.label}</option>)}
                   </select>
                   <ChevronDown size={11} aria-hidden className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-neutral-500" />
                 </span>

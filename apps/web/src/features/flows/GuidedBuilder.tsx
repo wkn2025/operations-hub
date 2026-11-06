@@ -77,7 +77,7 @@ function Builder({ initial }: { initial: FlowView }) {
   // "I mixed up Yes and No": picking another answer on the map switches the two branches; labels stay
   const swap = (id: string, i: number, j: number) => {
     const n = ref.current.nodes.find((x) => x.id === id), next = swapAnswers(ref.current, id, i, j);
-    if (!n?.options || next === ref.current) return; // same place: nothing to move
+    if (!n?.options || next === ref.current) { if (i !== j) setNotice({ tone: 'info', text: 'Nothing to switch: both answers lead to the same place.' }); return; }
     update(next); setReopened(null);
     setNotice({ tone: 'info', text: `Switched: what followed “${n.options[i]!.label}” now follows “${n.options[j]!.label}”, and the other way round.` });
   };
