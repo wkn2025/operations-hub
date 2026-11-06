@@ -55,7 +55,7 @@ export const COUNTRY_ARTICLES: SeedArticle[] = [
       suggested(),
       ul(
         'Expect US-level prices and compare estimates with the policy limits early.',
-        'Check the invoice currency and that the GOP states the same currency.',
+        'Check the invoice currency and that the guarantee of payment (GOP) states the same currency.',
         'Check which party the invoice asks to be paid before paying.',
       ),
       h(2, 'General information'),
@@ -89,7 +89,7 @@ export const COUNTRY_ARTICLES: SeedArticle[] = [
       general(),
       table(['Topic', 'Detail'],
         ['Language', 'Spanish'],
-        ['Currency', 'Cuban peso (CUP); other currencies and exchange rates are also in use'],
+        ['Currency', 'Cuban peso (CUP)'],
         ['Time zone', 'UTC−5, with daylight saving in summer'],
         ['Entry rules', 'Visitors must hold travel medical insurance valid in Cuba']),
     ],
