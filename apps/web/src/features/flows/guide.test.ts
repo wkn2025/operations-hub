@@ -140,5 +140,7 @@ describe('guided builder: switching Yes and No', () => {
     expect(swapOutcomes(f, 'q1').nodes[0]!.options).toEqual([{ label: 'Yes', to: 'q2' }, { label: 'No', to: 'r1' }]);
     expect(swapOutcomes(f, 'q2').nodes[1]!.options).toEqual([{ label: 'Yes', to: '' }, { label: 'No', to: 'r1' }]);
     expect(swapOutcomes(f, 'r1')).toBe(f); // nothing to swap
+    const same = base([{ id: 'q1', kind: 'question', text: 'On?', options: [{ label: 'Yes', to: 'r1' }, { label: 'No', to: 'r1' }] }, { id: 'r1', kind: 'result', text: 'Print' }]);
+    expect(swapOutcomes(same, 'q1')).toBe(same); // both lead to the same place: nothing moves
   });
 });

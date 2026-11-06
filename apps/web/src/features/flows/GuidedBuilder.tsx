@@ -77,8 +77,9 @@ function Builder({ initial }: { initial: FlowView }) {
   // "I mixed up Yes and No": the two branches change places, the labels stay
   const swap = (id: string) => {
     const n = ref.current.nodes.find((x) => x.id === id);
-    if (n?.options?.length !== 2) return;
-    update(swapOutcomes(ref.current, id));
+    const next = n?.options?.length === 2 ? swapOutcomes(ref.current, id) : ref.current;
+    if (next === ref.current || !n?.options) { setNotice({ tone: 'info', text: 'Nothing to swap: both answers lead to the same place.' }); return; }
+    update(next); setReopened(null);
     setNotice({ tone: 'info', text: `Swapped: what followed “${n.options[0]!.label}” now follows “${n.options[1]!.label}”, and the other way round.` });
   };
   const [trying, setTrying] = useState(false);
@@ -193,7 +194,7 @@ function Builder({ initial }: { initial: FlowView }) {
             <OneLine label="Question" placeholder="For example: Is the printer switched on?" max={400} initial={byId.get(task.nodeId)!.text}
               submit={focus ? 'Done' : 'Next'} onSubmit={(t) => { patch(task.nodeId, { text: t }); setFocus(null); }}
               extra={focus ? cancel : undo} />
-            {focus && node?.options?.length === 2 && (
+            {focus && node?.options?.length === 2 && node.options.every((o) => o.label.trim()) && (
               <button type="button" onClick={() => swap(node.id)} className="mt-4 inline-flex items-center gap-2 rounded-[12px] px-3 py-2 text-[13.5px] font-medium text-primary ring-1 ring-inset ring-primary-line hover:bg-primary-soft">
                 <ArrowLeftRight size={15} aria-hidden /> Swap what “{node.options[0]!.label}” and “{node.options[1]!.label}” lead to
               </button>

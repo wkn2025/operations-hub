@@ -71,7 +71,7 @@ export function FlowMap({ flow, task, onEdit, onSwap }: { flow: Flow; task: Task
           })}
           {onSwap && m.boxes.map((b) => {
             const n = b.kind === 'question' && b.nodeId ? byId.get(b.nodeId) : undefined;
-            if (n?.options?.length !== 2) return null;
+            if (n?.options?.length !== 2 || !n.text.trim() || n.options.some((o) => !o.label.trim())) return null;
             const [a, c] = n.options;
             return (
               <button key={`s-${b.key}`} type="button" onClick={() => onSwap(n.id)} title={`Swap what “${a!.label}” and “${c!.label}” lead to`}

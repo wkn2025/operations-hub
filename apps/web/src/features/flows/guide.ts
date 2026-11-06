@@ -127,7 +127,7 @@ export function layout(flow: Flow) {
 /** "I mixed up Yes and No": swap where a two-answer question's answers lead (whole branches move; labels stay). */
 export function swapOutcomes(flow: Flow, id: string): Flow {
   const n = flow.nodes.find((x) => x.id === id);
-  if (n?.options?.length !== 2) return flow;
+  if (n?.options?.length !== 2 || n.options[0]!.to === n.options[1]!.to) return flow;
   const [a, b] = n.options as [FlowOption, FlowOption];
   return { ...flow, nodes: flow.nodes.map((x) => (x.id === id ? { ...x, options: [{ ...a, to: b.to }, { ...b, to: a.to }] } : x)) };
 }
