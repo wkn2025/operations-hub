@@ -1,4 +1,4 @@
-import type { Flow, FlowNode, FlowNodeKind } from '@ops/shared';
+import type { Flow, FlowNode, FlowNodeKind, FlowOption } from '@ops/shared';
 import { setTarget } from './flowOps';
 
 /** One step of the guided builder: the single thing the author is asked next. */
@@ -88,7 +88,7 @@ export function undoChoice(flow: Flow, id: string): Flow {
 
 /** A box on the live map: a step, an answer not decided yet ("open"), or a jump back to a step shown elsewhere ("repeat"). */
 export interface MapBox { key: string; kind: FlowNodeKind | 'open' | 'repeat'; nodeId?: string; from?: { nodeId: string; option: number }; col: number; row: number }
-export interface MapEdge { from: string; to: string; label: string }
+export interface MapEdge { from: string; to: string; label: string; option: number }
 
 /**
  * Tree layout: `col` = steps from the start (drawn top-down); `row` = centre across, in step widths. Open "?" slots and
@@ -112,7 +112,7 @@ export function layout(flow: Flow) {
     const start = leaf;
     const rows = opts.map((o, i) => {
       const child = `${key}/${i}`;
-      edges.push({ from: key, to: child, label: o.label });
+      edges.push({ from: key, to: child, label: o.label, option: i });
       return o.to && byId.has(o.to) ? place(o.to, col + 1, child) : add({ key: child, kind: 'open', from: { nodeId: id, option: i }, col: col + 1 }, next(SLOT));
     });
     leaf = Math.max(leaf, start + 1); // a question is a full step wide even over one narrow "?"
@@ -122,4 +122,29 @@ export function layout(flow: Flow) {
   };
   if (byId.has(flow.startId)) place(flow.startId, 0, 's');
   return { boxes, edges, cols, rows: leaf };
+}
+
+/** "I mixed up Yes and No": answers i and j swap where they lead (whole branches move; labels and order stay). */
+export function swapAnswers(flow: Flow, id: string, i: number, j: number): Flow {
+  const n = flow.nodes.find((x) => x.id === id), a = n?.options?.[i], b = n?.options?.[j];
+  if (!n || !a || !b || i === j || a.to === b.to) return flow;
+  const options = n.options!.map((o, k): FlowOption => (k === i ? { ...o, to: b.to } : k === j ? { ...o, to: a.to } : o));
+  return { ...flow, nodes: flow.nodes.map((x) => (x.id === id ? { ...x, options } : x)) };
+}
+
+/**
+ * The × on a map tile: remove a step, plus whatever only it led to (steps nobody else can reach any more); every
+ * answer that led to it is open again, so the builder asks "what happens next?" there. The first question stays.
+ */
+export function removeStep(flow: Flow, id: string): Flow {
+  if (id === flow.startId || !flow.nodes.some((n) => n.id === id)) return flow;
+  const before = new Set(reachable(flow).map((n) => n.id));
+  const opened = undoChoice(flow, id);
+  const after = new Set(reachable(opened).map((n) => n.id));
+  return { ...opened, nodes: opened.nodes.filter((n) => after.has(n.id) || !before.has(n.id)) }; // unrelated orphans stay
+}
+
+/** The × on a "Same" box: this answer no longer uses that ending (the ending stays for the others). */
+export function unlinkAnswer(flow: Flow, id: string, option: number): Flow {
+  return { ...flow, nodes: flow.nodes.map((n) => (n.id === id && n.options?.[option] ? { ...n, options: n.options.map((o, i) => (i === option ? { ...o, to: '' } : o)) } : n)) };
 }

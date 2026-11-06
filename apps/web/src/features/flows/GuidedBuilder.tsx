@@ -5,7 +5,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import clsx from 'clsx';
 import { ArrowLeft, ArrowRight, CircleHelp, Undo2, Lock, FileText, Flag, Info, Play, Plus, Send, Sparkles, TriangleAlert, Trophy, Upload, X, CircleCheck } from 'lucide-react';
 import { validateFlow, type Flow, type FlowNode, type FlowNodeKind, type FlowOption, type FlowSeverity } from '@ops/shared';
-import { api, HttpError, isEditorRole, useSession, type FlowView } from '../../api/client';
+import { api, fetchArticles, HttpError, isEditorRole, useArticle, useSession, type ArticleSummary, type FlowView } from '../../api/client';
 import { Button } from '../../components/ui/primitives';
 import { ErrorState } from '../../components/ui/ErrorState';
 import { NotFound } from '../../pages/NotFound';
@@ -14,7 +14,7 @@ import { useAutosave } from '../editor/useAutosave';
 import { FlowRunner } from './FlowRunner';
 import { FlowMap } from './FlowMap';
 import { setTarget } from './flowOps';
-import { chooseNext, nextTask, progress, undoChoice, type PathStep, type Task } from './guide';
+import { chooseNext, nextTask, progress, removeStep, swapAnswers, undoChoice, unlinkAnswer, type PathStep, type Task } from './guide';
 
 /**
  * /flows/:id/build — the guided builder: one question at a time, like a quest. The author never sees ids, "goes to"
@@ -74,6 +74,21 @@ function Builder({ initial }: { initial: FlowView }) {
   const [focus, setFocus] = useState<string | null>(null); // a question picked from the path to change
   const [reopened, setReopened] = useState<{ nodeId: string; option: number } | null>(null); // after "Choose something else"
   const editQuestion = (id: string) => { setReopened(null); setFocus(id); };
+  const remove = (r: { nodeId: string } | { unlink: string; option: number }) => {
+    const before = ref.current;
+    const next = 'unlink' in r ? unlinkAnswer(before, r.unlink, r.option) : removeStep(before, r.nodeId);
+    if (next === before) return;
+    const gone = before.nodes.length - next.nodes.length;
+    update(next, true); setFocus(null); setReopened(null); setNotice(null);
+    setRemoved({ before, text: 'unlink' in r ? 'That answer no longer leads there.' : gone > 1 ? `Removed the step and the ${gone - 1} step${gone === 2 ? '' : 's'} after it.` : 'Removed the step.' });
+  };
+  // "I mixed up Yes and No": picking another answer on the map switches the two branches; labels stay
+  const swap = (id: string, i: number, j: number) => {
+    const n = ref.current.nodes.find((x) => x.id === id), next = swapAnswers(ref.current, id, i, j);
+    if (!n?.options || next === ref.current) { if (i !== j) setNotice({ tone: 'info', text: 'Nothing to switch: both answers lead to the same place.' }); return; }
+    update(next); setReopened(null);
+    setNotice({ tone: 'info', text: `Switched: what followed “${n.options[i]!.label}” now follows “${n.options[j]!.label}”, and the other way round.` });
+  };
   const [trying, setTrying] = useState(false);
   const [notice, setNotice] = useState<{ tone: 'error' | 'info'; text: string } | null>(null);
 
@@ -103,10 +118,11 @@ function Builder({ initial }: { initial: FlowView }) {
     try {
       const v = await api<FlowView>(`/api/flows/${view.id}`);
       const d = { title: v.title, startId: v.startId, nodes: v.nodes };
-      ref.current = d; setDraftState(d); setView(v); autosave.reset(v.revision); setNotice(null); setStuck(null);
+      ref.current = d; setDraftState(d); setView(v); autosave.reset(v.revision); setNotice(null); setStuck(null); setRemoved(null); // Undo would overwrite their version
     } catch { setNotice({ tone: 'error', text: 'Couldn’t load the latest version. Try again.' }); }
   };
-  const update = (next: Flow) => { ref.current = next; setDraftState(next); autosave.change(next); };
+  const [removed, setRemoved] = useState<{ text: string; before: Flow } | null>(null); // last × on the map, with Undo
+  const update = (next: Flow, keepUndo = false) => { ref.current = next; setDraftState(next); autosave.change(next); if (!keepUndo) setRemoved(null); };
   const patch = (id: string, p: Partial<FlowNode>) => update({ ...ref.current, nodes: ref.current.nodes.map((n) => (n.id === id ? { ...n, ...p } : n)) });
 
   const byId = new Map(draft.nodes.map((n) => [n.id, n]));
@@ -176,6 +192,12 @@ function Builder({ initial }: { initial: FlowView }) {
           <button type="button" onClick={() => navigate(stuck)} className="font-medium underline">Leave anyway</button>
         </div>
       )}
+      {removed && autosave.status !== 'conflict' && (
+        <div role="status" className="mt-5 flex flex-wrap items-center gap-3 rounded-[12px] bg-primary-soft px-4 py-3 text-sm text-primary">
+          {removed.text}
+          <button type="button" onClick={() => { update(removed.before); }} className="inline-flex items-center gap-1 font-medium underline"><Undo2 size={14} aria-hidden /> Undo</button>
+        </div>
+      )}
       {notice && <p role={notice.tone === 'error' ? 'alert' : 'status'} className={clsx('mt-5 rounded-[12px] px-4 py-3 text-sm', notice.tone === 'error' ? 'bg-danger-soft text-danger' : 'bg-primary-soft text-primary')}>{notice.text}</p>}
 
       {view.permissions.write && <Stage taskKey={JSON.stringify(task)}>
@@ -197,8 +219,8 @@ function Builder({ initial }: { initial: FlowView }) {
         {task.kind === 'branch' && (
           <Card step="Choose a path" icon={ArrowRight}
             title={<>When they answer <Em>{byId.get(task.nodeId)!.options![task.option]!.label}</Em>, what happens next?</>}>
-            <div className="grid gap-3 sm:grid-cols-3">
-              {(([['question', CircleHelp, 'Ask another question', 'You need to know more first'], ['result', Flag, 'Give the solution', 'You know what they should do'], ['article', FileText, 'Send them to an article', 'The answer is already written up']]) as [FlowNodeKind, typeof Flag, string, string][]).map(([kind, Icon, label, sub]) => (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {(([['question', CircleHelp, 'Ask another question', 'You need to know more first'], ['result', Flag, 'Give the solution', 'You know what they should do (you can link an article)']]) as [FlowNodeKind, typeof Flag, string, string][]).map(([kind, Icon, label, sub]) => (
                 <button key={kind} type="button" onClick={() => { update(chooseNext(ref.current, task.nodeId, task.option, kind).flow); setReopened(null); }}
                   className="group flex flex-col items-start gap-3 rounded-[18px] bg-white p-5 text-left shadow-sm ring-1 ring-neutral-200 transition hover:-translate-y-0.5 hover:shadow-md hover:ring-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary motion-reduce:transition-none motion-reduce:hover:translate-y-0">
                   <span className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-accent text-primary"><Icon size={20} aria-hidden /></span>
@@ -252,7 +274,7 @@ function Builder({ initial }: { initial: FlowView }) {
         )}
       </Stage>}
       </div>
-      <div className="min-w-0 lg:sticky lg:top-[96px] lg:mt-5"><FlowMap flow={draft} task={task} onEdit={view.permissions.write ? editQuestion : undefined} /></div>
+      <div className="min-w-0 lg:sticky lg:top-[96px] lg:mt-5"><FlowMap flow={draft} task={task} onEdit={view.permissions.write ? editQuestion : undefined} onSwap={view.permissions.write ? swap : undefined} onRemove={view.permissions.write ? remove : undefined} /></div>
       </div>
     </div>
   );
@@ -378,13 +400,15 @@ const TONES: { value: FlowSeverity; label: string; icon: typeof Flag }[] = [
 
 function Ending({ node, editing, onDone, extra }: { node: FlowNode; editing?: boolean; onDone: (p: Partial<FlowNode>) => void; extra?: ReactNode }) {
   const [text, setText] = useState(node.text), [detail, setDetail] = useState(node.detail ?? ''), [tone, setTone] = useState<FlowSeverity>(node.severity ?? 'success');
+  const [articleId, setArticleId] = useState(node.articleId ?? '');
   return (
     <Card step={editing ? 'Change this ending' : 'An ending'} icon={Flag} title="What should they do?" hint={editing ? 'Every answer that leads here shows the change.' : 'This is what people see at the end of this path.'}>
-      <form onSubmit={(e) => { e.preventDefault(); if (text.trim()) onDone({ text: text.trim(), detail: detail.trim() || undefined, severity: tone }); }}>
+      <form onSubmit={(e) => { e.preventDefault(); if (text.trim()) onDone({ text: text.trim(), detail: detail.trim() || undefined, severity: tone, articleId: articleId || undefined }); }}>
         <label className="sr-only" htmlFor="ending-text">Solution</label>
         <input id="ending-text" autoFocus aria-describedby="task-title" value={text} maxLength={400} placeholder="For example: Restart the printer and try again" onChange={(e) => setText(e.target.value)} className={field} />
         <label className="sr-only" htmlFor="ending-detail">More detail (optional)</label>
         <textarea id="ending-detail" rows={3} value={detail} maxLength={1000} placeholder="More detail (optional)" onChange={(e) => setDetail(e.target.value)} className={clsx(field, 'mt-3 resize-y text-[15px]')} />
+        <ArticleSelect value={articleId} onChange={setArticleId} />
         <fieldset className="mt-4">
           <legend className="text-[13px] font-medium text-neutral-700">What kind of ending is it?</legend>
           <div className="mt-2 flex flex-wrap gap-2">
@@ -400,6 +424,32 @@ function Ending({ node, editing, onDone, extra }: { node: FlowNode; editing?: bo
         <div className="mt-5 flex items-center justify-between gap-3">{extra ?? <span />}<Button type="submit" disabled={!text.trim()}>{editing ? 'Done' : 'Save ending'} <ArrowRight size={15} aria-hidden /></Button></div>
       </form>
     </Card>
+  );
+}
+
+/** Published articles grouped by top category, for linking an ending to the procedure it refers to. */
+function ArticleSelect({ value, onChange }: { value: string; onChange: (id: string) => void }) {
+  // ponytail: first 200 published articles (API page cap); a search picker if the hub outgrows that
+  const q = useQuery({ queryKey: ['articles', 'flow-links'], queryFn: () => fetchArticles({ status: 'published', sort: 'title', limit: 200 }), staleTime: 60_000 });
+  // a link to an article outside the list (archived, draft, beyond the first 200) stays visible and can be removed
+  const current = useArticle(value && q.data && !q.data.articles.some((a) => a.id === value) ? value : '');
+  const groups = new Map<string, ArticleSummary[]>();
+  for (const a of q.data?.articles ?? []) {
+    const top = a.categoryPath.split(' / ')[0] || 'Uncategorised';
+    groups.set(top, [...(groups.get(top) ?? []), a]);
+  }
+  return (
+    <div className="mt-4">
+      <label htmlFor="ending-article" className="text-[13px] font-medium text-neutral-700">Related article (optional)</label>
+      <select id="ending-article" value={value} onChange={(e) => onChange(e.target.value)} className={clsx(field, 'mt-1.5 text-[15px]')}>
+        <option value="">{q.isPending ? 'Loading articles…' : 'No article'}</option>
+        {value && !q.data?.articles.some((a) => a.id === value) && <option value={value}>{current.data?.title ?? 'Current article'} (not in the list)</option>}
+        {[...groups].sort(([a], [b]) => a.localeCompare(b)).map(([top, list]) => (
+          <optgroup key={top} label={top}>{list.map((a) => <option key={a.id} value={a.id}>{a.title}</option>)}</optgroup>
+        ))}
+      </select>
+      {q.isError && <p role="alert" className="mt-1.5 text-xs text-danger">Couldn’t load the article list. Any article already linked stays linked.</p>}
+    </div>
   );
 }
 

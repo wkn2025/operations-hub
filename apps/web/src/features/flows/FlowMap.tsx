@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 import clsx from 'clsx';
-import { CircleHelp, FileText, Flag, Link2, Undo2 } from 'lucide-react';
+import { ChevronDown, CircleHelp, FileText, Flag, Link2, Undo2, X } from 'lucide-react';
 import type { Flow, FlowNode } from '@ops/shared';
 import { layout, SLOT, type MapBox, type Task } from './guide';
 
@@ -13,7 +13,10 @@ const x = (b: MapBox) => b.row * U - (bw(b) + GX) / 2, y = (b: MapBox) => b.col 
 const TONE: Record<string, string> = { success: 'bg-success-soft', warning: 'bg-warning-soft', info: 'bg-primary-soft' };
 
 /** The live decision map beside the builder: grows top-down as the author answers, like an n8n canvas turned upright. */
-export function FlowMap({ flow, task, onEdit }: { flow: Flow; task: Task; onEdit?: (nodeId: string) => void }) {
+export function FlowMap({ flow, task, onEdit, onSwap, onRemove }: { flow: Flow; task: Task; onEdit?: (nodeId: string) => void; onSwap?: (nodeId: string, from: number, to: number) => void;
+  /** × on a tile: remove that step, or (on a "Same" box) unlink just that answer */
+  onRemove?: (r: { nodeId: string } | { unlink: string; option: number }) => void;
+}) {
   const m = useMemo(() => layout(flow), [flow]);
   const byId = useMemo(() => new Map(flow.nodes.map((n) => [n.id, n])), [flow.nodes]);
   const still = useReducedMotion();
@@ -45,6 +48,7 @@ export function FlowMap({ flow, task, onEdit }: { flow: Flow; task: Task; onEdit
     if (left !== sl || top !== st) el.scrollTo?.({ left, top, behavior: still ? 'auto' : 'smooth' });
   }, [current, m, still, k]);
   const at = new Map(m.boxes.map((b) => [b.key, b]));
+  const into = new Map(m.edges.map((e) => [e.to, e])); // the answer that leads to each box
 
   return (
     <section aria-labelledby="flow-map-title" className="rounded-[24px] bg-neutral-50 ring-1 ring-neutral-200/80">
@@ -61,7 +65,21 @@ export function FlowMap({ flow, task, onEdit }: { flow: Flow; task: Task; onEdit
             })}
           </svg>
           {m.edges.map((e) => {
-            const a = at.get(e.from)!, b = at.get(e.to)!;
+            const a = at.get(e.from)!, b = at.get(e.to)!, q = byId.get(a.nodeId!);
+            const answers = q?.options ?? [];
+            // the answer on the line is a small dropdown: pick another answer to switch the two branches (e.g. Yes <-> No)
+            if (onSwap && q && answers.length > 1 && answers.every((o) => o.label.trim())) {
+              return (
+                <span key={`l-${e.to}`} style={{ left: x(b) + bw(b) / 2, top: y(b) - GY / 3, maxWidth: bw(b) + GX - 6 }} className="absolute z-10 -translate-x-1/2 -translate-y-1/2">
+                  <select value={e.option} title={`${e.label}: pick another answer to switch these two branches`} aria-label={`Answer “${e.label}” to “${q.text}”: pick another answer to switch branches`}
+                    onChange={(ev) => onSwap(q.id, e.option, Number(ev.target.value))}
+                    className="max-w-full cursor-pointer appearance-none truncate rounded-full bg-white py-0.5 pl-2 pr-5 text-[11.5px] font-medium text-neutral-700 ring-1 ring-neutral-200 hover:bg-accent-soft hover:ring-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+                    {answers.map((o, idx) => <option key={idx} value={idx}>{o.label}</option>)}
+                  </select>
+                  <ChevronDown size={11} aria-hidden className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-neutral-500" />
+                </span>
+              );
+            }
             return (
               <span key={`l-${e.to}`} title={e.label} style={{ left: x(b) + bw(b) / 2, top: y(b) - GY / 3, maxWidth: bw(b) + GX - 6 }}
                 className="absolute z-10 -translate-x-1/2 -translate-y-1/2 truncate rounded-full bg-white px-2 py-0.5 text-[11.5px] font-medium text-neutral-700 ring-1 ring-neutral-200">
@@ -73,6 +91,18 @@ export function FlowMap({ flow, task, onEdit }: { flow: Flow; task: Task; onEdit
             <motion.div key={b.key} initial={still ? false : { opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.25 }}
               style={{ left: x(b), top: y(b), width: bw(b), height: H }} className="absolute transition-[left,top] duration-300 motion-reduce:transition-none">
               <Box b={b} node={b.nodeId ? byId.get(b.nodeId) : undefined} current={b.key === current} onEdit={onEdit} />
+              {onRemove && b.nodeId && b.kind !== 'open' && (b.kind === 'repeat' || b.nodeId !== flow.startId) && (() => {
+                const n = byId.get(b.nodeId)!, e = into.get(b.key), from = e ? at.get(e.from)?.nodeId : undefined;
+                const unlink = b.kind === 'repeat' && from !== undefined;
+                const what = n.text.trim() || (n.kind === 'question' ? 'new question' : 'new ending');
+                return (
+                  <button type="button" onClick={() => onRemove(unlink ? { unlink: from!, option: e!.option } : { nodeId: n.id })}
+                    aria-label={unlink ? `Unlink “${e!.label}” from: ${what}` : `Remove step: ${what}`} title={unlink ? 'Stop using this ending here' : 'Remove this step'}
+                    className="absolute -right-2.5 -top-2.5 z-20 flex h-6 w-6 items-center justify-center rounded-full bg-white text-neutral-500 shadow-sm ring-1 ring-neutral-200 hover:bg-danger-soft hover:text-danger hover:ring-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+                    <X size={11} aria-hidden />
+                  </button>
+                );
+              })()}
             </motion.div>
           ))}
         </div>

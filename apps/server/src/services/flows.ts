@@ -26,7 +26,7 @@ export function readableFlow(s: Svc, user: User, key: string): FlowRow | null {
 export function fullValidation(s: Svc, f: Flow): FlowValidation {
   const v = validateFlow(f);
   for (const n of Array.isArray(f.nodes) ? f.nodes : []) {
-    if (n.kind === 'article' && n.articleId && !s.db.select({ id: articles.id }).from(articles).where(eq(articles.id, n.articleId)).get()) {
+    if (n.articleId && !s.db.select({ id: articles.id }).from(articles).where(eq(articles.id, n.articleId)).get()) {
       const message = `The article linked from "${n.text.slice(0, 40) || n.id}" no longer exists.`;
       v.issues.push({ level: 'error', code: 'missing_article', nodeId: n.id, message });
       v.errors.push(message);

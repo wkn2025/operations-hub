@@ -26,7 +26,7 @@ Source of truth for *what* and *why*: the approved spec and plan. Source of trut
 - Task briefs/review packages via skill scripts (`task-brief`, `review-package`, `sdd-workspace`) under `C:\Users\wkn\.claude\plugins\cache\claude-plugins-official\superpowers\<version>\skills\subagent-driven-development\scripts\`.
 - Verification before claims: run the command, read the output, then state the result. Never claim a feature works unverified; report failures with output.
 - Work on branch `feat/operations-hub` (no worktree). Base branch is `master` (no local `main`). Commit only when asked or when the SDD flow requires it; no pushes without being asked. `git clean -fdx` destroys the ledger — never run it.
-- Commit trailer: `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>` (Conventional Commits: `feat(scope):`, `fix(scope):`, `test(scope):`).
+- Commit trailer: `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` (user ruling 2026-11-06: sign with the model that did the work) (Conventional Commits: `feat(scope):`, `fix(scope):`, `test(scope):`).
 
 ## Stack and layout
 

@@ -113,4 +113,13 @@ describe('FlowRunner', () => {
     renderApp(<FlowRunner flow={flow} />);
     expect(document.querySelector('[data-testid=flow-runner] [aria-live]')).toBeNull();
   });
+
+  it('an ending keeps line breaks in its details and links its related article', async () => {
+    renderApp(<FlowRunner flow={{ title: 'T', startId: 'r', nodes: [{ id: 'r', kind: 'result', text: 'Restart it', detail: 'Step one\nStep two', articleId: 'a-1', severity: 'success' }],
+      articles: { 'a-1': { status: 'published', title: 'Corrective procedure', slug: 'corrective' } } }} />);
+    const detail = screen.getByText(/Step one/);
+    expect(detail.textContent).toBe('Step one\nStep two');
+    expect(detail).toHaveClass('whitespace-pre-line');
+    expect(screen.getByRole('link', { name: /Corrective procedure/ })).toHaveAttribute('href', '/article/corrective');
+  });
 });

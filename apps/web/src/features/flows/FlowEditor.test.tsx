@@ -139,4 +139,21 @@ describe('FlowEditor tabs and unsaved edits', () => {
     window.dispatchEvent(ev);
     expect(ev.defaultPrevented).toBe(true); // the browser still warns before leaving
   });
+
+  it('an ending shows its related article and the link can be removed', async () => {
+    const f = flow({ nodes: [
+      { id: 'q1', kind: 'question', text: 'Is there a GOP?', options: [{ label: 'Yes', to: 'r1' }, { label: 'No', to: 'r2' }] },
+      { id: 'r1', kind: 'result', text: 'Register it', severity: 'success', articleId: 'a-9' },
+      { id: 'r2', kind: 'result', text: 'Stop and escalate', severity: 'warning' },
+    ] });
+    const fetchMock = mockFetch({ '/api/me': me('editor'), '/api/flows/f1': f, '/api/articles/a-9': { id: 'a-9', slug: 'reg', title: 'Register an invoice', type: 'standard', status: 'published', fields: {}, content: { type: 'doc' } }, '/api/articles': { articles: [] }, '/api/search': { groups: [] } });
+    renderApp(<Routes><Route path="/flows/:id/edit" element={<EditFlow />} /></Routes>, '/flows/f1/edit');
+    const card = await screen.findByText('Register an invoice');
+    const row = card.closest('div')!;
+    await userEvent.click(within(row).getByRole('button', { name: 'Remove' }));
+    await waitFor(() => {
+      const last = fetchMock.mock.calls.filter(([u, i]) => String(u) === '/api/flows/f1' && i?.method === 'PATCH').at(-1);
+      expect(JSON.parse(String(last![1]!.body)).nodes.find((n: { id: string }) => n.id === 'r1').articleId).toBeUndefined();
+    }, { timeout: 3000 });
+  });
 });

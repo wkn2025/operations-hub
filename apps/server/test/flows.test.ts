@@ -84,6 +84,16 @@ describe('flows API', () => {
     expect((await c.req(c.editor, 'POST', '/api/flows', { title: 'dup', nodes: [{ id: 'a', kind: 'result', text: 'x' }, { id: 'a', kind: 'result', text: 'y' }], startId: 'a' })).status).toBe(422);
   });
 
+  it('an ending may link a related article; a link to an article that does not exist blocks publishing', async () => {
+    const nodes = (articleId: string) => [{ id: 'r', kind: 'result', text: 'Do this', articleId }];
+    const art = (await c.req(c.editor, 'POST', '/api/articles', { title: 'Linked guide' })).body;
+    const ok = await mk({ title: 'Ending with article', nodes: nodes(art.id), startId: 'r' });
+    expect(ok.articles[art.id]).toMatchObject({ title: 'Linked guide' });
+    const bad = await mk({ title: 'Bad', nodes: nodes('nope'), startId: 'r' }); // drafts may keep it ("incomplete")
+    expect(bad.validation.errors.join()).toMatch(/no longer exists/);
+    expect((await c.req(c.admin, 'POST', `/api/flows/${bad.id}/publish`)).status).toBe(422);
+  });
+
   it('publish needs a valid flow and existing articles; 409 on stale baseRevision', async () => {
     const f = await mk({ title: 'Half', nodes: [{ id: 'a', kind: 'question', text: 'Q?' }], startId: 'a' });
     const r = await pub(f.id);

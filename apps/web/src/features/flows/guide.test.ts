@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Flow } from '@ops/shared';
-import { chooseNext, layout, nextTask, progress, undoChoice } from './guide';
+import { chooseNext, layout, nextTask, progress, removeStep, swapAnswers, unlinkAnswer, undoChoice } from './guide';
 
 const base = (nodes: Flow['nodes'], title = 'Printer broken'): Flow => ({ title, startId: 'q1', nodes });
 
@@ -118,7 +118,7 @@ describe('guided builder: the live map', () => {
       ['question', 0, 1.3125], ['question', 1, 0.875], ['result', 2, 0.5], ['repeat', 2, 1.25], ['open', 1, 1.75],
     ]);
     expect(at(m.boxes[4]!.key)).toMatchObject({ kind: 'open', from: { nodeId: 'q1', option: 1 } });
-    expect(m.edges.map((e) => e.label)).toEqual(['Yes', 'Yes', 'No', 'No']);
+    expect(m.edges.map((e) => [e.label, e.option])).toEqual([['Yes', 0], ['Yes', 0], ['No', 1], ['No', 1]]);
     expect([m.cols, m.rows]).toEqual([3, 2]); // rows = total width in step units
   });
   it('a question never gets less than a full step of width, even with one narrow "?" under it', () => {
@@ -127,5 +127,50 @@ describe('guided builder: the live map', () => {
     ]));
     expect(m.boxes.map((b) => [b.kind, b.row])).toEqual([['question', 0.5], ['open', 0.25]]);
     expect(m.rows).toBe(1);
+  });
+});
+
+describe('guided builder: switching Yes and No', () => {
+  it('two answers swap where they lead; labels and order stay; nothing happens when there is nothing to move', () => {
+    const f = base([
+      { id: 'q1', kind: 'question', text: 'On?', options: [{ label: 'Yes', to: 'r1' }, { label: 'No', to: 'q2' }, { label: 'Not sure', to: '' }] },
+      { id: 'q2', kind: 'question', text: 'Plugged?', options: [{ label: 'Yes', to: 'r1' }, { label: 'No', to: 'r1' }] },
+      { id: 'r1', kind: 'result', text: 'Print' },
+    ]);
+    expect(swapAnswers(f, 'q1', 0, 1).nodes[0]!.options).toEqual([{ label: 'Yes', to: 'q2' }, { label: 'No', to: 'r1' }, { label: 'Not sure', to: '' }]);
+    expect(swapAnswers(f, 'q1', 2, 0).nodes[0]!.options).toEqual([{ label: 'Yes', to: '' }, { label: 'No', to: 'q2' }, { label: 'Not sure', to: 'r1' }]);
+    expect(swapAnswers(f, 'q2', 0, 1)).toBe(f); // both lead to the same place
+    expect(swapAnswers(f, 'q1', 1, 1)).toBe(f);
+    expect(swapAnswers(f, 'r1', 0, 1)).toBe(f);
+  });
+});
+
+describe('guided builder: removing a step from the map', () => {
+  const f = base([
+    { id: 'q1', kind: 'question', text: 'On?', options: [{ label: 'Yes', to: 'q2' }, { label: 'No', to: 'r3' }] },
+    { id: 'q2', kind: 'question', text: 'Lines?', options: [{ label: 'Yes', to: 'r1' }, { label: 'No', to: 'r3' }] },
+    { id: 'r1', kind: 'result', text: 'Print' },
+    { id: 'r3', kind: 'result', text: 'Call IT' },
+    { id: 'zz', kind: 'result', text: 'Old unreachable (kept)' },
+  ]);
+  it('removes the step and what only it led to; the answer that led there is open again; shared and unrelated steps stay', () => {
+    const g = removeStep(f, 'q2');
+    expect(g.nodes.map((n) => n.id)).toEqual(['q1', 'r3', 'zz']);
+    expect(g.nodes[0]!.options).toEqual([{ label: 'Yes', to: '' }, { label: 'No', to: 'r3' }]);
+    expect(nextTask(g)).toMatchObject({ kind: 'branch', nodeId: 'q1', option: 0 });
+  });
+  it('an ending used by two answers: removing it opens both; unlinking opens only one', () => {
+    expect(removeStep(f, 'r3').nodes.flatMap((n) => n.options ?? []).filter((o) => !o.to)).toHaveLength(2);
+    const u = unlinkAnswer(f, 'q2', 1);
+    expect(u.nodes.find((n) => n.id === 'q2')!.options![1]).toEqual({ label: 'No', to: '' });
+    expect(u.nodes.some((n) => n.id === 'r3')).toBe(true);
+  });
+  it('never removes the first question', () => {
+    expect(removeStep(f, 'q1')).toBe(f);
+  });
+  it('a loop back to the first question can be unlinked', () => {
+    const g = base([{ id: 'q1', kind: 'question', text: 'Again?', options: [{ label: 'Yes', to: 'q1' }, { label: 'No', to: 'r1' }] }, { id: 'r1', kind: 'result', text: 'Done' }]);
+    expect(unlinkAnswer(g, 'q1', 0).nodes[0]!.options![0]).toEqual({ label: 'Yes', to: '' });
+    expect(layout(g).boxes.find((b) => b.kind === 'repeat')!.nodeId).toBe('q1'); // drawn as a Back box (which gets a ×)
   });
 });
