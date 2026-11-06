@@ -14,6 +14,7 @@ const EditArticle = lazy(() => import('./pages/EditArticle').then((m) => ({ defa
 
 const AdminArea = lazy(() => import('./pages/admin'));
 
+const BuildFlow = lazy(() => import('./features/flows/GuidedBuilder').then((m) => ({ default: m.BuildFlow })));
 const EditFlow = lazy(() => import('./features/flows/FlowEditor').then((m) => ({ default: m.EditFlow })));
 
 export function App() {
@@ -27,6 +28,7 @@ export function App() {
         <Route path="edit/:id" element={<Suspense fallback={<p className="py-16 text-center text-sm text-ink-muted">Opening the editor…</p>}><EditArticle /></Suspense>} />
         <Route path="flows" element={<FlowsPage />} />
         <Route path="flows/:slug" element={<FlowPage />} />
+        <Route path="flows/:id/build" element={<Suspense fallback={<p className="py-16 text-center text-sm text-ink-muted">Opening the builder…</p>}><BuildFlow /></Suspense>} />
         <Route path="flows/:id/edit" element={<Suspense fallback={<p className="py-16 text-center text-sm text-ink-muted">Opening the flow editor…</p>}><EditFlow /></Suspense>} />
         <Route path="admin/*" element={<Suspense fallback={<p className="py-16 text-center text-sm text-ink-muted">Opening admin…</p>}><AdminArea /></Suspense>} />
         <Route path="*" element={<NotFound />} />
