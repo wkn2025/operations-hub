@@ -12,6 +12,7 @@ import { headingsOf, type Heading } from '../../lib/text';
 import { NotFound } from '../../pages/NotFound';
 import { ErrorState } from '../../components/ui/ErrorState';
 import { ArticleTemplate } from './templates';
+import { fileUrl } from '../../static/demo';
 
 const imageSrcs = (n: PmNode, out = new Set<string>()) => {
   if (n?.type === 'image' && typeof n.attrs?.src === 'string') out.add(n.attrs.src);
@@ -76,7 +77,7 @@ export function ArticlePage() {
             <ul className="mt-3 grid gap-2 sm:grid-cols-2">
               {attachments.map((f) => (
                 <li key={f.id}>
-                  <a href={f.url} className="group flex items-center gap-3 rounded-[14px] bg-white px-3.5 py-3 shadow-sm ring-1 ring-neutral-200/80 transition-shadow hover:shadow-md">
+                  <a href={fileUrl(f.url)} className="group flex items-center gap-3 rounded-[14px] bg-white px-3.5 py-3 shadow-sm ring-1 ring-neutral-200/80 transition-shadow hover:shadow-md">
                     <span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-neutral-50 text-[10px] font-bold uppercase text-neutral-500 ring-1 ring-inset ring-neutral-200">{f.name.split('.').pop()?.slice(0, 4)}</span>
                     <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium text-neutral-800">{f.name}</span><span className="text-xs text-ink-muted tabular">{size(f.size)}</span></span>
                     <Download size={16} className="text-neutral-400 transition-colors group-hover:text-primary" aria-hidden />

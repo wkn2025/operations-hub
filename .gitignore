@@ -8,3 +8,4 @@ exports/
 test-results/
 playwright-report/
 *.tsbuildinfo
+dist-pages

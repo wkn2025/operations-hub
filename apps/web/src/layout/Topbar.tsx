@@ -1,11 +1,12 @@
 import { useNavigate } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import * as Menu from '@radix-ui/react-dropdown-menu';
-import { ChevronDown, FlaskConical, LogOut, Search, Users } from 'lucide-react';
+import { ChevronDown, Eye, FlaskConical, LogOut, Search, Users } from 'lucide-react';
 import { api, type Me } from '../api/client';
 import { isMac, useSearch } from '../features/search/SearchDialog';
 import { Kbd } from '../components/ui/primitives';
 import { initials } from '../lib/text';
+import { STATIC_DEMO } from '../static/demo';
 
 const ROLE: Record<string, { label: string; can: string }> = {
   admin: { label: 'Admin', can: 'Manages users, categories and settings.' },
@@ -38,6 +39,12 @@ export function Topbar({ me }: { me: Me }) {
       </button>
 
       <div className="ml-auto flex items-center gap-2">
+        {STATIC_DEMO && (
+          <span title="A read-only snapshot of the demo content. Editing, sign-in and admin need the real server."
+            className="hidden items-center gap-1.5 whitespace-nowrap rounded-full bg-accent-soft px-2.5 py-1 text-xs font-semibold text-accent-ink ring-1 ring-inset ring-accent/50 sm:inline-flex">
+            <Eye size={13} aria-hidden /> Read-only demo
+          </span>
+        )}
         {me.demo && (
           <span title="Demo sign-in is on: anyone can pick any user. Production uses Microsoft Entra ID."
             className="hidden items-center gap-1.5 whitespace-nowrap rounded-full bg-accent-soft px-2.5 py-1 text-xs font-semibold text-accent-ink ring-1 ring-inset ring-accent/50 sm:inline-flex">
@@ -70,9 +77,13 @@ export function Topbar({ me }: { me: Me }) {
                   <Users size={15} aria-hidden /> Switch demo user
                 </Menu.Item>
               )}
-              <Menu.Item onSelect={signOut} className="flex cursor-pointer items-center gap-2.5 rounded-[10px] px-3 py-2 text-sm text-neutral-700 outline-none data-[highlighted]:bg-neutral-100">
-                <LogOut size={15} aria-hidden /> Sign out
-              </Menu.Item>
+              {STATIC_DEMO ? (
+                <p className="px-3 py-2 text-xs leading-relaxed text-neutral-600">Read-only snapshot: nothing you do here is saved.</p>
+              ) : (
+                <Menu.Item onSelect={signOut} className="flex cursor-pointer items-center gap-2.5 rounded-[10px] px-3 py-2 text-sm text-neutral-700 outline-none data-[highlighted]:bg-neutral-100">
+                  <LogOut size={15} aria-hidden /> Sign out
+                </Menu.Item>
+              )}
             </Menu.Content>
           </Menu.Portal>
         </Menu.Root>

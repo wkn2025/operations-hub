@@ -35,6 +35,7 @@ Any other email signs in as a viewer. The demo picker exists only when `AUTH_MOD
 | `npm run build` | Typecheck shared + server (+ `scripts/`), typecheck and build the web app into `apps/web/dist` |
 | `npm test` | Unit and API tests: `packages/shared`, `apps/server`, `apps/web` (Vitest) |
 | `npx playwright test` | End-to-end and acceptance tests (first time: `npx playwright install chromium`). Starts its own API on :3101 (fresh seeded temp `DATA_DIR`) and Vite on :5174, plus a fresh web build served by a second API on :3103 (`e2e/built-app.spec.ts`: the real CSP, fails on any violation) |
+| `npm run build:pages` | Read-only static demo for GitHub Pages in `apps/web/dist-pages` (see below) |
 | `npm run backup` | Hot backup to `backups/<timestamp>/app.db` + `uploads.zip` |
 | `npm run export` | Content export to `exports/<timestamp>/`: JSON + Markdown per article, flows, used files, `index.json` |
 | `npm run db:generate` | New Drizzle migration after a schema change (never edit an existing migration) |
@@ -51,6 +52,12 @@ NODE_ENV=development AUTH_MODE=dev WEB_DIST="$PWD/apps/web/dist" npm start -w ap
 ```
 
 In production (`NODE_ENV=production`) the server serves `apps/web/dist` automatically when it exists. Production setup: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+
+### Read-only demo on GitHub Pages
+
+`.github/workflows/pages.yml` publishes a read-only demo on every push to `master` (or by hand: Actions → *Deploy demo to GitHub Pages* → Run workflow). One-time setup: repository **Settings → Pages → Source: GitHub Actions**. GitHub Pages sites are public unless the organisation has GitHub Enterprise Cloud with private Pages.
+
+Pages only serves files, so `npm run build:pages` seeds a throwaway database, reads it through the real API as a viewer (published content only) and writes the answers next to a static build of the web app (`VITE_STATIC_DEMO=1`, hash URLs such as `…/#/article/<slug>`). In that build `apps/web/src/static/demoApi.ts` answers the API from the snapshot: browsing, articles, guided flows, Ctrl/Cmd+K search (an in-browser approximation of the FTS search) and the code lookup work; sign-in, editing, uploads and admin do not, and nothing is saved. To try it locally, serve `apps/web/dist-pages` with any static file server.
 
 ## What is real and what is demo
 

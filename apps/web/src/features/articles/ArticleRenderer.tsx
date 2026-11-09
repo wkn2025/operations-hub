@@ -7,6 +7,7 @@ import { Archive, Check, ChevronRight, CircleCheck, Info, Lightbulb, OctagonAler
 import type { CalloutKind, PmNode } from '@ops/shared';
 import { api, type Article, type LinkTarget } from '../../api/client';
 import { headingsOf, safeHref } from '../../lib/text';
+import { fileUrl } from '../../static/demo';
 
 /**
  * Renders stored ProseMirror JSON as React elements. Never uses dangerouslySetInnerHTML: every string ends up as a text node,
@@ -213,7 +214,7 @@ function Figure({ n }: { n: PmNode }) {
   return (
     <figure className="!mt-7">
       <div className="overflow-hidden rounded-[16px] bg-neutral-50 shadow-md ring-1 ring-neutral-200/80">
-        <img src={src} alt={alt} loading="lazy" className="block h-auto w-full" />
+        <img src={fileUrl(src)} alt={alt} loading="lazy" className="block h-auto w-full" />
       </div>
       {caption && <figcaption className="mt-2.5 text-center text-[13px] text-neutral-500">{caption}</figcaption>}
     </figure>

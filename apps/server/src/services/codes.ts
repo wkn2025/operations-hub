@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
+import { splitCodes } from '@ops/shared';
 
 /** Diagnosis & service code lookup. Data ships in apps/server/reference (sources in its README); read once, kept in memory. */
 export type CodeSystem = 'ICD-10-CM' | 'CPT' | 'HCPCS';
@@ -7,9 +8,7 @@ export interface CodeMatch { system: CodeSystem; code: string; billable: boolean
 
 export const MAX_CODES = 100;
 
-/** "s33.0xxa, 99214 - A4565" -> ["S330XXA", "99214", "A4565"]: split on spaces, commas and dashes (incl. the en/em dashes Outlook
- * and Word type for " - "); dots dropped; upper case; repeats once. */
-export const splitCodes = (q: string) => [...new Set(q.toUpperCase().replace(/\./g, '').split(/[\s,\u2010-\u2015\u2212-]+/).filter(Boolean))];
+export { splitCodes };
 
 let index: Map<string, CodeMatch[]> | undefined;
 function load() {
