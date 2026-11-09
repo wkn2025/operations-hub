@@ -11,7 +11,7 @@ const core = {
   gets: { '/api/admin/users': { users: [{ id: 'u1' }] }, '/api/admin/review-due?days=30': { articles: [] }, '/api/admin/audit': { entries: [{ id: 2 }], nextCursor: null } },
   categories: [cat('edi', 'EDI & Automation'), cat('edi-101', 'EDI 101', 'edi'), cat('fin', 'Finance'), cat('codes', 'Diagnosis & Service codes')],
   articles: [art('a1', 'Zeta import checks', 'edi-101', '2026-11-03'), art('a2', 'Alpha bank details', 'fin', '2026-11-02'), art('a3', 'Remittance', 'edi', '2026-11-01', 'glossary')],
-  counts: [], flows: [{ id: 'f1', slug: 'edi-failed' }],
+  counts: [], flows: [{ id: 'f1', slug: 'edi-failed', title: 'EDI claim failed to import', status: 'published', updatedAt: '2026-11-01', articleId: null, article: null, nodeCount: 2, startText: 'Does the Member ID exist?' }],
   articleKeys: { a1: 'a1', 'a1-slug': 'a1', a2: 'a2', a3: 'a3' }, flowKeys: { f1: 'f1', 'edi-failed': 'f1' }, fileNames: { x1: 'x1.svg' },
   search: {
     articles: [
@@ -62,8 +62,7 @@ describe('static demo API', () => {
     window.addEventListener('ops:demo-read-only', seen);
     expect(await status(demoApi('/api/articles', { method: 'POST', body: '{}' }))).toBe(403);
     expect(await demoApi('/api/admin/settings', { method: 'PATCH' }).catch((e: HttpError) => e.body)).toMatchObject({ error: 'read_only' });
-    expect(await status(demoApi('/api/flows/f1', { method: 'PATCH' }))).toBe(403);
-    expect(seen).toHaveBeenCalledTimes(3);
+    expect(seen).toHaveBeenCalledTimes(2);
     window.removeEventListener('ops:demo-read-only', seen);
   });
 
@@ -103,5 +102,29 @@ describe('static demo API', () => {
     expect(r.results.map((x) => [x.query, x.matches.map((m) => m.code)])).toEqual([['Z0102', ['Z01.02']], ['99214', ['99214']], ['25', []]]);
     const s = await demoApi<{ groups: { kind: string; hits: { id: string }[] }[] }>('/api/search?q=z01');
     expect(s.groups.find((g) => g.kind === 'code')!.hits.map((h) => h.id)).toEqual(['Z01|ICD-10-CM']);
+  });
+
+  it('lets a visitor create, build, publish and find a guided flow for the visit, with the server rules', async () => {
+    const json = (method: string, body: unknown) => ({ method, json: body }) as RequestInit;
+    const f = await demoApi<{ id: string; slug: string; revision: number; status: string; validation: { ok: boolean } }>('/api/flows',
+      json('POST', { title: 'Printer offline', startId: 'q1', nodes: [{ id: 'q1', kind: 'question', text: '' }] }));
+    expect(f).toMatchObject({ slug: 'printer-offline', revision: 1, status: 'draft', validation: { ok: false } }); // drafts may be unfinished
+    expect(await status(demoApi(`/api/flows/${f.id}/publish`, { method: 'POST' }))).toBe(422); // not while incomplete
+    const nodes = [
+      { id: 'q1', kind: 'question', text: 'Is it plugged in?', options: [{ label: 'Yes', to: 'r1' }, { label: 'No', to: 'r2' }] },
+      { id: 'r1', kind: 'result', text: 'Call IT', severity: 'warning' }, { id: 'r2', kind: 'result', text: 'Plug it in', severity: 'success' },
+    ];
+    expect(await status(demoApi(`/api/flows/${f.id}`, json('PATCH', { baseRevision: 9, nodes })))).toBe(409);
+    expect(await status(demoApi(`/api/flows/${f.id}`, json('PATCH', { baseRevision: 1, nodes: [{ id: 'q1', kind: 'question', text: 'x', options: [{ label: 'a', to: 'nowhere' }] }] })))).toBe(422);
+    const saved = await demoApi<{ revision: number }>(`/api/flows/${f.id}`, json('PATCH', { baseRevision: 1, nodes, autosave: true }));
+    expect(saved.revision).toBe(2);
+    expect(await demoApi(`/api/flows/${f.id}/publish`, { method: 'POST' })).toMatchObject({ status: 'published', revision: 3 });
+    const list = await demoApi<{ flows: { slug: string; nodeCount: number }[] }>('/api/flows');
+    expect(list.flows[0]).toMatchObject({ slug: 'printer-offline', nodeCount: 3 }); // newest first, next to the snapshot ones
+    expect(list.flows).toHaveLength(2);
+    expect(await demoApi('/api/flows/printer-offline')).toMatchObject({ id: f.id });
+    const hits = await demoApi<{ groups: { kind: string; hits: { id: string }[] }[] }>('/api/search?q=plugged');
+    expect(hits.groups.find((g) => g.kind === 'flow')!.hits.map((h) => h.id)).toEqual(['printer-offline']);
+    expect(await status(demoApi('/api/flows', json('POST', { title: '' })))).toBe(400);
   });
 });

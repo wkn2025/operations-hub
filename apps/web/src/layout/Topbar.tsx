@@ -40,7 +40,7 @@ export function Topbar({ me }: { me: Me }) {
 
       <div className="ml-auto flex items-center gap-2">
         {STATIC_DEMO && (
-          <span title="A snapshot of the demo content, seen as an admin. Nothing you change is saved; the real app needs its server."
+          <span title="A snapshot of the demo content, seen as an admin. You can build guided flows until you reload; other changes are not saved."
             className="hidden items-center gap-1.5 whitespace-nowrap rounded-full bg-accent-soft px-2.5 py-1 text-xs font-semibold text-accent-ink ring-1 ring-inset ring-accent/50 sm:inline-flex">
             <Eye size={13} aria-hidden /> Read-only demo
           </span>
@@ -78,7 +78,7 @@ export function Topbar({ me }: { me: Me }) {
                 </Menu.Item>
               )}
               {STATIC_DEMO ? (
-                <p className="px-3 py-2 text-xs leading-relaxed text-neutral-600">Read-only snapshot: nothing you do here is saved.</p>
+                <p className="px-3 py-2 text-xs leading-relaxed text-neutral-600">Demo snapshot: guided flows you build stay until you reload the page; other changes are not saved.</p>
               ) : (
                 <Menu.Item onSelect={signOut} className="flex cursor-pointer items-center gap-2.5 rounded-[10px] px-3 py-2 text-sm text-neutral-700 outline-none data-[highlighted]:bg-neutral-100">
                   <LogOut size={15} aria-hidden /> Sign out

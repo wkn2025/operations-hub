@@ -19,7 +19,7 @@ export function ReadOnlyNotice() {
     <div role="status" aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-6 z-50 flex justify-center px-4">
       {shown > 0 && (
         <p className="flex items-center gap-2 rounded-full bg-accent-soft px-4 py-2 text-sm font-medium text-accent-ink shadow-md ring-1 ring-inset ring-accent/50">
-          <Eye size={15} aria-hidden /> Read-only demo: changes are not saved here.
+          <Eye size={15} aria-hidden /> Read-only demo: only guided flows can be changed here.
         </p>
       )}
     </div>
