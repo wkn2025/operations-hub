@@ -7,6 +7,7 @@ import { StatusBadge } from '../../components/ui/primitives';
 import { fmtDate } from '../../lib/text';
 import { Download } from 'lucide-react';
 import { PageHeader, QueryBlock, Table, field, smallBtn, td, useAdminUsers } from './common';
+import { READ_ONLY_EVENT, STATIC_DEMO } from '../../static/demo';
 
 const STATUSES: [ArticleStatus, string][] = [['draft', 'Draft'], ['in_review', 'In review'], ['published', 'Published'], ['archived', 'Archived']];
 
@@ -25,9 +26,16 @@ export function Articles() {
     <section>
       <PageHeader title="Articles" intro="Every article in every state. Filter, then open one to read or edit it.">
         <div className="flex flex-wrap gap-2">
-          <a href="/api/admin/export" download className={smallBtn + ' h-9'} title="Zip of every article (JSON + Markdown), every flow and the files they use">
-            <Download size={14} aria-hidden /> Export all content
-          </a>
+          {STATIC_DEMO ? (
+            // no server to build the zip in the Pages demo
+            <button type="button" onClick={() => window.dispatchEvent(new Event(READ_ONLY_EVENT))} className={smallBtn + ' h-9'}>
+              <Download size={14} aria-hidden /> Export all content
+            </button>
+          ) : (
+            <a href="/api/admin/export" download className={smallBtn + ' h-9'} title="Zip of every article (JSON + Markdown), every flow and the files they use">
+              <Download size={14} aria-hidden /> Export all content
+            </a>
+          )}
           <label className="sr-only" htmlFor="f-status">Status</label>
           <select id="f-status" className={field} value={status} onChange={(e) => setStatus(e.target.value)}>
             <option value="">All statuses</option>

@@ -40,7 +40,7 @@ export function Topbar({ me }: { me: Me }) {
 
       <div className="ml-auto flex items-center gap-2">
         {STATIC_DEMO && (
-          <span title="A read-only snapshot of the demo content. Editing, sign-in and admin need the real server."
+          <span title="A snapshot of the demo content, seen as an admin. Nothing you change is saved; the real app needs its server."
             className="hidden items-center gap-1.5 whitespace-nowrap rounded-full bg-accent-soft px-2.5 py-1 text-xs font-semibold text-accent-ink ring-1 ring-inset ring-accent/50 sm:inline-flex">
             <Eye size={13} aria-hidden /> Read-only demo
           </span>

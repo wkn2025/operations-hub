@@ -1,12 +1,14 @@
 import { splitCodes } from '@ops/shared';
-import { demoFileNames } from './demo';
+import { demoFileNames, READ_ONLY_EVENT } from './demo';
 import { HttpError, type Article, type ArticleSummary, type Category, type FileRef, type SearchGroup, type SearchHit } from '../api/client';
 
-/** The static (GitHub Pages) stand-in for the API: answers GET requests from the snapshot written by scripts/pages/snapshot.ts,
- * mirroring the server's viewer behaviour (same filters, paging, search groups, code lookup). Every write is refused. */
+/** The static (GitHub Pages) stand-in for the API: answers GET requests from the snapshot written by scripts/pages/snapshot.ts
+ * (taken as the seeded admin), mirroring the server (same filters, paging, search groups, code lookup). Every write is refused
+ * and announced with a READ_ONLY_EVENT so the shell can say why. */
 
 interface IndexRow { id: string; title: string; type: string; body: string; tags: string; category: string; client: string; terms: string; categoryPath: string }
 interface Core {
+  me: { user: { role: string } | null }; gets: Record<string, unknown>;
   categories: Category[]; articles: (ArticleSummary & { ownerId?: string | null })[]; counts: unknown[]; flows: { id: string; slug: string }[];
   articleKeys: Record<string, string>; flowKeys: Record<string, string>; fileNames: Record<string, string>;
   search: { articles: IndexRow[]; flows: { slug: string; title: string; body: string }[]; tags: { id: string; name: string; articleIds: string[] }[] };
@@ -23,7 +25,8 @@ const getCore = () => (core ??= json<Core>('core.json').then((c) => {
   for (const [id, name] of Object.entries(c.fileNames)) demoFileNames.set(id, name);
   return c;
 }).catch((e) => { core = undefined; throw e; }));
-const articleFile = new Map<string, Promise<{ article: Article; files: FileRef[]; backlinks: ArticleSummary[] }>>();
+interface ArticleFile { article: Article; files: FileRef[]; backlinks: ArticleSummary[]; revisions: unknown[]; revisionDocs: Record<string, unknown> }
+const articleFile = new Map<string, Promise<ArticleFile>>();
 const loadArticle = (id: string) => {
   let p = articleFile.get(id);
   if (!p) { p = json(`article/${id}.json`); articleFile.set(id, p); p.catch(() => articleFile.delete(id)); }
@@ -33,9 +36,14 @@ const loadArticle = (id: string) => {
 const notFound = () => new HttpError(404, { error: 'not_found' });
 const forbidden = () => new HttpError(403, { error: 'forbidden' });
 
+export { READ_ONLY_EVENT } from './demo';
+
 export async function demoApi<T>(path: string, init?: RequestInit): Promise<T> {
   const method = (init?.method ?? 'GET').toUpperCase();
-  if (method !== 'GET') throw new HttpError(403, { error: 'read_only', message: 'This is a read-only demo; changes are not saved.' });
+  if (method !== 'GET') {
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event(READ_ONLY_EVENT));
+    throw new HttpError(403, { error: 'read_only', message: 'This is a read-only demo; changes are not saved.' });
+  }
   const url = new URL(path, 'https://demo.invalid');
   const p = url.pathname, q = url.searchParams;
   const parts = p.split('/').filter(Boolean).map(decodeURIComponent); // ['api', ...]
@@ -43,7 +51,9 @@ export async function demoApi<T>(path: string, init?: RequestInit): Promise<T> {
   const r = parts.slice(1);
   const c = await getCore();
 
-  if (p === '/api/me') return { user: { id: 'demo-visitor', email: 'visitor@demo.invalid', name: 'Demo visitor', role: 'viewer' }, authMode: 'dev', demo: false } as T;
+  if (p === '/api/me') return c.me as T;
+  const fixed = c.gets[p + url.search] ?? c.gets[p];
+  if (fixed !== undefined) return fixed as T;
   if (p === '/api/categories') return { categories: c.categories } as T;
   if (p === '/api/flows') return { flows: c.flows } as T;
   if (p === '/api/articles') return listArticles(c, q) as T;
@@ -62,7 +72,8 @@ export async function demoApi<T>(path: string, init?: RequestInit): Promise<T> {
     if (r.length === 2) return a.article as T;
     if (r.length === 3 && r[2] === 'files') return { files: a.files } as T;
     if (r.length === 3 && r[2] === 'backlinks') return { backlinks: a.backlinks } as T;
-    if (r[2] === 'revisions') throw forbidden();
+    if (r.length === 3 && r[2] === 'revisions') return { revisions: a.revisions } as T;
+    if (r.length === 4 && r[2] === 'revisions' && a.revisionDocs[r[3]!]) return a.revisionDocs[r[3]!] as T;
     throw notFound();
   }
   if (r[0] === 'flows' && r[1] && r.length === 2) {
@@ -70,7 +81,7 @@ export async function demoApi<T>(path: string, init?: RequestInit): Promise<T> {
     if (!id) throw notFound();
     return json<T>(`flow/${id}.json`);
   }
-  if (r[0] === 'admin' || r[0] === 'tags' || r[0] === 'owners' || r[0] === 'auth') throw forbidden(); // same as a viewer on the server
+  if (r[0] === 'auth') throw forbidden();
   throw notFound();
 }
 
@@ -145,7 +156,10 @@ async function search(c: Core, q: string, limit: number): Promise<SearchGroup[]>
     .sort((x, y) => (10 * hits(y.title, tokens) + hits(y.body, tokens)) - (10 * hits(x.title, tokens) + hits(x.body, tokens))).slice(0, limit);
   if (flows.length) groups.push({ kind: 'flow', hits: flows.map((f) => ({ id: f.slug, title: f.title, categoryPath: 'Guided flow', snippet: snippet(hits(f.body, tokens) ? f.body : f.title, tokens) })) });
 
-  const visible = c.categories.filter((x) => !x.archived);
+  // services/articles.ts hiddenCategoryIds: only viewers lose archived categories (and their children)
+  const byId = new Map(c.categories.map((x) => [x.id, x]));
+  const archived = (x: Category | undefined): boolean => !!x && (x.archived || archived(x.parentId ? byId.get(x.parentId) : undefined));
+  const visible = c.me.user?.role === 'viewer' ? c.categories.filter((x) => !archived(x)) : c.categories;
   const cats = visible.filter((x) => tokens.every((t) => fold(x.name).includes(t))).slice(0, limit)
     .map((x) => ({ id: x.id, title: x.name, snippet: esc(x.description ?? ''), categoryPath: x.parentId ? (c.categories.find((p) => p.id === x.parentId)?.path ?? '') : '' }));
   if (cats.length) groups.push({ kind: 'category', hits: cats });

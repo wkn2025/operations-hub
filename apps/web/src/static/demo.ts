@@ -2,6 +2,9 @@
  * value, so the normal build drops every static-demo branch. */
 export const STATIC_DEMO = import.meta.env.VITE_STATIC_DEMO === '1';
 
+/** Fired on window whenever the static demo refuses a change (see ReadOnlyNotice). */
+export const READ_ONLY_EVENT = 'ops:demo-read-only';
+
 /** Snapshot file names by file id (id + extension, so Pages serves the right type); filled when the snapshot loads, which happens
  * before any article or file list can render. */
 export const demoFileNames = new Map<string, string>();
