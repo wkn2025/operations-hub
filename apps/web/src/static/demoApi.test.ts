@@ -7,6 +7,8 @@ const cat = (id: string, name: string, parentId: string | null = null) => ({ id,
 const art = (id: string, title: string, categoryId: string, updatedAt: string, type = 'how_to') =>
   ({ id, slug: `${id}-slug`, title, type, status: 'published', categoryId, categoryPath: '', revision: 1, updatedAt, publishedAt: updatedAt, reviewDate: null, ownerId: 'u1' });
 const core = {
+  me: { user: { id: 'u1', email: 'admin@demo.test', name: 'Demo Admin', role: 'admin' }, authMode: 'dev', demo: false },
+  gets: { '/api/admin/users': { users: [{ id: 'u1' }] }, '/api/admin/review-due?days=30': { articles: [] }, '/api/admin/audit': { entries: [{ id: 2 }], nextCursor: null } },
   categories: [cat('edi', 'EDI & Automation'), cat('edi-101', 'EDI 101', 'edi'), cat('fin', 'Finance'), cat('codes', 'Diagnosis & Service codes')],
   articles: [art('a1', 'Zeta import checks', 'edi-101', '2026-11-03'), art('a2', 'Alpha bank details', 'fin', '2026-11-02'), art('a3', 'Remittance', 'edi', '2026-11-01', 'glossary')],
   counts: [], flows: [{ id: 'f1', slug: 'edi-failed' }],
@@ -23,7 +25,7 @@ const core = {
 };
 const files: Record<string, unknown> = {
   'demo-data/core.json': core,
-  'demo-data/article/a1.json': { article: { id: 'a1', title: 'Zeta import checks' }, files: [], backlinks: [] },
+  'demo-data/article/a1.json': { article: { id: 'a1', title: 'Zeta import checks' }, files: [], backlinks: [], revisions: [{ rev: 1 }], revisionDocs: { 1: { rev: 1, title: 'Zeta v1' } } },
   'demo-data/flow/f1.json': { id: 'f1', title: 'EDI claim failed to import' },
   'demo-data/codes/icd10cm-2027.tsv.gz': gzipSync('Z01\t0\tEncounter for examination of eyes\nZ0102\t1\tFailed vision screening\n'),
   'demo-data/codes/cpt-hcpcs.tsv': '99214\tCPT\tOffice visit\r\n',
@@ -45,15 +47,24 @@ afterEach(() => vi.unstubAllGlobals());
 const status = (p: Promise<unknown>) => p.then(() => 200, (e) => (e instanceof Error && e.name === 'Error' && 'status' in e ? (e as HttpError).status : -1));
 
 describe('static demo API', () => {
-  it('signs everyone in as a viewer', async () => {
-    expect(await demoApi('/api/me')).toMatchObject({ user: { role: 'viewer' }, demo: false });
+  it('signs everyone in as the snapshot admin and serves the admin pages from the snapshot', async () => {
+    expect(await demoApi('/api/me')).toMatchObject({ user: { role: 'admin' }, demo: false });
+    expect(await demoApi('/api/admin/users')).toEqual({ users: [{ id: 'u1' }] });
+    expect(await demoApi('/api/admin/review-due?days=30')).toEqual({ articles: [] });
+    expect(await demoApi('/api/admin/audit?limit=200')).toEqual({ entries: [{ id: 2 }], nextCursor: null }); // every page in one
+    expect(await demoApi('/api/articles/a1/revisions')).toEqual({ revisions: [{ rev: 1 }] });
+    expect(await demoApi('/api/articles/a1/revisions/1')).toMatchObject({ title: 'Zeta v1' });
+    expect(await status(demoApi('/api/articles/a1/revisions/9'))).toBe(404);
   });
 
-  it('refuses every write and the admin/editor endpoints', async () => {
+  it('refuses every write as read-only and announces it', async () => {
+    const seen = vi.fn();
+    window.addEventListener('ops:demo-read-only', seen);
     expect(await status(demoApi('/api/articles', { method: 'POST', body: '{}' }))).toBe(403);
+    expect(await demoApi('/api/admin/settings', { method: 'PATCH' }).catch((e: HttpError) => e.body)).toMatchObject({ error: 'read_only' });
     expect(await status(demoApi('/api/flows/f1', { method: 'PATCH' }))).toBe(403);
-    expect(await status(demoApi('/api/admin/review-due?days=30'))).toBe(403);
-    expect(await status(demoApi('/api/tags'))).toBe(403);
+    expect(seen).toHaveBeenCalledTimes(3);
+    window.removeEventListener('ops:demo-read-only', seen);
   });
 
   it('lists articles with the server filters, title sort and paging', async () => {

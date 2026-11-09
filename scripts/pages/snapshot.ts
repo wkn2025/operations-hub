@@ -1,5 +1,5 @@
-// GitHub Pages snapshot: seeds a throwaway database, reads it through the real API as a viewer (published content only, same
-// visibility rules as the server) and writes JSON + files next to the static web build. The web app's static-demo stand-in
+// GitHub Pages snapshot: seeds a throwaway database, reads it through the real API as the seeded demo admin (everything an admin
+// sees, incl. the admin pages; user ruling 2026-11-09: the Pages demo shows the admin view, read-only) and writes JSON + files next to the static web build. The web app's static-demo stand-in
 // (apps/web/src/static/demoApi.ts) answers its API calls from these files.
 //   tsx scripts/pages/snapshot.ts <web dist dir>
 import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -16,7 +16,7 @@ const app = await buildApp({
 
 try {
   await seedBase(app);
-  const login = await app.inject({ method: 'POST', url: '/api/auth/dev/login', payload: { email: 'pages-visitor@demo.invalid' } });
+  const login = await app.inject({ method: 'POST', url: '/api/auth/dev/login', payload: { email: 'admin@demo.test' } });
   if (login.statusCode !== 200) throw new Error(`dev login failed: ${login.statusCode}`);
   const cookie = ([login.headers['set-cookie']].flat()[0] as string).split(';')[0]!;
   const get = async (url: string) => {
@@ -31,15 +31,29 @@ try {
   const write = (path: string, data: unknown) => writeFileSync(join(out, path), JSON.stringify(data));
 
   const { categories } = await getJson<{ categories: { id: string; path: string }[] }>('/api/categories');
-  const articles: { id: string; slug: string }[] = [];
+  const articles: { id: string; slug: string; status: string }[] = [];
   for (let total = Infinity; articles.length < total;) {
-    const page = await getJson<{ articles: { id: string; slug: string }[]; total: number }>(`/api/articles?limit=200&offset=${articles.length}`);
+    const page = await getJson<{ articles: { id: string; slug: string; status: string }[]; total: number }>(`/api/articles?limit=200&offset=${articles.length}`);
     total = page.total;
     if (!page.articles.length) break;
     articles.push(...page.articles);
   }
   const { counts } = await getJson('/api/articles/counts');
   const { flows } = await getJson<{ flows: { id: string; slug: string }[] }>('/api/flows');
+  const me = await getJson<{ user: { role: string } }>('/api/me');
+  if (me.user?.role !== 'admin') throw new Error(`snapshot user is ${me.user?.role}, expected admin`);
+
+  // fixed GET answers the static demo serves as-is (the admin pages, editor helpers, home review list)
+  const gets: Record<string, unknown> = {};
+  for (const url of ['/api/admin/users', '/api/admin/allowlist', '/api/admin/files', '/api/admin/settings', '/api/admin/review-due?days=30', '/api/tags', '/api/owners']) {
+    gets[url] = await getJson(url);
+  }
+  const entries: { id: number }[] = [];
+  for (let cursor: string | null = ''; cursor !== null;) {
+    const page: { entries: { id: number }[]; nextCursor: string | null } = await getJson(`/api/admin/audit?limit=200${cursor ? `&cursor=${cursor}` : ''}`);
+    entries.push(...page.entries); cursor = page.nextCursor;
+  }
+  gets['/api/admin/audit'] = { entries, nextCursor: null };
 
   // the viewer's ids only, raw from the FTS tables the server searches
   const files = new Set<string>();
@@ -49,9 +63,12 @@ try {
     const article = await getJson(`/api/articles/${a.id}`);
     const { files: list } = await getJson<{ files: { id: string }[] }>(`/api/articles/${a.id}/files`);
     const { backlinks } = await getJson(`/api/articles/${a.id}/backlinks`);
+    const { revisions } = await getJson<{ revisions: { rev: number }[] }>(`/api/articles/${a.id}/revisions`);
+    const revisionDocs: Record<number, unknown> = {};
+    for (const r of revisions) revisionDocs[r.rev] = await getJson(`/api/articles/${a.id}/revisions/${r.rev}`);
     for (const f of list) files.add(f.id);
-    for (const m of JSON.stringify(article).matchAll(/\/api\/files\/([A-Za-z0-9-]+)/g)) files.add(m[1]!);
-    write(`article/${a.id}.json`, { article, files: list, backlinks });
+    for (const m of JSON.stringify([article, revisionDocs]).matchAll(/\/api\/files\/([A-Za-z0-9-]+)/g)) files.add(m[1]!);
+    write(`article/${a.id}.json`, { article, files: list, backlinks, revisions, revisionDocs });
   }
   const flowKeys: Record<string, string> = {};
   for (const f of flows) {
@@ -61,6 +78,7 @@ try {
   // Pages picks the Content-Type from the extension (an SVG without .svg would not render)
   const EXT: Record<string, string> = { 'image/svg+xml': '.svg', 'image/png': '.png', 'image/jpeg': '.jpg', 'image/gif': '.gif', 'image/webp': '.webp', 'application/pdf': '.pdf' };
   const fileNames: Record<string, string> = {};
+  for (const f of (gets['/api/admin/files'] as { files: { id: string }[] }).files) files.add(f.id);
   for (const id of files) {
     const r = await get(`/api/files/${id}`);
     const type = String(r.headers['content-type']).split(';')[0]!;
@@ -68,7 +86,8 @@ try {
     writeFileSync(join(out, 'files', fileNames[id]!), r.rawPayload);
   }
 
-  const visible = new Set(articles.map((a) => a.id));
+  // search hides archived articles even from admins (services/search.ts: includeArchived false); lists and pages show them
+  const visible = new Set(articles.filter((a) => a.status !== 'archived').map((a) => a.id));
   const catPath = new Map(categories.map((c) => [c.id, c.path]));
   const index = (app.sqlite.prepare(
     'select f.article_id as id, a.title, a.type, a.category_id as cid, f.body, f.tags, f.category, f.client, f.terms from article_fts f join articles a on a.id = f.article_id',
@@ -86,7 +105,7 @@ try {
   }
 
   write('core.json', {
-    snapshotAt: new Date().toISOString(), categories, articles, counts, flows, articleKeys, flowKeys, fileNames,
+    snapshotAt: new Date().toISOString(), me: { ...me, demo: false }, gets, categories, articles, counts, flows, articleKeys, flowKeys, fileNames,
     search: { articles: index, flows: flowIndex, tags: [...tags.values()] },
   });
   const ref = resolve('apps/server/reference');

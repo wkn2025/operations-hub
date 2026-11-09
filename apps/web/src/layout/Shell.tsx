@@ -6,6 +6,8 @@ import { SearchDialog, SearchProvider } from '../features/search/SearchDialog';
 import { Sidebar, SIDEBAR_W, useSidebarCollapsed } from './Sidebar';
 import { Topbar } from './Topbar';
 import { ErrorState } from '../components/ui/ErrorState';
+import { STATIC_DEMO } from '../static/demo';
+import { ReadOnlyNotice } from '../static/ReadOnlyNotice';
 
 /** Pages tell the sidebar which category they belong to (e.g. an article's category). */
 const ActiveCategory = createContext<(id: string | null) => void>(() => {});
@@ -29,18 +31,20 @@ export function Shell() {
   return (
     <SearchProvider>
       <ActiveCategory.Provider value={setActiveCat}>
-        <a href="#main" className="sr-only z-50 rounded-md bg-white px-3 py-2 focus:not-sr-only focus:fixed focus:left-4 focus:top-4">Skip to content</a>
+        {/* focus by script: in the hash-routed Pages demo "#main" would be a route */}
+        <a href="#main" onClick={(e) => { e.preventDefault(); document.getElementById('main')?.focus(); }} className="sr-only z-50 rounded-md bg-white px-3 py-2 focus:not-sr-only focus:fixed focus:left-4 focus:top-4">Skip to content</a>
         <Sidebar categories={cats.data ?? []} activeCategoryId={activeCat} collapsed={collapsed} onCollapsedChange={setCollapsed} canEdit={isEditorRole(session.data.user.role)} isAdmin={session.data.user.role === 'admin'} />
         <motion.div initial={false} animate={{ paddingLeft: (collapsed ? SIDEBAR_W.closed : SIDEBAR_W.open) + 12 }}
           transition={{ type: 'spring', stiffness: 380, damping: 36, mass: 0.9 }} className="min-h-screen">
           <div className="mx-auto max-w-[1180px] px-8">
             <Topbar me={session.data} />
-            <main id="main" className="pb-28 pt-4">
+            <main id="main" tabIndex={-1} className="pb-28 pt-4 focus:outline-none">
               <Outlet />
             </main>
           </div>
         </motion.div>
         <SearchDialog />
+        {STATIC_DEMO && <ReadOnlyNotice />}
       </ActiveCategory.Provider>
     </SearchProvider>
   );
