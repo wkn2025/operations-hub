@@ -151,7 +151,8 @@ function Builder({ initial }: { initial: FlowView }) {
     if (!(await autosave.flush())) { setNotice({ tone: 'error', text: 'Your last change isn’t saved yet. Try again in a moment.' }); return; }
     try {
       const v = await api<FlowView>(`/api/flows/${view.id}/${action}`, { method: 'POST' });
-      setView(v); autosave.reset(v.revision); void qc.invalidateQueries({ queryKey: ['flows'] });
+      // like the autosave: the run page reads ['flow', slug|id] (30 s stale time) and must not show the old status
+      setView(v); qc.setQueryData(['flow', v.slug], v); qc.setQueryData(['flow', v.id], v); autosave.reset(v.revision); void qc.invalidateQueries({ queryKey: ['flows'] });
       setNotice({ tone: 'info', text: action === 'publish' ? 'Published! Everyone can use it now.' : 'Sent for review. An admin will publish it.' });
     } catch (e) {
       const s = e instanceof HttpError ? e.status : 0;

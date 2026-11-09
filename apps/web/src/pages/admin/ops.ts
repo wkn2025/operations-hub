@@ -31,7 +31,7 @@ export function moveBy(cats: Category[], id: string, delta: -1 | 1): CategoryPat
 }
 
 const MESSAGES: Record<string, string> = {
-  read_only: 'Read-only demo: changes are not saved here.',
+  read_only: 'Read-only demo: only guided flows can be changed here.',
   last_admin: 'At least one active admin must remain. Make someone else an admin first, then change this one (the last active admin cannot be demoted or deactivated).',
   bootstrap_admin: 'This is a bootstrap admin (listed in ADMIN_BOOTSTRAP_EMAILS on the server). It cannot be demoted or deactivated here; IT changes that setting.',
   exists: 'That email is already on the allowlist.',

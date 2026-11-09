@@ -1,15 +1,17 @@
 import { splitCodes } from '@ops/shared';
 import { demoFileNames, READ_ONLY_EVENT } from './demo';
-import { HttpError, type Article, type ArticleSummary, type Category, type FileRef, type SearchGroup, type SearchHit } from '../api/client';
+import { changedFlowIndex, flowRequest, type FlowSource } from './demoFlows';
+import { HttpError, type Article, type FlowSummary, type FlowView, type ArticleSummary, type Category, type FileRef, type SearchGroup, type SearchHit } from '../api/client';
 
 /** The static (GitHub Pages) stand-in for the API: answers GET requests from the snapshot written by scripts/pages/snapshot.ts
- * (taken as the seeded admin), mirroring the server (same filters, paging, search groups, code lookup). Every write is refused
- * and announced with a READ_ONLY_EVENT so the shell can say why. */
+ * (taken as the seeded admin), mirroring the server (same filters, paging, search groups, code lookup). Guided flows can be
+ * created and edited for the visit (demoFlows.ts); every other write is refused and announced with a READ_ONLY_EVENT so the
+ * shell can say why. */
 
 interface IndexRow { id: string; title: string; type: string; body: string; tags: string; category: string; client: string; terms: string; categoryPath: string }
 interface Core {
   me: { user: { role: string } | null }; gets: Record<string, unknown>;
-  categories: Category[]; articles: (ArticleSummary & { ownerId?: string | null })[]; counts: unknown[]; flows: { id: string; slug: string }[];
+  categories: Category[]; articles: (ArticleSummary & { ownerId?: string | null })[]; counts: unknown[]; flows: FlowSummary[];
   articleKeys: Record<string, string>; flowKeys: Record<string, string>; fileNames: Record<string, string>;
   search: { articles: IndexRow[]; flows: { slug: string; title: string; body: string }[]; tags: { id: string; name: string; articleIds: string[] }[] };
 }
@@ -40,13 +42,20 @@ export { READ_ONLY_EVENT } from './demo';
 
 export async function demoApi<T>(path: string, init?: RequestInit): Promise<T> {
   const method = (init?.method ?? 'GET').toUpperCase();
+  const url = new URL(path, 'https://demo.invalid');
+  const p = url.pathname, q = url.searchParams;
+  const parts = p.split('/').filter(Boolean).map(decodeURIComponent); // ['api', ...]
+  if (parts[0] === 'api' && parts[1] === 'flows') {
+    const c = await getCore();
+    const src: FlowSource = { articles: c.articles, flows: c.flows, load: (id) => json<FlowView>(`flow/${id}.json`) };
+    const body = (init as { json?: unknown } | undefined)?.json ?? (typeof init?.body === 'string' ? JSON.parse(init.body) : undefined);
+    const res = await flowRequest(src, method, parts.slice(2), body);
+    if (res !== null) return res as T;
+  }
   if (method !== 'GET') {
     if (typeof window !== 'undefined') window.dispatchEvent(new Event(READ_ONLY_EVENT));
     throw new HttpError(403, { error: 'read_only', message: 'This is a read-only demo; changes are not saved.' });
   }
-  const url = new URL(path, 'https://demo.invalid');
-  const p = url.pathname, q = url.searchParams;
-  const parts = p.split('/').filter(Boolean).map(decodeURIComponent); // ['api', ...]
   if (parts[0] !== 'api') throw notFound();
   const r = parts.slice(1);
   const c = await getCore();
@@ -55,7 +64,6 @@ export async function demoApi<T>(path: string, init?: RequestInit): Promise<T> {
   const fixed = c.gets[p + url.search] ?? c.gets[p];
   if (fixed !== undefined) return fixed as T;
   if (p === '/api/categories') return { categories: c.categories } as T;
-  if (p === '/api/flows') return { flows: c.flows } as T;
   if (p === '/api/articles') return listArticles(c, q) as T;
   if (p === '/api/articles/counts') return { counts: c.counts } as T;
   if (p === '/api/search') return { groups: await search(c, q.get('q') ?? '', Number(q.get('limit')) || 20) } as T;
@@ -75,11 +83,6 @@ export async function demoApi<T>(path: string, init?: RequestInit): Promise<T> {
     if (r.length === 3 && r[2] === 'revisions') return { revisions: a.revisions } as T;
     if (r.length === 4 && r[2] === 'revisions' && a.revisionDocs[r[3]!]) return a.revisionDocs[r[3]!] as T;
     throw notFound();
-  }
-  if (r[0] === 'flows' && r[1] && r.length === 2) {
-    const id = c.flowKeys[r[1]];
-    if (!id) throw notFound();
-    return json<T>(`flow/${id}.json`);
   }
   if (r[0] === 'auth') throw forbidden();
   throw notFound();
@@ -152,7 +155,10 @@ async function search(c: Core, q: string, limit: number): Promise<SearchGroup[]>
   const art = scored.filter((s) => s.a.type !== 'glossary').map(toHit), glo = scored.filter((s) => s.a.type === 'glossary').map(toHit);
   if (art.length) groups.push({ kind: 'article', hits: art });
 
-  const flows = c.search.flows.filter((f) => all(`${f.title} ${f.body}`))
+  // flows changed this visit replace their snapshot rows
+  const own = changedFlowIndex(), ownIds = new Set(own.map((f) => f.id));
+  const flowRows = [...c.search.flows.filter((f) => !ownIds.has(c.flows.find((x) => x.slug === f.slug)?.id ?? '')), ...own];
+  const flows = flowRows.filter((f) => all(`${f.title} ${f.body}`))
     .sort((x, y) => (10 * hits(y.title, tokens) + hits(y.body, tokens)) - (10 * hits(x.title, tokens) + hits(x.body, tokens))).slice(0, limit);
   if (flows.length) groups.push({ kind: 'flow', hits: flows.map((f) => ({ id: f.slug, title: f.title, categoryPath: 'Guided flow', snippet: snippet(hits(f.body, tokens) ? f.body : f.title, tokens) })) });
 
