@@ -6,6 +6,8 @@ export class HttpError extends Error {
 }
 
 export async function api<T>(path: string, init?: RequestInit & { json?: unknown }): Promise<T> {
+  // GitHub Pages build: no server; a read-only snapshot answers instead (dropped from the normal build).
+  if (import.meta.env.VITE_STATIC_DEMO === '1') return (await import('../static/demoApi')).demoApi<T>(path, init);
   const { json, ...rest } = init ?? {};
   const res = await fetch(path, {
     credentials: 'same-origin',
