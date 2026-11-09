@@ -1,5 +1,5 @@
 # Read-only demo of Operations Hub on GitHub Pages: the web app in static-demo mode plus a snapshot of the seeded content
-# (`npm run build:pages`). Needs Settings -> Pages -> Source: "GitHub Actions". The full app (editing, sign-in, admin) needs the server.
+# (`npm run build:pages`). Turns Pages on by itself; if the token may not, set Settings -> Pages -> Source: "GitHub Actions". The full app (editing, sign-in, admin) needs the server.
 name: Deploy demo to GitHub Pages
 
 on:
@@ -28,6 +28,8 @@ jobs:
       - run: npm ci
       - run: npm run build:pages
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true # turns Pages on (source: GitHub Actions) if it is still off
       - uses: actions/upload-pages-artifact@v3
         with:
           path: apps/web/dist-pages
